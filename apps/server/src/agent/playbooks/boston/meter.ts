@@ -1,14 +1,29 @@
 import { definePlaybook } from '@appealhero/shared';
 import { RULE_SOURCES } from '../../rules/boston';
-import { fines, pay, photo, platesMatch, postedHoursDefense, question, trafficRules, vehicleDefense, words, value } from './common';
+import {
+  duplicateDefense,
+  incidentQuestion,
+  fines,
+  pay,
+  photo,
+  platesMatch,
+  signDefense,
+  postedHoursDefense,
+  question,
+  trafficRules,
+  vehicleDefense,
+  words,
+  value,
+} from './common';
 export const meter = definePlaybook({
   id: 'boston.meter',
-  version: '1',
+  version: '2',
   title: words('Meter ticket', '计时器罚单', 'Multa de parquímetro'),
   match: (v) => /meter/i.test(v),
   fines: fines('METER FEE UNPAID', 'OVER METER LIMIT', 'METER VIOLATION (OUT OF ORDER)'),
   autoRules: ['meter_free_day', 'meter_hours_in_effect', 'fine_amount', 'appeal_deadline'],
   questions: [
+    incidentQuestion,
     question(
       'payment',
       'choice',
@@ -34,7 +49,9 @@ export const meter = definePlaybook({
     ),
   ],
   defenses: [
+    duplicateDefense,
     vehicleDefense,
+    signDefense,
     postedHoursDefense,
     {
       id: 'displayed_placard',

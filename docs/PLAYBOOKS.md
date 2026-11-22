@@ -100,7 +100,7 @@ export interface RuleDef<I> {
   - 规则型理由必须 `verified: true`。
 - 校验失败时把原因回给模型，案件不推进。
 
-- OTHER（用户自己的理由）只有在用户明确选择“仍要申诉”后，或在通用手册（没有专门手册的罚单类型）下才允许，而且必须引用用户自己的陈述。代码会拒绝模型自行提议的 OTHER。（✅ 已实现）
+- OTHER 在用户选择“仍然申诉”、通用案件、个人酌情请求或有第二张匹配罚单佐证的重复开单陈述时可用。每种情况都必须引用用户本人的陈述。
 
 **所以模型可以帮忙问，但不能编造理由。**
 
@@ -137,6 +137,44 @@ export interface RuleDef<I> {
 | Boston 没有查到按经济状况减免停车罚款的官方政策（2020 年有市议员提议按收入分档，未见落地） | ⚠️ 未核实为“不存在”，只能说“没查到” | dotnews.com 2020-03-05；boston.gov how-pay-parking-ticket |
 | 分期付款 / 其他困难安排 | ⚠️ 未核实，提示用户致电询问 | — |
 | Parking Clerk 电话 617-635-4410（周一至周五 9:00–16:30）、parking@boston.gov | ✅ | https://www.boston.gov/departments/parking-clerk |
+
+<a id="c5-c6-api"></a>
+### 3.2 给 B 的前端接入说明（C5 / B6）
+
+**查找罚单。** 在“帮我查”入口调用 `POST /api/cases`。查询可以直接发 JSON；附带语音时使用 multipart。以下是可直接用于 fake 演示的请求（两个搜索条件任选一个）。
+
+```json
+{"mode":"lookup","plate":"8KDW21","plateState":"MA","lang":"zh"}
+```
+
+```json
+{"mode":"lookup","ticketNumber":"900000002","lang":"en"}
+```
+
+1. 创建返回 HTTP 202 和 `{caseId, jobId}`。按现有流程打开 `GET /api/cases/:id/stream`，监听 `lookup.results`，其载荷包含 `caseId`、`tickets` 和可选的 `message`。刷新页面时读取 `GET /api/cases/:id` 的 `lookupResults`、`lookupMessage`。`lookupResults` 尚未出现表示查询未完成，空数组表示本次查询已结束。
+2. 每行包括罚单号、车牌和州、违章、开单时间、地点、状态及可用的 `fine`、`amountDue`、`decision`。只给 `OPEN` 行显示选择按钮；`PAID`、`APPEALED` 是历史记录。示例 MA 车牌返回四条。即使只有一条也由用户选择。
+3. `plate_lookup_ma_only` 表示需要改填罚单号；`not_found` 表示没有匹配记录。案件保持 `IDENTIFYING`。用 `POST /api/cases/:id/messages` 发送 `{"ticketNumber":"900000002"}` 或新车牌与 `plateState`，在同一个案件里重查。罚单号为 6–12 位数字字符串。
+4. 用户点击后，向 `POST /api/cases/:id/select-ticket` 发送 `{"ticketNumber":"900000001"}`。HTTP 202 表示已接受选择，继续监听调查、评级和事实核对事件。重复选择同一张票可以安全重试。历史票或非本次结果返回 422。查询事实的来源为 `PORTAL_LOOKUP`，后续仍需确认事实和批准英文申诉信。
+
+**个人情况。** 可以在拍照或查询建案时直接渲染共享包的 `CIRCUMSTANCE_QUESTION` 和 `CIRCUMSTANCE_CHOICES`。发送 `circumstances` 字符串，例如 `"student,hardship"`，主动跳过传 `""`。未传此字段时，服务器发一次可跳过的 `agent.message`，同时保存在 `case.messages`。该消息标记 `optional: true`、`multiple: true`，`options[i]` 是本地化标签，`optionValues[i]` 是传回的稳定值。选项不占用 `pendingQuestion`。已有理由充分的周日计时器案件直接进入事实核对。后续选择可通过 `POST /api/cases/:id/messages` 发送相同字段，也可继续发文字、语音或证据。
+
+| 选项 ID | 用户核对的事实键 |
+|---|---|
+| `student`, `hardship` | `hardship`，保留用户实际选择的陈述 |
+| `outOfState`, `firstVisit` | 各自同名的键 |
+| `emergency`, `breakdown`, `loading`, `stolen`, `sold` | `circumstance` |
+
+**强度卡。** 使用 SSE `triage` 事件的 `triage`，刷新时使用 `case.triage`。把卡放在事实核对前。以上返回值的类型可从 `@appealhero/shared` 导入。
+
+| 字段 | B 的展示方式 |
+|---|---|
+| `strength`, `strengthWhy` | 将 `STRONG / MODERATE / WEAK / NONE` 映射为“强 / 中 / 弱 / 未找到理由”，显示后端按用户语言给出的依据。 |
+| `rebuttals`, `evidenceToAdd` | 展示可能的反驳，以及每项可补材料的 `what` 和 `why`。 |
+| `considerations` | 用事实 ID 关联 `case.facts`，展示用户提供的情况。首次核对后，该陈述才能进入英文申诉信。 |
+| `recommendation`, `disputeReason`, `reasons` | 建议和理由与强度分开展示。只有个人情况时返回 `APPEAL / OTHER / WEAK`；有具体理由时同时保留个人情况。 |
+| `fineAmount`, `latePenalty`, `deadline` | 仅在有值时显示。酌情申诉仍应展示费用及期限，让用户自行决定。在事实核对页选择缴费时，向 `POST /api/cases/:id/decision` 发 `{"choice":"accept_pay"}`。 |
+
+可用三个场景验收强度卡：工作日计时器、学生付不起且没有收据 → 弱；首次到访、路牌照片显示遮挡 → 中；消防栓罚单且车牌相符、没有其他情况 → 未找到理由，建议缴费。
 
 ## 4. 首批手册
 

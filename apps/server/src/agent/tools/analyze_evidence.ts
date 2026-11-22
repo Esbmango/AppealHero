@@ -1,17 +1,19 @@
 import { z } from 'zod';
 import { defineTool, type ToolResult } from '@appealhero/shared';
 import type { ToolCtx } from './types';
+import { extractTicket } from '../perception';
+import { samePlate } from '../rules/boston';
 import { readDemoTruth } from '../perception/demoTruth';
 import { config } from '../../core/config';
 import { publishFacts, type Ctx } from '../../core/ctx';
-import type { CaseRecord, EvidenceRecord } from '../../core/types';
+import type { EvidenceRecord } from '../../core/types';
 import { str } from '../../core/util';
-import { latestFact, upsertFact } from '../policy/facts';
+import { upsertFact } from '../policy/facts';
 import { generateJson, inlinePart } from '../llm';
 
 const params = z.object({
   evidence_id: z.string(),
-  extract: z.enum(['paid_until', 'sign_text', 'permit_sticker', 'hydrant_context', 'vehicle_description', 'general']),
+  extract: z.enum(['paid_until', 'sign_text', 'permit_sticker', 'hydrant_context', 'vehicle_description', 'duplicate_notice', 'general']),
   question: z.string().optional(),
 });
 
@@ -33,7 +35,31 @@ async function analyzeEvidence(ctx: Ctx, caseId: string, a: Record<string, unkno
   const ev = c.evidence.find((e) => e.id === str(a.evidence_id));
   if (!ev || ev.kind === 'audio') throw new Error(`no photo evidence with id ${str(a.evidence_id)}`);
   const extract = str(a.extract) || 'general';
-  const finding = config.aiMode === 'gemini' ? await analyzeWithGemini(ctx, caseId, ev, extract, str(a.question)) : fakeFinding(c, ev, extract);
+  let finding: Finding;
+  if (extract === 'duplicate_notice') {
+    const other = config.aiMode === 'fake' ? readDemoTruth(ev.path) : await extractTicket(ctx, caseId, { ticket: ev, lang: c.lang });
+    const t = c.ticket;
+    const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+    const match =
+      t &&
+      other &&
+      (!('kind' in other) || other.kind === 'ticket') &&
+      other.ticketNumber &&
+      other.ticketNumber !== t.ticketNumber &&
+      samePlate(other.plateNumber, t.plate) &&
+      other.plateState.toUpperCase() === t.state &&
+      Date.parse(other.issuedAt) === Date.parse(t.issuedAt) &&
+      normalize(other.location) === normalize(t.location) &&
+      normalize(other.violationDescription) === normalize(t.violation)
+        ? other.ticketNumber
+        : undefined;
+    finding = match
+      ? {
+          summary: 'Distinct ticket with matching vehicle, time, place and violation.',
+          facts: [{ key: 'duplicateNotice', label: 'Other ticket number for the same incident', value: match }],
+        }
+      : { summary: 'No matching second notice established.', facts: [] };
+  } else finding = config.aiMode === 'gemini' ? await analyzeWithGemini(ctx, caseId, ev, extract, str(a.question)) : fakeFinding(ev, extract);
   const ids: string[] = [];
   ctx.store.mutate(caseId, (r) => {
     for (const f of finding.facts) ids.push(upsertFact(r, { ...f, provenance: 'PHOTO_EVIDENCE', status: 'NEEDS_CONFIRMATION', sourceRef: ev.id }).id);
@@ -123,8 +149,7 @@ async function analyzeWithGemini(ctx: Ctx, caseId: string, ev: EvidenceRecord, e
 }
 
 /** Fake mode: deterministic findings so the flows can be demoed without a key. */
-function fakeFinding(c: CaseRecord, ev: EvidenceRecord, extract: string): Finding {
-  const issued = latestFact(c, 'issuedAt')?.value ?? new Date().toISOString();
+function fakeFinding(ev: EvidenceRecord, extract: string): Finding {
   if (extract === 'paid_until') {
     const truth = readDemoTruth(ev.path);
     if (truth?.kind === 'receipt')
@@ -136,19 +161,16 @@ function fakeFinding(c: CaseRecord, ev: EvidenceRecord, extract: string): Findin
           { key: 'receiptPlate', label: 'Plate on receipt', value: truth.plate },
         ],
       };
-    const until = new Date(new Date(issued).getTime() + 13 * 60_000).toISOString();
-    return {
-      summary: '[fake] receipt shows paid until 13 minutes after the ticket time',
-      facts: [{ key: 'paidUntil', label: 'Paid until (receipt)', value: until }],
-    };
+    return { summary: '[fake] no supported payment receipt in this image', facts: [] };
   }
   if (extract === 'sign_text') {
-    const obscured = /遮|看不清|obscur|hidden|block/i.test(latestFact(c, 'userAccount')?.value ?? '');
+    const truth = readDemoTruth(ev.path);
+    if (truth?.kind !== 'sign') return { summary: '[fake] sign visibility unavailable in this image', facts: [] };
     return {
-      summary: obscured ? '[fake] sign partially obscured by branches' : '[fake] sign clearly visible',
+      summary: '[fake] sign information from the synthetic image',
       facts: [
-        { key: 'signText', label: 'Sign text (photo)', value: 'RESIDENT PERMIT PARKING ONLY · MON–SAT 8AM–6PM' },
-        { key: 'signVisibility', label: 'Sign visibility (photo)', value: obscured ? 'partially_obscured' : 'clear' },
+        { key: 'signText', label: 'Sign text (photo)', value: truth.text },
+        { key: 'signVisibility', label: 'Sign visibility (photo)', value: truth.visibility },
       ],
     };
   }

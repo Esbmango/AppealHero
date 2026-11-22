@@ -50,6 +50,9 @@ export const ChatMessageSchema = z.object({
   questionId: z.string().optional(),
   expects: z.enum(['text', 'photo', 'choice', 'yesno']).optional(),
   options: z.array(z.string()).optional(),
+  optional: z.boolean().optional(),
+  multiple: z.boolean().optional(),
+  optionValues: z.array(z.string()).optional(),
   evidenceIds: z.array(z.string()).optional(),
 });
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
@@ -60,6 +63,11 @@ export type Ground = z.infer<typeof GroundSchema>;
 export const TriageSchema = z.object({
   recommendation: z.enum(['APPEAL', 'PAY']),
   summary: z.string(),
+  strength: z.enum(['STRONG', 'MODERATE', 'WEAK', 'NONE']),
+  strengthWhy: z.string(),
+  rebuttals: z.array(z.string()).optional(),
+  evidenceToAdd: z.array(z.object({ what: z.string(), why: z.string() })).optional(),
+  considerations: z.array(z.string()).optional(),
   reasons: z.array(GroundSchema),
   /** APPEAL only: the portal dispute type the writer will use once the facts are confirmed */
   disputeReason: DisputeReasonSchema.optional(),
@@ -197,6 +205,8 @@ export const TicketInfoSchema = z.object({
   location: z.string(),
   fine: z.number().optional(),
   status: TicketStatusSchema.optional(),
+  amountDue: z.number().nonnegative().optional(),
+  decision: z.enum(['PENDING', 'ACCEPTED', 'DENIED']).optional(),
   source: z.enum(['TICKET_OCR', 'PORTAL_LOOKUP']),
 });
 export type TicketInfo = z.infer<typeof TicketInfoSchema>;
@@ -224,6 +234,7 @@ export const CaseViewSchema = z.object({
   ticket: TicketInfoSchema.optional(),
   /** read-only portal lookup results waiting for the user's choice (mode=lookup) */
   lookupResults: z.array(TicketInfoSchema).optional(),
+  lookupMessage: z.enum(['plate_lookup_ma_only', 'not_found']).optional(),
   playbookId: z.string().optional(),
   violationType: z.string().optional(),
   facts: z.array(FactSchema),

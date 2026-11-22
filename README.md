@@ -20,9 +20,9 @@ For residents who are more at home in Chinese or Spanish, that friction can be e
 
 ## What it does
 
-1. **Start with a photo.** Upload a ticket photo and optionally add a typed or spoken explanation. Plate and ticket-number lookup are planned.
+1. **Identify a ticket.** Upload a photo in the app, or use the lookup API to search the simulated portal by Massachusetts plate or by ticket number. Choose an open ticket to continue.
 2. **Asks only what matters.** Each ticket type has a playbook, plus deterministic rules that cite boston.gov. For example, meters are free on Sundays and city holidays, so a Sunday meter ticket needs zero questions.
-3. **Honest triage.** If there's no real ground, it says so and shows the fine and the deadline instead of inventing an excuse.
+3. **Review the recommendation.** Each assessment explains the strength of the case, possible objections, and evidence that could help. Drivers can include personal circumstances for a discretionary request. The API also returns available fine, late-fee and deadline information.
 4. **Two confirmations.** You confirm the facts first. Then you approve the exact statement, shown in English with your language side by side.
 5. **Files it for you.** A browser agent fills in the (simulated) portal, reads the values back, and submits exactly once.
 6. **Verifiable afterwards.** The console shows a live timeline and screenshots. The proof API returns the approved form, its fingerprint, the read-back comparison, the confirmation number, the audit-chain head and a downloadable Playwright trace. The dedicated phone proof screen is a separate frontend task.
@@ -36,7 +36,8 @@ For residents who are more at home in Chinese or Spanish, that friction can be e
 | Browser filing with Playwright | Default T1/T2 verified on the redesigned portal. Live T3 Computer Use did not complete the redesign trial. |
 | Read-back gate, one-shot submit interlock, check-status-before-retry | ✅ v0.2 |
 | Judge console: state machine, live screenshots, tool trace, time and cost | ✅ v0.2 |
-| Plate or ticket-number lookup | Optional C5, pending |
+| Plate or ticket-number lookup | Read-only API and explicit ticket selection tested against the simulated portal |
+| Case strength and personal circumstances | Backend and shared contract tested in fake mode. [Frontend integration guide](docs/PLAYBOOKS.md#c5-c6-api) |
 | Separate fact confirmation and statement approval; statement edits | ✅ v2 (WP0) |
 | Chinese / Spanish / English interface | 🆕 v2 |
 | Proof API, status check, audit trail and downloadable Playwright trace | Backend tested. Phone proof page pending. |

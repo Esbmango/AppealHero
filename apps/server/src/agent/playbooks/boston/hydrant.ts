@@ -1,13 +1,14 @@
 import { definePlaybook } from '@appealhero/shared';
-import { fines, pay, question, trafficRules, value, vehicleDefense, words } from './common';
+import { duplicateDefense, incidentQuestion, fines, pay, question, trafficRules, value, vehicleDefense, words } from './common';
 export const hydrant = definePlaybook({
   id: 'boston.hydrant',
-  version: '1',
+  version: '2',
   title: words('Fire hydrant', '消防栓', 'Hidrante'),
   match: (v) => /hydrant/i.test(v),
   autoRules: ['fine_amount', 'appeal_deadline'],
   fines: fines('HYDRANT'),
   questions: [
+    incidentQuestion,
     question(
       'vehicleMatches',
       'choice',
@@ -35,6 +36,7 @@ export const hydrant = definePlaybook({
     ),
   ],
   defenses: [
+    duplicateDefense,
     {
       id: 'reported_distance',
       reason: 'OTHER',

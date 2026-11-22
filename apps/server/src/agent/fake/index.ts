@@ -1,3 +1,5 @@
+import { personalFacts } from '../runtime/circumstances';
+import { readDemoTruth } from '../perception/demoTruth';
 import { say, type Ctx } from '../../core/ctx';
 import { latestFact } from '../policy/facts';
 import { fineFor, formatBoston } from '../rules/boston';
@@ -62,7 +64,15 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
       );
     await tool('propose_outcome', { recommendation: 'APPEAL', dispute_reason: reason, summary_user_lang: summary, grounds });
   };
+  const personal = personalFacts(c0);
+  const requestDiscretion = () =>
+    proposeAppeal(
+      'OTHER',
+      personal.map((f) => ({ text_en: f.note ?? f.value, fact_ids: [f.id] })),
+      '',
+    );
   const proposePay = async (why: string, whyEn: string, factIds: string[]) => {
+    if (personal.length) return requestDiscretion();
     const f0 = fineFor(fact('violation')?.value, Number(fact('fineAmount')?.value) || undefined, c0.violationType);
     const f = f0.fine !== undefined ? { fine: f0.fine, late: f0.late } : undefined;
     await tool('check_rule', { rule: 'appeal_deadline' });
@@ -89,6 +99,108 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
     );
   }
 
+  const statement = input.kind === 'start' ? [account?.value, fact('voiceAccount')?.value].filter(Boolean).join('\n') : text;
+  const visitor = personal.some((f) => f.key === 'outOfState' || f.key === 'firstVisit');
+  if (awaiting === 'visitorEvidence' && input.kind === 'user' && text)
+    await tool('record_fact', { key: 'visitorCheck', label: 'What happened at the parking space', value: text, provenance: 'USER_TEXT' });
+  if (
+    /\b(?:the (?:plate|vehicle) on (?:the|my) ticket (?:is wrong|is not mine)|(?:my|the) ticket (?:lists|shows|has) (?:a |the )?(?:wrong|different) (?:vehicle|plate))\b|车牌不符|不是我的车|la placa no es mía/i.test(
+      statement,
+    )
+  ) {
+    await tool('record_fact', { key: 'vehicleMatches', label: 'Vehicle on the citation', value: 'No — ' + statement, provenance: 'USER_TEXT' });
+  }
+  if (fact('vehicleMatches')?.value.startsWith('No') && fact('plateNumber'))
+    return proposeAppeal(
+      'VEHICLE_INFO',
+      [{ text_en: 'I reported that the vehicle on the ticket does not match mine.', fact_ids: [fact('vehicleMatches')!.id, fact('plateNumber')!.id] }],
+      T('罚单上的车辆信息可能有误，请核对。', 'Please review the reported discrepancy in the vehicle details.'),
+    );
+  if (/\b(?:the sign was clear|I could clearly see the sign) when I parked\b|停车时路牌很清楚|la señal estaba clara cuando estacioné/i.test(statement))
+    await tool('record_fact', { key: 'signClearAtIssue', label: 'Sign clearly visible when I parked', value: 'yes', provenance: 'USER_TEXT' });
+  if (
+    /\bI (?:received|got) (?:two|duplicate) (?:tickets|notices) for the same (?:incident|parking|event)\b|同一次停车.*收到两张罚单|recibí dos multas por el mismo/i.test(
+      statement,
+    )
+  )
+    await tool('record_fact', { key: 'duplicateReport', label: 'Reported duplicate tickets', value: statement, provenance: 'USER_TEXT' });
+  const photos = c0.evidence.filter((e) => e.kind === 'evidence_photo' && !c0.fake.analyzed.includes(e.id));
+  for (const photo of photos) {
+    const kind = readDemoTruth(photo.path)?.kind;
+    if (kind === 'sign' && (c0.violationType === 'RESIDENT_PERMIT' || c0.violationType === 'METER'))
+      await tool('analyze_evidence', { evidence_id: photo.id, extract: 'sign_text' });
+    if (kind === 'ticket' && fact('duplicateReport')) await tool('analyze_evidence', { evidence_id: photo.id, extract: 'duplicate_notice' });
+  }
+  async function offerOtherGround() {
+    const vis = fact('signVisibility'),
+      sign = fact('signText');
+    if (vis && sign && ['partially_obscured', 'not_visible'].includes(vis.value)) {
+      const clear = fact('signClearAtIssue');
+      const description = clear
+        ? 'The photo shows an obscured sign, although I recall that the sign was clear when I parked.'
+        : 'The attached photo shows an obscured sign.';
+      await proposeAppeal(
+        'SIGNAGE',
+        [
+          {
+            text_en: description + ' I ask that its visibility from the parking space be reviewed.',
+            fact_ids: [vis.id, sign.id, ...(clear ? [clear.id] : [])],
+          },
+        ],
+        c0.lang === 'es'
+          ? 'Revisa la evidencia sobre la visibilidad de la señal.'
+          : T('请核对照片和开单时的路牌可见度。', 'Please review the evidence about the sign’s visibility.'),
+      );
+      return true;
+    }
+    const report = fact('duplicateReport'),
+      duplicate = fact('duplicateNotice');
+    if (report) {
+      if (duplicate)
+        await proposeAppeal(
+          'OTHER',
+          [
+            {
+              text_en: 'I received two notices for the same parking incident. Please compare this ticket with notice ' + duplicate.value + '.',
+              fact_ids: [report.id, duplicate.id],
+            },
+          ],
+          T('两张罚单的车辆、时间、地点和违章事项相同，请核对。', 'The two notices record the same vehicle, time, place and violation.'),
+        );
+      else if (!photos.length && awaiting !== 'duplicateNotice')
+        await ask(
+          'duplicateNotice',
+          c0.lang === 'zh'
+            ? '可以上传另一张罚单吗？我会核对两个编号及当天的记录。'
+            : c0.lang === 'es'
+              ? '¿Puedes subir la otra multa para comparar los números y los datos?'
+              : 'Can you upload the other notice so I can compare both numbers and records?',
+          'Can you upload the other notice so I can compare both numbers and records?',
+          'photo',
+        );
+      else return false;
+      return true;
+    }
+    return false;
+  }
+  async function visitorQuestion() {
+    const en = 'Was the sign unclear, was the street unmarked, or did the parking app fail? You can add a photo or receipt, or say none.';
+    return ask(
+      'visitorEvidence',
+      c0.lang === 'zh'
+        ? '路牌是否看不清、路口是否缺少标志，或者付款 App 是否出错？可以补照片或收据，也可以说没有。'
+        : c0.lang === 'es'
+          ? '¿La señal era poco clara, faltaba señalización o falló la aplicación de pago? Puedes aportar una foto o recibo, o decir que no.'
+          : en,
+      en,
+      'photo',
+    );
+  }
+  if (c0.violationType !== 'METER' && (await offerOtherGround())) return;
+  const noPaymentEvidence =
+    /no (?:receipt|evidence)|without a receipt|did not pay|didn.t pay|没(?:有)?(?:收据|凭证|付款)|未付款|sin recibo|no pagué|^no\b/i.test(
+      [account?.value, statement].filter(Boolean).join('\n'),
+    );
   switch (c0.violationType) {
     case 'METER': {
       const free = (await tool('check_rule', { rule: 'meter_free_day' })).result as { result: unknown; factId: string };
@@ -110,8 +222,8 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
         );
       }
       const photo = ctx.store.must(caseId).evidence.find((e) => e.kind === 'evidence_photo' && !ctx.store.must(caseId).fake.analyzed.includes(e.id));
-      if (photo) {
-        await tool('analyze_evidence', { evidence_id: photo.id, extract: 'paid_until' });
+      if (photo) await tool('analyze_evidence', { evidence_id: photo.id, extract: 'paid_until' });
+      if (fact('paidUntil')) {
         const cover = (await tool('check_rule', { rule: 'receipt_covers_ticket' })).result as { result: unknown; factId: string; detail: string };
         if (cover.result === true)
           return proposeAppeal(
@@ -122,8 +234,12 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
               'Your receipt covers the ticket time. Please confirm the facts below first; I will write the statement after that.',
             ),
           );
+        if (await offerOtherGround()) return;
         return proposePay('付款有效期没有覆盖罚单开具时间', 'the payment period does not cover the time the ticket was issued', [cover.factId]);
       }
+      if (await offerOtherGround()) return;
+      if (visitor && !fact('visitorCheck')) return visitorQuestion();
+      if (personal.length && (noPaymentEvidence || fact('visitorCheck'))) return requestDiscretion();
       if (input.kind === 'user' && /没付|没有付|didn.?t pay|did not pay|^no\b/i.test(text))
         return proposePay('当时没有付费，且不在免费时段', 'parking was not paid and meters were in effect', [hours.factId]);
       return ask(
@@ -134,8 +250,9 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
       );
     }
     case 'HYDRANT': {
+      if (visitor && !fact('visitorCheck')) return visitorQuestion();
       if (awaiting === 'vehicleMatch' && input.kind === 'user') {
-        if (/不一致|不对|不是|wrong|no/i.test(text)) {
+        if (/^(?:不一致|不对|不是我的车|不匹配|no[.!。]?$|no, (?:they|it) (?:do|does) not match|wrong (?:plate|vehicle)|no coincide)/i.test(text.trim())) {
           await tool('record_fact', {
             key: 'vehicleMatches',
             label: 'Vehicle details on ticket match my car',
@@ -152,6 +269,10 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
             ),
           );
         }
+        if (/^(?:一致|匹配|是的|yes\b|they match\b|sí\b|coinciden\b)/iu.test(text.trim()))
+          await tool('record_fact', { key: 'vehicleMatches', label: 'Vehicle details on ticket match my car', value: 'Yes', provenance: 'USER_TEXT' });
+      }
+      if (fact('vehicleMatches')?.value === 'Yes') {
         const fine = (await tool('check_rule', { rule: 'fine_amount' })).result as { factId: string };
         return proposePay('消防栓前停车没有豁免，且罚单车辆信息与你的车一致', 'parking at a hydrant has no exemption and the vehicle details are correct', [
           fine.factId,
@@ -166,30 +287,16 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
       );
     }
     case 'RESIDENT_PERMIT': {
-      const photo = ctx.store.must(caseId).evidence.find((e) => e.kind === 'evidence_photo' && !ctx.store.must(caseId).fake.analyzed.includes(e.id));
-      if (photo) {
-        await tool('analyze_evidence', { evidence_id: photo.id, extract: 'sign_text' });
-        const vis = fact('signVisibility');
-        if (vis?.value !== 'clear')
-          return proposeAppeal(
-            'SIGNAGE',
-            [
-              {
-                text_en:
-                  'The resident-permit sign at this location was partially obscured and not readable from the parking space, as shown in the attached photo.',
-                fact_ids: [vis!.id, fact('signText')!.id],
-              },
-            ],
-            T(
-              '照片显示路牌被遮挡，可以申诉。请先核对下面的事实，确认后我再写申诉信。',
-              'The photo shows an obscured sign. Please confirm the facts below first; I will write the statement after that.',
-            ),
-          );
-        return proposePay('路牌清晰可见且适用', 'the resident-permit sign is clearly visible and applies', [vis.id]);
-      }
+      if (visitor && !fact('visitorCheck')) return visitorQuestion();
+      if (personal.length && (fact('visitorCheck') || (awaiting === 'sign' && text) || /no (?:other )?evidence|没有证据|sin pruebas/i.test(statement)))
+        return requestDiscretion();
+      const vis = fact('signVisibility');
+      if (vis?.value === 'clear') return proposePay('照片中的路牌清晰可见', 'the sign is clearly visible in the photo', [vis.id]);
       return ask('sign', '现场的 Resident Permit 路牌清楚吗？请拍一张路牌照片。', 'Was the resident-permit sign clear? Please upload a photo of it.', 'photo');
     }
     default: {
+      if (visitor && !fact('visitorCheck')) return visitorQuestion();
+      if (personal.length) return requestDiscretion();
       if (account)
         return proposeAppeal(
           'OTHER',

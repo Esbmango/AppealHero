@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { readLookup } from '../adapters/mockBoston/lookup';
 import { tracePath } from '../../audit/proof';
 import type { BrowserContext } from 'playwright';
-import { ADAPTER_VERSION, type ApprovalPayload, type Receipt, type Tier } from '@appealhero/shared';
+import { ADAPTER_VERSION, type TicketQuery, type ApprovalPayload, type Receipt, type Tier } from '@appealhero/shared';
 import { config } from '../../core/config';
 import { buildApprovalPayload, hashPayload, verifyToken } from '../../approval';
 import { publishMetrics, reportError, type Ctx } from '../../core/ctx';
@@ -52,6 +53,16 @@ async function newGuardedPage(ctx: Ctx, caseId: string, interlock: Interlock) {
   // Known overlays are dismissed explicitly at each step (PortalSession.dismissOverlays) rather than with
   // page.addLocatorHandler: the handler only fires on locator actions, never on Computer Use mouse events.
   return { context, page };
+}
+
+export async function lookupTickets(ctx: Ctx, caseId: string, query: TicketQuery) {
+  const g = await newGuardedPage(ctx, caseId, new Interlock());
+  try {
+    await g.context.route('**/*', (route) => (route.request().method() === 'GET' ? route.fallback() : route.abort('blockedbyclient')));
+    return await readLookup(g.page, config.mockPortalUrl, query);
+  } finally {
+    await g.context.close();
+  }
 }
 
 function readbackPayload(approved: ApprovalPayload, review: ReviewReadback): ApprovalPayload {

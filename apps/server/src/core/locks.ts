@@ -20,6 +20,9 @@ export function serial(key: string, fn: () => Promise<void>): Promise<void> {
   return run;
 }
 
+// Approval and fact confirmation must see any user input already queued for this case.
+export const pendingUserTurn = (caseId: string) => tails.get(caseId);
+
 const held = new Set<string>();
 
 export async function exclusive(key: string, fn: () => Promise<void>): Promise<boolean> {

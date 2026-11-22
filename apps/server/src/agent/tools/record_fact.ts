@@ -1,3 +1,4 @@
+import { isCircumstanceKey, storeStatement } from '../runtime/circumstances';
 import { z } from 'zod';
 import { defineTool, type ToolResult } from '@appealhero/shared';
 import type { ToolCtx } from './types';
@@ -31,6 +32,24 @@ function recordFact(ctx: Ctx, caseId: string, a: Record<string, unknown>): ToolR
   const value = str(a.value).trim();
   if (!value) throw new Error('value is required');
   const c = ctx.store.must(caseId);
+  if (
+    key === 'duplicateReport' &&
+    !c.messages.some((m) => m.role === 'user' && m.text.includes(value)) &&
+    !c.extraction?.userStatement?.original.includes(value)
+  )
+    throw new Error('Quote the driver’s own report of duplicate tickets.');
+  if (isCircumstanceKey(key)) {
+    const said = c.messages.filter((m) => m.role === 'user').map((m) => m.text);
+    if (c.extraction?.userStatement?.original) said.push(c.extraction.userStatement.original);
+    const current = latestFact(c, key);
+    if (current?.value.split('\n').includes(value)) return { result: { factId: current.id, status: current.status } };
+    if (!said.some((message) => message.includes(value))) throw new Error('Cite the original words of the driver for a personal circumstance.');
+    ctx.store.mutate(caseId, (r) => {
+      storeStatement(r, key, value, str(a.english) || undefined, a.provenance === 'USER_VOICE' ? 'USER_VOICE' : 'USER_TEXT');
+    });
+    publishFacts(ctx, caseId);
+    return { result: { factId: latestFact(c, key)!.id, status: 'USER_STATEMENT' } };
+  }
   const existing = latestFact(c, key);
   if (existing && existing.value === value && existing.status === 'CONFIRMED') return { result: { factId: existing.id, status: 'already confirmed' } };
   let id = '';

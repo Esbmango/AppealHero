@@ -4,8 +4,9 @@ import { serial } from '../../core/locks';
 import { extractTicket, transcribeAudio } from '../perception';
 import { upsertFact } from '../policy/facts';
 import { investigate } from './investigate';
-import { matchPlaybook } from '../playbooks';
-import { classifyViolation } from '../rules/boston';
+import type { CircumstanceChoice } from '@appealhero/shared';
+import { readPersonalStatement, recordChoices } from './circumstances';
+import { identifyTicket } from './ticket';
 import { requestRevision } from '../writer';
 
 /** Step 1: ticket photo (+voice/text) → facts → INVESTIGATING → first agent turn. */
@@ -20,30 +21,21 @@ async function runExtractionNow(ctx: Ctx, caseId: string, input: { ticketId: str
     const ext = await extractTicket(ctx, caseId, { ticket, audio, text: input.text, lang: c.lang });
     ctx.store.mutate(caseId, (r) => {
       r.extraction = ext;
-      r.violationType = classifyViolation(ext.violationDescription);
-      r.playbookId = matchPlaybook(ext.violationDescription)?.id;
-      r.ticket = {
-        ticketNumber: ext.ticketNumber,
-        plate: ext.plateNumber,
-        state: ext.plateState?.toUpperCase() ?? '',
-        violation: ext.violationDescription,
-        issuedAt: ext.issuedAt,
-        location: ext.location,
-        fine: ext.fineAmount,
-        source: 'TICKET_OCR',
-      };
-      const ocr = (key: string, label: string, value: unknown) => {
-        if (value !== undefined && value !== null && String(value).trim())
-          upsertFact(r, { key, label, value: String(value).trim(), provenance: 'TICKET_OCR', status: 'NEEDS_CONFIRMATION', sourceRef: ticket.id });
-      };
-      ocr('ticketNumber', 'Ticket number', ext.ticketNumber);
-      ocr('plateNumber', 'Plate number', ext.plateNumber);
-      ocr('plateState', 'Registration state', ext.plateState?.toUpperCase());
-      ocr('violation', 'Violation', ext.violationDescription);
-      ocr('issuedAt', 'Issued at', ext.issuedAt);
-      ocr('location', 'Location', ext.location);
-      ocr('fineAmount', 'Fine (USD)', ext.fineAmount);
-      if (ext.userStatement?.original)
+      identifyTicket(
+        r,
+        {
+          ticketNumber: ext.ticketNumber,
+          plate: ext.plateNumber,
+          state: ext.plateState?.toUpperCase() ?? '',
+          violation: ext.violationDescription,
+          issuedAt: ext.issuedAt,
+          location: ext.location,
+          fine: ext.fineAmount,
+          source: 'TICKET_OCR',
+        },
+        ticket.id,
+      );
+      if (ext.userStatement?.original) {
         upsertFact(r, {
           key: 'userAccount',
           label: 'Your account',
@@ -53,6 +45,8 @@ async function runExtractionNow(ctx: Ctx, caseId: string, input: { ticketId: str
           status: 'USER_STATEMENT',
           sourceRef: audio?.id,
         });
+        readPersonalStatement(r, ext.userStatement.original, audio ? 'USER_VOICE' : 'USER_TEXT');
+      }
       r.metrics.agentMs += Date.now() - t0;
     });
     publishFacts(ctx, caseId);
@@ -67,24 +61,44 @@ async function runExtractionNow(ctx: Ctx, caseId: string, input: { ticketId: str
 
 /** Step 2: a user reply (text / voice / photos). In FACTS_REVIEW it sends the case back to INVESTIGATING;
  *  in STATEMENT_REVIEW it is a revision request for the writer. */
-async function continueInvestigationNow(ctx: Ctx, caseId: string, input: { text: string; evidenceIds: string[]; audioId?: string }) {
+async function continueInvestigationNow(
+  ctx: Ctx,
+  caseId: string,
+  input: { text: string; evidenceIds: string[]; audioId?: string; choices?: CircumstanceChoice[] },
+) {
   try {
+    let voice = '';
     let text = input.text;
     const c = ctx.store.must(caseId);
     if (input.audioId) {
       const audio = c.evidence.find((e) => e.id === input.audioId);
       if (audio) {
         const t = await transcribeAudio(ctx, caseId, audio, c.lang);
-        text = [text, t.original].filter(Boolean).join('\n');
+        voice = t.original;
+        text = [text, voice].filter(Boolean).join('\n');
         say(ctx, caseId, `🎙 ${t.original}`, { role: 'user', textEn: t.english });
       }
     }
     const state = ctx.store.must(caseId).state;
-    if (state === 'STATEMENT_REVIEW') {
+    if (!['INVESTIGATING', 'FACTS_REVIEW', 'STATEMENT_REVIEW', 'NEEDS_USER', 'CLOSED_NO_APPEAL'].includes(state)) return;
+    let factsChanged = false;
+    ctx.store.mutate(caseId, (r) => {
+      const choicesChanged = recordChoices(r, input.choices ?? []);
+      const statementChanged = readPersonalStatement(r, input.text, 'USER_TEXT');
+      const voiceChanged = !!voice && readPersonalStatement(r, voice, 'USER_VOICE');
+      factsChanged = choicesChanged || statementChanged || voiceChanged;
+    });
+    if (!factsChanged && !text && !input.evidenceIds.length) return;
+    if (factsChanged) publishFacts(ctx, caseId);
+    if (state === 'STATEMENT_REVIEW' && factsChanged) {
+      transition(ctx, caseId, 'FACTS_REVIEW', 'user', 'new personal circumstances require confirmation', (r) => {
+        r.approval = undefined;
+      });
+    } else if (state === 'STATEMENT_REVIEW') {
       if (text.trim()) requestRevision(ctx, caseId, text.trim());
       return;
     }
-    if (state === 'FACTS_REVIEW' || state === 'NEEDS_USER' || state === 'CLOSED_NO_APPEAL')
+    if (ctx.store.must(caseId).state === 'FACTS_REVIEW' || state === 'NEEDS_USER' || state === 'CLOSED_NO_APPEAL')
       transition(ctx, caseId, 'INVESTIGATING', 'user', 'user added information', (r) => {
         r.approval = undefined;
       });
@@ -99,7 +113,7 @@ async function appealAnywayNow(ctx: Ctx, caseId: string) {
     if (ctx.store.must(caseId).state === 'CLOSED_NO_APPEAL') transition(ctx, caseId, 'INVESTIGATING', 'user', 'user reopened the case');
     ctx.store.mutate(caseId, (r) => {
       r.triage = undefined;
-      r.appealAnyway = true; // the user's explicit choice — the only way an OTHER appeal is allowed on a playbook ticket
+      r.appealAnyway = true; // the user can request review even when no grounds were found
     });
     await investigate(ctx, caseId, { kind: 'decision', choice: 'appeal_anyway' });
   } catch (err) {
@@ -111,6 +125,9 @@ async function appealAnywayNow(ctx: Ctx, caseId: string) {
 // two agent turns (which would scramble the Gemini history and fail the next call with a 400).
 export const runExtraction = (ctx: Ctx, caseId: string, input: { ticketId: string; audioId?: string; text?: string }) =>
   serial(caseId, () => runExtractionNow(ctx, caseId, input));
-export const continueInvestigation = (ctx: Ctx, caseId: string, input: { text: string; evidenceIds: string[]; audioId?: string }) =>
-  serial(caseId, () => continueInvestigationNow(ctx, caseId, input));
+export const continueInvestigation = (
+  ctx: Ctx,
+  caseId: string,
+  input: { text: string; evidenceIds: string[]; audioId?: string; choices?: CircumstanceChoice[] },
+) => serial(caseId, () => continueInvestigationNow(ctx, caseId, input));
 export const appealAnyway = (ctx: Ctx, caseId: string) => serial(caseId, () => appealAnywayNow(ctx, caseId));

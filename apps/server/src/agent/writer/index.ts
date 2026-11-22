@@ -7,6 +7,7 @@ import { HttpError } from '../../core/util';
 import { approvalPreview } from '../../approval';
 import { latestFact, pendingFactIds, upsertFact, validateGrounds } from '../policy/facts';
 import { generateJson } from '../llm';
+import { personalFacts } from '../runtime/circumstances';
 import { formatBoston } from '../rules/boston';
 
 /**
@@ -29,7 +30,11 @@ export async function composeDraft(
   const revision = opts.revision ?? 1;
   if (config.aiMode === 'gemini') {
     try {
-      const facts = c.facts.map((f) => `${f.id}: ${f.label} = ${f.note ?? f.value} [${f.status}]`).join('\n');
+      const confirmedPersonal = personalFacts(c).filter((f) => f.status === 'CONFIRMED');
+      const facts = c.facts
+        .filter((f) => f.status === 'CONFIRMED' || f.status === 'RULE_VERIFIED')
+        .map((f) => `${f.id}: ${f.label} = ${f.note ?? f.value} [${f.status}]`)
+        .join('\n');
       const out = await generateJson<{ paragraphs: Ground[]; translation: string }>(
         ctx,
         caseId,
@@ -43,6 +48,13 @@ export async function composeDraft(
                 ? [`The user asked for these changes (apply them without adding unlisted facts):\n${opts.instructions.map((i) => `- ${i}`).join('\n')}`]
                 : []),
               `3–5 short paragraphs, at most ${MAX_LEN - 300} characters in total. First paragraph identifies the ticket. No legal threats, no promises, no facts that are not listed.`,
+              ...(confirmedPersonal.length
+                ? [
+                    'Include one respectful request for discretion citing every confirmed personal circumstance id: ' +
+                      confirmedPersonal.map((f) => f.id).join(', ') +
+                      '. Use current fact values; the city decides. Do not describe hardship as a legal defense or promise a reduction.',
+                  ]
+                : []),
               'Every paragraph must list the fact ids it relies on in factIds.',
               `Also return a faithful translation of the whole statement into ${LANGS[c.lang as keyof typeof LANGS] ?? c.lang} in "translation" (for the user to review — it is not submitted).`,
             ].join('\n\n'),
@@ -67,7 +79,16 @@ export async function composeDraft(
       );
       const paragraphs: DraftParagraph[] = out.paragraphs.map((p) => ({ ...p, author: 'agent' }));
       const statement = join(paragraphs);
-      if (!validateGrounds(paragraphs, c.facts).length && statement.length <= MAX_LEN) {
+      if (
+        !validateGrounds(
+          paragraphs,
+          c.facts.filter((f) => f.status === 'CONFIRMED' || f.status === 'RULE_VERIFIED'),
+        ).length &&
+        (!confirmedPersonal.length ||
+          (paragraphs.filter((p) => confirmedPersonal.some((f) => p.factIds.includes(f.id))).length === 1 &&
+            paragraphs.some((p) => confirmedPersonal.every((f) => p.factIds.includes(f.id)) && /respectful|discretion|consideration/i.test(p.text)))) &&
+        statement.length <= MAX_LEN
+      ) {
         return { disputeReason: reason, paragraphs, statementEn: statement, statementUserLang: out.translation || statement, lang: c.lang, revision };
       }
     } catch (err) {
@@ -89,14 +110,61 @@ export function templateDraft(c: CaseRecord, reason: DisputeReason, grounds: Gro
     author: 'agent',
   };
   const closing: DraftParagraph = {
-    text: 'I respectfully request that this ticket be dismissed. The supporting evidence is attached for your review.',
+    text: 'I respectfully request review of this ticket.' + (c.evidence.some((e) => e.submitToPortal) ? ' Please see the attached evidence.' : ''),
     factIds: t ? [t.id] : (grounds[0]?.factIds ?? []),
     author: 'agent',
   };
-  const paragraphs: DraftParagraph[] = [intro, ...grounds.map((g) => ({ ...g, author: 'agent' as const })), closing];
-  let statementEn = join(paragraphs);
-  if (statementEn.length > MAX_LEN) statementEn = statementEn.slice(0, MAX_LEN - 1);
-  return { disputeReason: reason, paragraphs, statementEn, statementUserLang: userLangSummary(c, reason, t?.value ?? ''), lang: c.lang, revision };
+  const personal = personalFacts(c).filter((f) => f.status === 'CONFIRMED');
+  const personalIds = personal.map((f) => f.id);
+  const merits = grounds.filter((g) => !g.factIds.every((id) => personalIds.includes(id)));
+  const details = personal.map((f) => (f.note ?? f.value).replace(/\s+/g, ' ').trim());
+  const mitigation: DraftParagraph[] = personal.length
+    ? [
+        {
+          text:
+            'I respectfully ask the hearing officer to consider my circumstances: ' +
+            details.join(' ') +
+            ' I request any relief the hearing officer considers appropriate.',
+          factIds: personalIds,
+          author: 'agent',
+        },
+      ]
+    : [];
+  const paragraphs: DraftParagraph[] = [intro, ...merits.map((g) => ({ ...g, author: 'agent' as const })), ...mitigation, closing];
+  const statementEn = join(paragraphs);
+  if (statementEn.length > MAX_LEN) {
+    throw new Error(
+      c.lang === 'zh'
+        ? '申诉信超过门户的字符上限。请在事实核对中精简陈述，再确认。'
+        : c.lang === 'es'
+          ? 'La carta supera el límite del portal. Abre la revisión de datos, acorta tu declaración y vuelve a confirmar.'
+          : 'The statement exceeds the portal limit. Shorten your account in fact review and confirm it again.',
+    );
+  }
+  return {
+    disputeReason: reason,
+    paragraphs,
+    statementEn,
+    statementUserLang:
+      c.lang === 'en'
+        ? statementEn
+        : [
+            userLangSummary(c, reason, t?.value ?? ''),
+            ...(personal.length
+              ? [
+                  (c.lang === 'zh'
+                    ? '我请求审核人员酌情考虑：'
+                    : c.lang === 'es'
+                      ? 'Pido que se consideren mis circunstancias: '
+                      : 'I request consideration of my circumstances: ') + personal.map((f) => f.value).join(' '),
+                ]
+              : []),
+          ]
+            .filter(Boolean)
+            .join('\n'),
+    lang: c.lang,
+    revision,
+  };
 }
 
 const ZH_REASON: Record<DisputeReason, string> = {
@@ -119,15 +187,22 @@ const ES_REASON: Record<DisputeReason, string> = {
 };
 
 function userLangSummary(c: CaseRecord, reason: DisputeReason, ticket: string): string {
-  if (c.lang === 'zh') return `（中文对照，仅供你核对；提交的是英文原文）\n我对罚单 ${ticket} 提出申诉。\n${ZH_REASON[reason]}\n恳请撤销该罚单，证据已附上。`;
+  if (c.lang === 'zh') return `（中文对照，仅供你核对；提交的是英文原文）\n我对罚单 ${ticket} 提出申诉。\n${ZH_REASON[reason]}\n恳请审核这张罚单。`;
   if (c.lang === 'es')
-    return `(Traducción solo para que la revises; se envía el texto en inglés)\nApelo la multa ${ticket}.\n${ES_REASON[reason]}\nSolicito respetuosamente que se anule la multa; adjunto la evidencia.`;
+    return `(Traducción solo para que la revises; se envía el texto en inglés)\nApelo la multa ${ticket}.\n${ES_REASON[reason]}\nSolicito respetuosamente que se revise la multa.`;
   return '';
 }
 
 /** What to argue: the agent's proposal (stored when it moved the case to FACTS_REVIEW), or the user's own statement. */
 function plan(c: CaseRecord): { reason: DisputeReason; grounds: Ground[] } {
-  if (c.triage?.recommendation === 'APPEAL' && c.triage.reasons.length) return { reason: c.triage.disputeReason ?? 'OTHER', grounds: c.triage.reasons };
+  if (c.triage?.recommendation === 'APPEAL' && c.triage.reasons.length) {
+    const confirmed = personalFacts(c).filter((f) => f.status === 'CONFIRMED');
+    const grounds = c.triage.reasons.map((g) => {
+      const facts = confirmed.filter((f) => g.factIds.includes(f.id));
+      return facts.length && facts.length === g.factIds.length ? { text: facts.map((f) => f.note ?? f.value).join(' '), factIds: g.factIds } : g;
+    });
+    return { reason: c.triage.disputeReason ?? 'OTHER', grounds };
+  }
   const account = latestFact(c, 'userAccount');
   return { reason: 'OTHER', grounds: account ? [{ text: `In my own words: ${account.note ?? account.value}`, factIds: [account.id] }] : [] };
 }

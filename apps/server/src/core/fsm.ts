@@ -35,7 +35,7 @@ export function transition(ctx: Ctx, caseId: string, to: CaseState, actor: Actor
 export function recoverAfterRestart(c: CaseRecord): string | null {
   const to = RECOVERY[c.state];
   if (!to) return null;
-  if (c.state === 'IDENTIFYING' && c.pendingQuestion) return null; // waiting for the user, not for a dead job
+  if (c.state === 'IDENTIFYING' && (c.pendingQuestion || c.lookupResults !== undefined)) return null; // waiting for the user, not for a dead job
   const from = c.state;
   const reasons: Partial<Record<CaseState, string>> = {
     FILLING: 'server restarted during FILLING — nothing was submitted; safe to retry',

@@ -4,4 +4,6 @@ import type { Ctx } from '../../core/ctx';
 export interface ToolCtx {
   ctx: Ctx;
   caseId: string;
+  /** Supplied only by the explicit user selection endpoint. */
+  selectedByUser?: string;
 }

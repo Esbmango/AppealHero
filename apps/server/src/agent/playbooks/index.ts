@@ -38,13 +38,16 @@ export function playbookContext(c: CaseRecord): PlaybookCtx {
     answers: Object.fromEntries(c.facts.filter((f) => f.provenance === 'USER_TEXT' || f.provenance === 'USER_VOICE').map((f) => [f.key, f.value])),
   };
 }
-export function supportsGrounds(book: Playbook, context: PlaybookCtx, reason: DisputeReason, grounds: Ground[]) {
-  return book.defenses.some(
+export function supportedDefense(book: Playbook, context: PlaybookCtx, reason: DisputeReason, grounds: Ground[]) {
+  return book.defenses.find(
     (d) =>
       d.reason === reason &&
       (d.basis !== 'rule' || (d.verified && !!d.source)) &&
       d.holds(context) === 'yes' &&
       d.needs.every((key) => context.facts.has(key) && grounds.some((g) => g.factIds.includes(context.facts.get(key)!.id))),
   );
+}
+export function supportsGrounds(book: Playbook, context: PlaybookCtx, reason: DisputeReason, grounds: Ground[]) {
+  return !!supportedDefense(book, context, reason, grounds);
 }
 export const matchPlaybook = (violation: string): Playbook | undefined => PLAYBOOKS.find((p) => p.match(violation));

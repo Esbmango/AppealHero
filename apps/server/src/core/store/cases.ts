@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { assess } from '../../agent/playbooks/boston/assessment';
 import { recoverAfterRestart } from '../fsm';
 import type { CaseRecord } from '../types';
 import { HttpError, emptyMetrics, newId, now } from '../util';
@@ -20,6 +21,10 @@ export class CaseStore {
     const list = JSON.parse(fs.readFileSync(this.file, 'utf8')) as CaseRecord[];
     const notes: string[] = [];
     for (const c of list) {
+      if (c.triage && !c.triage.strength) {
+        Object.assign(c.triage, assess(c, c.triage.recommendation, c.triage.disputeReason, c.triage.reasons));
+        notes.push(c.id + ': added case strength');
+      }
       const note = recoverAfterRestart(c);
       if (note) notes.push(`${c.id}: ${note}`);
       this.cases.set(c.id, c);
