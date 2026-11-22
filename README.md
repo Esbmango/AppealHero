@@ -1,4 +1,4 @@
-# AppealHero 申诉英雄
+# AppealHero
 
 **Appeal a Boston parking ticket in your own language, with an AI agent whose every step you can check.**
 
