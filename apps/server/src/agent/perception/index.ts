@@ -71,7 +71,7 @@ export async function transcribeAudio(ctx: Ctx, caseId: string, audio: EvidenceR
   );
 }
 
-/** Deterministic stand-in so the whole pipeline runs without a key. Picks a demo ticket from keywords. */
+/** Deterministic stand-in so the whole pipeline runs without a key. Uses embedded fixture data first, then the existing keyword-based demos. */
 export function fakeExtraction(text = '', lang = 'zh', hasAudio = false, truth?: ReturnType<typeof readDemoTruth>): TicketExtraction {
   const t = text.toLowerCase();
   const base =

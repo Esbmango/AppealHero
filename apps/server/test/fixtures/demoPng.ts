@@ -1,6 +1,6 @@
 import { crc32 } from 'node:zlib';
 
-export const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+export const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==', 'base64');
 
 export function demoPng(truth: unknown) {
   const contents = Buffer.from('tEXtappealhero:truth\0' + JSON.stringify(truth), 'latin1');

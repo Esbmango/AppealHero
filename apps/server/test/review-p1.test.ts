@@ -59,6 +59,13 @@ const other = (factIds: string[]) => ({
 });
 
 describe('honest triage: the model cannot invent an OTHER ground', () => {
+  it('wp2: propose_outcome rejects grounds the playbook does not support', async () => {
+    const { ctx, c, said } = investigatingCase('METER');
+    const out = await runTool(ctx, c.id, 'propose_outcome', { ...other([said.id]), dispute_reason: 'PERMIT_DISPLAYED' });
+    expect(out.isError).toBe(true);
+    expect(c.state).toBe('INVESTIGATING');
+    expect(c.triage).toBeUndefined();
+  });
   it('refuses OTHER on a playbook ticket unless the user chose to appeal anyway', async () => {
     const { ctx, c, said } = investigatingCase('METER');
     const out = await runTool(ctx, c.id, 'propose_outcome', other([said.id]));

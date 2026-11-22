@@ -1,6 +1,6 @@
 import { definePlaybook } from '@appealhero/shared';
 import { RULE_SOURCES } from '../../rules/boston';
-import { fines, pay, photo, question, trafficRules, words, value } from './common';
+import { fines, pay, photo, postedHoursDefense, question, trafficRules, words, value } from './common';
 export const meter = definePlaybook({
   id: 'boston.meter',
   version: '1',
@@ -23,13 +23,33 @@ export const meter = definePlaybook({
     question(
       'receipt',
       'photo',
-      words('Can you upload the parking receipt?', '请上传停车收据。', '¿Puedes subir el recibo?'),
+      words(
+        'Can you upload your receipt or a photo of the displayed placard?',
+        '请上传付款收据或展示残障停车牌的照片。',
+        '¿Puedes subir el recibo o una foto del permiso de discapacidad a la vista?',
+      ),
       words('We compare the payment period with the ticket time.', '需要核对付款时段与开票时间。', 'Comparamos el período pagado con la hora de la multa.'),
       (c) => !!value(c, 'payment') && !value(c, 'paidUntil') && c.rules.get('meter_hours_in_effect')?.result !== false,
       'paidUntil',
     ),
   ],
   defenses: [
+    postedHoursDefense,
+    {
+      id: 'displayed_placard',
+      reason: 'OTHER',
+      basis: 'rule',
+      verified: true,
+      source: RULE_SOURCES.meterFreeDays,
+      needs: ['placardDisplayed'],
+      holds: (c) => (value(c, 'placardDisplayed') === 'yes' ? 'yes' : 'no'),
+      explain: words(
+        'The driver reports a displayed disability placard.',
+        '驾驶人表示展示了残障停车牌。',
+        'El conductor indica que exhibía un permiso de discapacidad.',
+      ),
+      draftHint: 'Use OTHER only after an explicit appeal-anyway choice. Describe what the driver confirmed.',
+    },
     {
       id: 'meter_hours',
       reason: 'METER_NOT_IN_EFFECT',

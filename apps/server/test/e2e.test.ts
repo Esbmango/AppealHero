@@ -7,11 +7,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { demoPng } from './fixtures/demoPng';
+import { demoPng, pixel as PNG_1PX } from './fixtures/demoPng';
 import { ProofResponseSchema, DEMO_TICKETS, type CaseView, type Scenario } from '@appealhero/shared';
 import { config } from '../src/core/config';
 
-const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const TICKET = '900000001';
 const DONE = ['SUBMITTED', 'NEEDS_USER', 'BLOCKED', 'FAILED', 'STATEMENT_REVIEW', 'CLOSED_NO_APPEAL'];
 
@@ -144,6 +143,21 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
     expect(await appeals()).toHaveLength(1);
   });
 
+  it('redesign: default deterministic browser tiers complete the form without Computer Use', async () => {
+    const previous = config.execTiers;
+    try {
+      config.execTiers = ['T1', 'T2'];
+      await scenario('redesign');
+      const id = await createCase();
+      await reviewAndApprove(id);
+      const c = await waitFor(id, (x) => DONE.includes(x.state) && x.state !== 'STATEMENT_REVIEW');
+      expect(c.state).toBe('SUBMITTED');
+      expect(c.metrics.tiers.T2).toBeGreaterThan(0);
+      expect(c.metrics.cuSteps).toBe(0);
+    } finally {
+      config.execTiers = previous;
+    }
+  });
   it('timeout after the portal recorded it → UNKNOWN_RESULT → status page → SUBMITTED, no duplicate', async () => {
     await scenario('submit_timeout_after_record');
     const id = await createCase();
@@ -294,28 +308,34 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
     expect((await appeals())[0].statement).toContain('710 Commonwealth Ave');
   });
 
-  it.each([true, false])('weekday receipt covers issue time: %s', async (covered) => {
+  async function uploadWeekdayReceipt(paidUntil: string, plate: string = DEMO_TICKETS.meterWeekday.plateNumber) {
     await scenario('normal');
     const ticket = DEMO_TICKETS.meterWeekday;
     const id = await createCase('permit', demoPng({ kind: 'ticket', ...ticket }));
     const intake = await waitFor(id, (c) => Boolean(c.pendingQuestion));
     expect(intake.ticket?.ticketNumber).toBe(ticket.ticketNumber);
-    const paidUntil = covered ? '2026-11-17T10:30:00-05:00' : '2026-11-17T10:00:00-05:00';
-    const receipt = demoPng({ kind: 'receipt', plate: ticket.plateNumber, paidFrom: '2026-11-17T09:30:00-05:00', paidUntil });
+    const receipt = demoPng({ kind: 'receipt', plate, paidFrom: '2026-11-17T09:30:00-05:00', paidUntil });
     const fd = new FormData();
     fd.append('images', new Blob([receipt], { type: 'image/png' }), 'receipt.png');
     expect((await fetch(`${api}/api/cases/${id}/messages`, { method: 'POST', body: fd })).status).toBe(202);
     const c = await waitFor(id, (c) => Boolean(c.triage));
     expect(c.facts.find((f) => f.key === 'paidUntil')).toMatchObject({ value: paidUntil, status: 'NEEDS_CONFIRMATION', provenance: 'PHOTO_EVIDENCE' });
-    if (covered) {
-      expect(c.triage?.disputeReason).toBe('PAID');
-      await reviewAndApprove(id);
-      expect((await waitFor(id, (x) => x.state === 'SUBMITTED')).receipt?.confirmationNumber).toBeTruthy();
-      expect(await appeals(ticket.ticketNumber)).toHaveLength(1);
-    } else {
-      expect(c.triage?.recommendation).toBe('PAY');
-      expect(await appeals(ticket.ticketNumber)).toHaveLength(0);
-    }
+    return { id, c, ticket };
+  }
+  it('wp3: a receipt yields paid_until as NEEDS_CONFIRMATION', async () => {
+    const { id, c, ticket } = await uploadWeekdayReceipt('2026-11-17T10:30:00-05:00');
+    expect(c.triage?.disputeReason).toBe('PAID');
+    await reviewAndApprove(id);
+    expect((await waitFor(id, (x) => x.state === 'SUBMITTED')).receipt?.confirmationNumber).toBeTruthy();
+    expect(await appeals(ticket.ticketNumber)).toHaveLength(1);
+  });
+  it.each([
+    ['2026-11-17T10:00:00-05:00', 'KDT4821'],
+    ['2026-11-17T10:30:00-05:00', 'ANOTHER'],
+  ])('payment ending %s for plate %s does not support this ticket', async (until, plate) => {
+    const { c, ticket } = await uploadWeekdayReceipt(until, plate);
+    expect(c.triage?.recommendation).toBe('PAY');
+    expect(await appeals(ticket.ticketNumber)).toHaveLength(0);
   });
 
   it('wp8: proof returns the approval hash, read-back hash, steps, receipt and chain head', async () => {

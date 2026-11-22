@@ -206,6 +206,7 @@ async function runJobNow(ctx: Ctx, caseId: string): Promise<boolean> {
       r.approval!.readbackHash = rbHash;
       r.approval!.readbackMatches = rbHash === ph;
     });
+    ctx.audit.append({ caseId, type: 'readback', actor: 'executor', data: { approvedPayloadHash: ph, readbackHash: rbHash, match: rbHash === ph } });
     if (rbHash !== ph)
       throw new NeedsUserError(
         'READBACK_MISMATCH',

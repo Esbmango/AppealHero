@@ -9,7 +9,6 @@ describe('WP2 agent runtime, context & tools', () => {
   it.todo('wp2: each stage exposes exactly its toolset');
   it.todo('wp2: model content is appended verbatim so thought signatures survive');
   it.todo('wp2: invalid tool arguments go back to the model and change nothing');
-  it.todo('wp2: propose_outcome rejects grounds the playbook does not support');
   it.todo('wp2: the step cap hands the turn back to the user');
   it.todo('wp2: profile facts are in the context and never asked again');
   it.todo('wp2: lookup_tickets lists tickets for MA plates and asks for a ticket number otherwise');

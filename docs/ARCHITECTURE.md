@@ -423,7 +423,7 @@ v0.2 的 `PortalSession` 已实现 fillToReview / submit / checkStatus / checkIn
 | T3 | Computer Use，只修 T1/T2 失败的那一个字段 | 几美分 |
 | FILE | 文件上传永远用确定性代码（CU 无法操作原生文件选择框） | 0 |
 
-默认 `EXEC_TIERS=T1,T3`。每填一个字段都从页面读回值进行比对。
+默认 `EXEC_TIERS=T1,T2`。真实 Computer Use 验证时显式选择 `T1,T3`。每填一个字段都从页面读回值进行比对。
 
 ### 5.3 Computer Use 兜底 ✅（真实模型待实测）
 - 通过 Interactions API 调用：每执行完一个动作，回传当前 URL 和 PNG 截图，用 `previous_interaction_id` 续接。

@@ -1,5 +1,5 @@
 import { definePlaybook } from '@appealhero/shared';
-import { fines, pay, photo, question, signDefense, value, words } from './common';
+import { fines, pay, photo, postedHoursDefense, question, signDefense, value, words } from './common';
 export const permit = definePlaybook({
   id: 'boston.resident_permit',
   version: '1',
@@ -32,6 +32,7 @@ export const permit = definePlaybook({
   ],
   defenses: [
     signDefense,
+    postedHoursDefense,
     {
       id: 'displayed',
       reason: 'PERMIT_DISPLAYED',
@@ -51,6 +52,16 @@ export const permit = definePlaybook({
           : 'no',
       explain: words('A matching permit was displayed.', '展示了与车辆和街区相符的许可。', 'Se exhibía un permiso del vehículo y barrio correctos.'),
       draftHint: 'Describe the visible sticker and match both the neighborhood and the plate.',
+    },
+  ],
+  notes: [
+    {
+      when: (c) => /rent|租|alquil/i.test(value(c, 'permit') ?? ''),
+      text: words(
+        'For a rental, ask for the rental agreement and proof of residence. Eligibility after office hours requires individual review.',
+        '租车时请提供租车合同和居住证明。办公时间外的适用条件需个别核实。',
+        'Para un auto alquilado pide el contrato y prueba de residencia. La elegibilidad fuera de horario requiere revisión individual.',
+      ),
     },
   ],
   recommendPay: pay(

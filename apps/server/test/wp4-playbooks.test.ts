@@ -5,6 +5,7 @@
  */
 import type { Playbook, TicketInfo } from '@appealhero/shared';
 import { DEMO_TICKETS } from '@appealhero/shared';
+import { RULE_NAMES, RULE_METADATA } from '../src/agent/rules/boston';
 import { newCaseRecord } from '../src/core/store/cases';
 import { upsertFact } from '../src/agent/policy/facts';
 import { matchPlaybook, playbookContext, supportsGrounds } from '../src/agent/playbooks';
@@ -43,7 +44,13 @@ describe('WP4 playbooks, rules & fake driver', () => {
     const { c } = example('meterWeekday');
     expect(buildSystemPrompt(c)).toContain('¿Cómo pagaste');
   });
-  it.todo('wp4: every rule has a source, checkedAt and verified flag');
+  it('wp4: every rule has a source, checkedAt and verified flag', () => {
+    for (const rule of RULE_NAMES) {
+      expect(RULE_METADATA[rule].source).toBeTruthy();
+      expect(RULE_METADATA[rule].checkedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(typeof RULE_METADATA[rule].verified).toBe('boolean');
+    }
+  });
   it('wp4: unverified rules never produce grounds', () => {
     const { book, ctx, grounds, accepts } = example('meter', { 'rule:meter_hours_in_effect': 'checked' });
     expect(accepts('METER_NOT_IN_EFFECT')).toBe(true);
@@ -82,7 +89,14 @@ describe('WP4 playbooks, rules & fake driver', () => {
     expect(example('hydrant', { vehicleMatches: 'No — different plate' }).accepts('VEHICLE_INFO')).toBe(true);
     const sam = example('hydrant', { distance: 'over_10_ft' });
     expect(sam.accepts('OTHER')).toBe(false);
+    expect(example('hydrant', { distance: 'over_10_ft', hydrantPhoto: 'Both visible' }).accepts('OTHER')).toBe(true);
     expect(sam.book.recommendPay(sam.ctx)?.fine).toBe(100);
+  });
+  it('uses printed weekly hours, including overnight restrictions, only with photographed evidence', () => {
+    const schedule = { signText: 'Resident only Mon 22:00–06:00', signDays: 'Mon', signStart: '22:00', signEnd: '06:00' };
+    expect(example('permit', { ...schedule, issuedAt: '2026-11-17T04:00:00-05:00' }).accepts('SIGNAGE')).toBe(false);
+    expect(example('permit', { ...schedule, issuedAt: '2026-11-17T10:00:00-05:00' }).accepts('SIGNAGE')).toBe(true);
+    expect(example('permit', { ...schedule, signDays: 'unknown' }).accepts('SIGNAGE')).toBe(false);
   });
   it.todo('wp4: every golden test listed in PLAYBOOKS.md passes');
 });

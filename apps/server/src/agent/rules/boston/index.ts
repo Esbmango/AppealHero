@@ -156,7 +156,22 @@ const req = (v: string | undefined, name: string) => {
   return v;
 };
 
-export function runRule(name: RuleName, input: RuleInput): RuleResult {
+// Dates reflect the source review recorded in docs/PLAYBOOKS.md §8. The receipt check is an evidence calculation.
+export const RULE_METADATA = {
+  meter_hours_in_effect: { source: RULE_SOURCES.meterHours, checkedAt: '2026-11-21', verified: true },
+  meter_free_day: { source: RULE_SOURCES.meterFreeDays, checkedAt: '2026-11-21', verified: true },
+  receipt_covers_ticket: { source: 'payment receipt and ticket timestamps', checkedAt: '2026-11-21', verified: true },
+  appeal_deadline: { source: RULE_SOURCES.deadline, checkedAt: '2026-11-21', verified: true },
+  fine_amount: { source: RULE_SOURCES.fines, checkedAt: '2026-11-21', verified: true },
+  video_hearing_eligibility: { source: RULE_SOURCES.videoHearing, checkedAt: '2026-11-21', verified: true },
+  online_plate_lookup: { source: RULE_SOURCES.plateLookup, checkedAt: '2026-11-21', verified: true },
+} satisfies Record<RuleName, { source: string; checkedAt: string; verified: boolean }>;
+
+export function runRule(name: RuleName, input: RuleInput) {
+  return { ...RULE_METADATA[name], ...calculateRule(name, input) };
+}
+
+function calculateRule(name: RuleName, input: RuleInput): RuleResult {
   switch (name) {
     case 'meter_hours_in_effect': {
       const p = bostonParts(req(input.issuedAt, 'issuedAt'));

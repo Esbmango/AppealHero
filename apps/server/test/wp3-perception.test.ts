@@ -26,7 +26,6 @@ describe('WP3 perception & synthetic fixtures', () => {
     }
   });
   it.todo('wp3: two ticket photos merge into one ticket and low confidence asks for a retake');
-  it.todo('wp3: a receipt yields paid_until as NEEDS_CONFIRMATION');
   it.todo('wp3: a sign photo yields posted hours, months and visibility');
   it.todo('wp3: audio yields the original text plus English');
   it.todo('wp3: make_ticket.py generates every fixture the golden tests use');

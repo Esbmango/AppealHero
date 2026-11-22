@@ -1,6 +1,6 @@
 import type { DisputeReason, PlaybookCtx, Playbook, Ground, RuleResult } from '@appealhero/shared';
 import type { CaseRecord } from '../../core/types';
-import { runRule } from '../rules/boston';
+import { RULE_METADATA, runRule } from '../rules/boston';
 import { BOSTON_PLAYBOOKS } from './boston';
 
 /** Playbook registry (owner: WP4). The generic playbook must be last: it matches everything. */
@@ -10,6 +10,7 @@ export function playbookContext(c: CaseRecord): PlaybookCtx {
   const facts = new Map(c.facts.map((f) => [f.key, f]));
   const rules = new Map<string, RuleResult>();
   for (const rule of ['meter_hours_in_effect', 'meter_free_day', 'receipt_covers_ticket'] as const) {
+    if (!RULE_METADATA[rule].verified) continue;
     const checked = facts.get('rule:' + rule);
     const issuedAt = facts.get('issuedAt')?.value;
     const paidUntil = facts.get('paidUntil')?.value;
@@ -19,7 +20,13 @@ export function playbookContext(c: CaseRecord): PlaybookCtx {
       (!paidUntil || !Number.isFinite(Date.parse(paidUntil)) || (facts.has('paidFrom') && !Number.isFinite(Date.parse(facts.get('paidFrom')!.value))))
     )
       continue;
-    const result = runRule(rule, { issuedAt, paidUntil, paidFrom: facts.get('paidFrom')?.value });
+    const result = runRule(rule, {
+      issuedAt,
+      paidUntil,
+      paidFrom: facts.get('paidFrom')?.value,
+      receiptPlate: facts.get('receiptPlate')?.value,
+      ticketPlate: facts.get('plateNumber')?.value,
+    });
     rules.set(rule, { ...result, result: result.result === true });
   }
   return {

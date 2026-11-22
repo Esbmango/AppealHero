@@ -24,7 +24,7 @@ export const hydrant = definePlaybook({
       'choice',
       words('About how far away was the hydrant?', '停车位置离消防栓大约多远？', '¿A qué distancia estaba el hidrante?'),
       words('A photo alone cannot establish exact distance.', '仅凭照片不能确定准确距离。', 'Una foto sola no establece la distancia exacta.'),
-      (c) => !!value(c, 'vehicleMatches') && !value(c, 'distance'),
+      (c) => /^(yes|一致|sí|si)/iu.test(value(c, 'vehicleMatches') ?? '') && !value(c, 'distance'),
     ),
     question(
       'distancePhoto',
@@ -35,6 +35,22 @@ export const hydrant = definePlaybook({
     ),
   ],
   defenses: [
+    {
+      id: 'reported_distance',
+      reason: 'OTHER',
+      basis: 'statement',
+      verified: true,
+      source: trafficRules,
+      needs: ['distance', 'hydrantPhoto'],
+      holds: (c) => (value(c, 'distance') === 'over_10_ft' && c.facts.get('hydrantPhoto')?.provenance === 'PHOTO_EVIDENCE' ? 'yes' : 'no'),
+      explain: words(
+        'The driver estimates more than ten feet and supplied a photo.',
+        '驾驶人估计距离超过十英尺，并附有照片。',
+        'El conductor estima más de diez pies y aportó una foto.',
+      ),
+      draftHint:
+        'Record the driver’s estimate as distance=over_10_ft and use analyze_evidence hydrant_context. A photo does not measure distance. OTHER requires the driver to choose appeal anyway.',
+    },
     {
       id: 'different_vehicle',
       reason: 'VEHICLE_INFO',
