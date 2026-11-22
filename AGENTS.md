@@ -21,7 +21,7 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 
 ## Contracts
 
-- `packages/shared` (Zod) is the single source of truth for types, API payloads, events and states. Changes are **additive only** and are made only by person B (see `docs/ASSIGNMENTS.md`); everyone else asks B instead of editing shared files.
+- `packages/shared` (Zod) is the single source of truth for types, API payloads, events and states. Changes are **additive only** and are made only by person C (see `docs/ASSIGNMENTS.md`); everyone else asks C instead of editing shared files.
 - The 5 frozen endpoints (jobId === caseId):
   `POST /api/cases` · `POST /api/cases/:id/messages` · `POST /api/cases/:id/approve` · `GET /api/cases/:id/stream` · `POST /api/jobs/:id/resume`
 

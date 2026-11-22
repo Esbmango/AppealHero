@@ -161,7 +161,7 @@ npm run smoke             # with the app running: clicks through the phone flow 
 | [docs/PLAYBOOKS.md](docs/PLAYBOOKS.md) | Ticket-type playbooks and rules, with official sources (Chinese) |
 | [docs/TASKS.md](docs/TASKS.md) | Parallel work packages with acceptance tests (Chinese) |
 | [docs/DEMO.md](docs/DEMO.md) | Demo script, checklist and Q&A (Chinese) |
-| [docs/ASSIGNMENTS.md](docs/ASSIGNMENTS.md) | Who does what until the deadline, with ready-to-paste Codex prompts (Chinese) |
+| [docs/ASSIGNMENTS.md](docs/ASSIGNMENTS.md) | Three-person plan until the deadline, with ready-to-paste Codex prompts (Chinese) |
 | [AGENTS.md](AGENTS.md) | Rules for AI coding agents working in this repo |
 | [docs/REVIEW_PROMPT.md](docs/REVIEW_PROMPT.md) | Prompt for external design reviewers (Chinese) |
 | [docs/REVIEW_BUNDLE.md](docs/REVIEW_BUNDLE.md) | All docs merged into one file for external reviewers (generated) |
@@ -1452,7 +1452,7 @@ flowchart LR
 
 ## 3. 人员与 AI 分配建议
 
-> **当前分工以 [ASSIGNMENTS.md](ASSIGNMENTS.md) 为准**（两人各用 Codex，A 前端 / 视觉，B 通用）。下表是最初的三人方案，仅供参考。
+> **当前分工以 [ASSIGNMENTS.md](ASSIGNMENTS.md) 为准**：A 负责 Gemini API key 和 Devpost；B 负责前端和视觉；C 负责通用开发和 Gemini 接入。B 和 C 各用 Codex。下表是最初的方案，仅供参考。
 
 | 成员 | 负责的卡 | 同时运行的 AI 代理 |
 |---|---|---|
@@ -1865,7 +1865,7 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 
 ## Contracts
 
-- `packages/shared` (Zod) is the single source of truth for types, API payloads, events and states. Changes are **additive only** and are made only by person B (see `docs/ASSIGNMENTS.md`); everyone else asks B instead of editing shared files.
+- `packages/shared` (Zod) is the single source of truth for types, API payloads, events and states. Changes are **additive only** and are made only by person C (see `docs/ASSIGNMENTS.md`); everyone else asks C instead of editing shared files.
 - The 5 frozen endpoints (jobId === caseId):
   `POST /api/cases` · `POST /api/cases/:id/messages` · `POST /api/cases/:id/approve` · `GET /api/cases/:id/stream` · `POST /api/jobs/:id/resume`
 
