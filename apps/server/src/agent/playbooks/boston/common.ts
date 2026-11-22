@@ -1,8 +1,24 @@
 import type { Defense, L10n, Playbook, PlaybookCtx, Question } from '@appealhero/shared';
-import { bostonParts, FINE_TABLE, fineFor, runRule } from '../../rules/boston';
+import { bostonParts, FINE_TABLE, fineFor, runRule, samePlate } from '../../rules/boston';
 
 export const words = (en: string, zh: string, es: string): L10n => ({ en, zh, es });
 export const value = (c: PlaybookCtx, key: string) => c.facts.get(key)?.value.trim().toLowerCase();
+/** True when both facts exist and show the same plate, ignoring spaces, dashes and case. */
+export const platesMatch = (c: PlaybookCtx, a: string, b: string) => {
+  const x = c.facts.get(a)?.value,
+    y = c.facts.get(b)?.value;
+  return !!x && !!y && samePlate(x, y);
+};
+/** Neighborhood names as read from a sticker and a sign: ignore case, punctuation and extra spaces ("BACK-BAY" = "Back Bay"). */
+const area = (v?: string) =>
+  v
+    ?.toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+export const sameArea = (c: PlaybookCtx, a: string, b: string) => {
+  const x = area(c.facts.get(a)?.value);
+  return !!x && x === area(c.facts.get(b)?.value);
+};
 export const photo = (c: PlaybookCtx, key: string) => c.facts.get(key)?.provenance === 'PHOTO_EVIDENCE';
 export const trafficRules = 'https://www.boston.gov/sites/default/files/file/2025/01/City%20of%20Boston%20Traffic%20Rules%20and%20Regulations%203.1.2025.pdf';
 export const fines = (...names: string[]) => names.map((violation) => ({ violation, ...FINE_TABLE[violation] }));
@@ -60,6 +76,17 @@ export const postedHoursDefense: Defense = {
     'La multa se emitió fuera del horario señalado.',
   ),
   draftHint: 'Quote the applicable sign and compare its posted hours to the ticket. Ask for its location and the time of the photo.',
+};
+/** Shared check for every playbook (docs/PLAYBOOKS.md §3): the driver reports that the ticket names a different vehicle. */
+export const vehicleDefense: Defense = {
+  id: 'different_vehicle',
+  reason: 'VEHICLE_INFO',
+  basis: 'statement',
+  verified: true,
+  needs: ['vehicleMatches', 'plateNumber'],
+  holds: (c) => (/^(no\b|不一致|不匹配)/i.test(value(c, 'vehicleMatches') ?? '') ? 'yes' : 'no'),
+  explain: words('The vehicle details do not match.', '罚单上的车辆信息不符。', 'Los datos del vehículo no coinciden.'),
+  draftHint: 'Cite the discrepancy reported by the driver and the plate on the ticket.',
 };
 export const signDefense: Defense = {
   id: 'obscured_sign',

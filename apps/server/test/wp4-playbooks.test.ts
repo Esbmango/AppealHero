@@ -98,5 +98,19 @@ describe('WP4 playbooks, rules & fake driver', () => {
     expect(example('permit', { ...schedule, issuedAt: '2026-11-17T10:00:00-05:00' }).accepts('SIGNAGE')).toBe(true);
     expect(example('permit', { ...schedule, signDays: 'unknown' }).accepts('SIGNAGE')).toBe(false);
   });
+  it('compares plates and neighborhoods regardless of spacing, dashes and case', () => {
+    const paid = { paidUntil: '2026-11-17T10:30:00-05:00', 'rule:receipt_covers_ticket': 'checked' };
+    for (const plate of ['KDT 4821', 'kdt-4821']) expect(example('meterWeekday', { ...paid, receiptPlate: plate }).accepts('PAID')).toBe(true);
+    expect(example('meterWeekday', { ...paid, receiptPlate: 'KDT 4822' }).accepts('PAID')).toBe(false);
+    const permit = { permitArea: 'BACK-BAY', signArea: 'Back Bay', permitPlate: 'kdt 4821', permitDisplayed: 'yes' };
+    expect(example('permit', permit).accepts('PERMIT_DISPLAYED')).toBe(true);
+    expect(example('permit', { ...permit, permitPlate: 'KDT 4822' }).accepts('PERMIT_DISPLAYED')).toBe(false);
+  });
+  it('every playbook accepts a reported vehicle mismatch', () => {
+    for (const key of ['meterWeekday', 'permit', 'hydrant'] as const) {
+      expect(example(key, { vehicleMatches: 'No — different plate' }).accepts('VEHICLE_INFO')).toBe(true);
+      expect(example(key, { vehicleMatches: 'yes' }).accepts('VEHICLE_INFO')).toBe(false);
+    }
+  });
   it.todo('wp4: every golden test listed in PLAYBOOKS.md passes');
 });

@@ -1,5 +1,5 @@
 import { definePlaybook } from '@appealhero/shared';
-import { fines, pay, photo, postedHoursDefense, question, signDefense, value, words } from './common';
+import { fines, pay, photo, platesMatch, postedHoursDefense, question, sameArea, signDefense, value, vehicleDefense, words } from './common';
 export const permit = definePlaybook({
   id: 'boston.resident_permit',
   version: '1',
@@ -31,6 +31,7 @@ export const permit = definePlaybook({
     ),
   ],
   defenses: [
+    vehicleDefense,
     signDefense,
     postedHoursDefense,
     {
@@ -45,8 +46,8 @@ export const permit = definePlaybook({
         photo(c, 'signArea') &&
         photo(c, 'permitPlate') &&
         photo(c, 'permitDisplayed') &&
-        value(c, 'permitArea') === value(c, 'signArea') &&
-        value(c, 'permitPlate') === value(c, 'plateNumber') &&
+        sameArea(c, 'permitArea', 'signArea') &&
+        platesMatch(c, 'permitPlate', 'plateNumber') &&
         value(c, 'permitDisplayed') === 'yes'
           ? 'yes'
           : 'no',

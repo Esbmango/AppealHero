@@ -1,6 +1,6 @@
 import { definePlaybook } from '@appealhero/shared';
 import { RULE_SOURCES } from '../../rules/boston';
-import { fines, pay, photo, postedHoursDefense, question, trafficRules, words, value } from './common';
+import { fines, pay, photo, platesMatch, postedHoursDefense, question, trafficRules, vehicleDefense, words, value } from './common';
 export const meter = definePlaybook({
   id: 'boston.meter',
   version: '1',
@@ -34,6 +34,7 @@ export const meter = definePlaybook({
     ),
   ],
   defenses: [
+    vehicleDefense,
     postedHoursDefense,
     {
       id: 'displayed_placard',
@@ -71,7 +72,7 @@ export const meter = definePlaybook({
       holds: (c) =>
         photo(c, 'paidUntil') &&
         c.rules.get('receipt_covers_ticket')?.result === true &&
-        (!value(c, 'receiptPlate') || value(c, 'receiptPlate') === value(c, 'plateNumber')) &&
+        (!value(c, 'receiptPlate') || platesMatch(c, 'receiptPlate', 'plateNumber')) &&
         /fee unpaid/i.test(c.ticket?.violation ?? '')
           ? 'yes'
           : 'no',

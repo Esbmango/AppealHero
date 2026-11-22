@@ -1,5 +1,5 @@
 import { definePlaybook } from '@appealhero/shared';
-import { fines, pay, question, trafficRules, value, words } from './common';
+import { fines, pay, question, trafficRules, value, vehicleDefense, words } from './common';
 export const hydrant = definePlaybook({
   id: 'boston.hydrant',
   version: '1',
@@ -51,16 +51,7 @@ export const hydrant = definePlaybook({
       draftHint:
         'Record the driver’s estimate as distance=over_10_ft and use analyze_evidence hydrant_context. A photo does not measure distance. OTHER requires the driver to choose appeal anyway.',
     },
-    {
-      id: 'different_vehicle',
-      reason: 'VEHICLE_INFO',
-      basis: 'statement',
-      verified: true,
-      needs: ['vehicleMatches', 'plateNumber'],
-      holds: (c) => (/^(no\b|不一致|不匹配)/i.test(value(c, 'vehicleMatches') ?? '') ? 'yes' : 'no'),
-      explain: words('The vehicle details do not match.', '罚单上的车辆信息不符。', 'Los datos del vehículo no coinciden.'),
-      draftHint: 'Cite the discrepancy reported by the driver and the plate on the ticket.',
-    },
+    vehicleDefense,
   ],
   notes: [
     {

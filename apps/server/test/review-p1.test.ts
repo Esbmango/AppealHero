@@ -85,6 +85,11 @@ describe('honest triage: the model cannot invent an OTHER ground', () => {
     const { ctx, c, said } = investigatingCase('OTHER');
     expect((await runTool(ctx, c.id, 'propose_outcome', other([said.id]))).isError).toBeFalsy();
   });
+  it('does not block a specific reason for ticket types without a playbook', async () => {
+    const { ctx, c, said } = investigatingCase('OTHER');
+    expect((await runTool(ctx, c.id, 'propose_outcome', { ...other([said.id]), dispute_reason: 'VEHICLE_INFO' })).isError).toBeFalsy();
+    expect(ctx.store.must(c.id).triage?.disputeReason).toBe('VEHICLE_INFO');
+  });
 });
 
 describe('evidence limit', () => {

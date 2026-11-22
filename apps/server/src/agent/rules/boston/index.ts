@@ -79,6 +79,10 @@ export function classifyViolation(desc: string): ViolationType {
   return 'OTHER';
 }
 
+/** Plates are printed and read with varying spacing, dashes and case ("KDT 4821", "kdt-4821"). Compare letters and digits only. */
+export const normalizePlate = (plate: string) => plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+export const samePlate = (a: string, b: string) => normalizePlate(a) !== '' && normalizePlate(a) === normalizePlate(b);
+
 export function bostonParts(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) throw new Error(`invalid date: ${iso}`);
@@ -202,7 +206,7 @@ function calculateRule(name: RuleName, input: RuleInput): RuleResult {
       const issued = new Date(req(input.issuedAt, 'issuedAt'));
       const until = new Date(req(input.paidUntil, 'paidUntil'));
       const from = input.paidFrom ? new Date(input.paidFrom) : null;
-      const mismatch = input.receiptPlate && input.ticketPlate && input.receiptPlate.toUpperCase() !== input.ticketPlate.toUpperCase();
+      const mismatch = input.receiptPlate && input.ticketPlate && !samePlate(input.receiptPlate, input.ticketPlate);
       const covers = !mismatch && until >= issued && (!from || from <= issued);
       return {
         rule: name,
