@@ -1,0 +1,13 @@
+---
+description: AppealHero project rules (applies to every task)
+alwaysApply: true
+---
+
+Read and follow `AGENTS.md` at the repository root before making any change. In particular:
+
+- Never give the LLM a tool that submits, approves or confirms facts.
+- Change case state only through `transition()`; never assign `case.state` directly.
+- Never weaken the approval token, the read-back gate or the network guard.
+- Never contact boston.gov, rmcpay.com or any real government system.
+- Keep `AI_MODE=fake` working; run `npm run typecheck && npm test` before finishing.
+- Edit only the paths owned by your task card in `docs/TASKS.md`; propose shared-contract changes instead of making them.

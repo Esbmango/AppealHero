@@ -1,0 +1,17 @@
+export * from './states';
+export * from './canonical';
+export * from './portal';
+export * from './demo';
+export * from './schemas';
+export * from './events';
+export * from './api';
+
+export const LANGS = {
+  zh: '中文',
+  es: 'Español',
+  en: 'English',
+  ht: 'Kreyòl ayisyen',
+  pt: 'Português',
+  vi: 'Tiếng Việt',
+} as const;
+export type Lang = keyof typeof LANGS;

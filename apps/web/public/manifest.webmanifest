@@ -1,0 +1,8 @@
+{
+  "name": "AppealHero 申诉英雄",
+  "short_name": "AppealHero",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a"
+}

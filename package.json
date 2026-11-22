@@ -1,0 +1,28 @@
+{
+  "name": "appealhero",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.12"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n portal,server,web -c yellow,cyan,magenta \"npm run dev -w @appealhero/mock-portal\" \"npm run dev -w @appealhero/server\" \"npm run dev -w @appealhero/web\"",
+    "start": "npm run build -w @appealhero/web && concurrently -k -n portal,server -c yellow,cyan \"npm run start -w @appealhero/mock-portal\" \"npm run start -w @appealhero/server\"",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "browsers": "playwright install chromium",
+    "smoke": "node scripts/ui-smoke.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "concurrently": "^10.0.7",
+    "playwright": "^1.65.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  }
+}
