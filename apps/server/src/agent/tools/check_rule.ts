@@ -30,6 +30,8 @@ function ruleInputFromCase(c: CaseRecord, modelInput: Record<string, unknown>): 
     violationDescription: latestFact(c, 'violation')?.value,
     printedFine: Number(latestFact(c, 'fineAmount')?.value) || undefined,
     paidUntil: latestFact(c, 'paidUntil')?.value,
+    receiptPlate: latestFact(c, 'receiptPlate')?.value,
+    ticketPlate: latestFact(c, 'plateNumber')?.value,
     paidFrom: latestFact(c, 'paidFrom')?.value,
   };
   const out: RuleInput = {

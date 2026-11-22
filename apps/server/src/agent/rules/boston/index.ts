@@ -134,6 +134,8 @@ export interface RuleInput {
   printedFine?: number;
   paidUntil?: string;
   paidFrom?: string;
+  receiptPlate?: string;
+  ticketPlate?: string;
   violationType?: string;
   plateState?: string;
   isMaResident?: boolean;
@@ -185,11 +187,14 @@ export function runRule(name: RuleName, input: RuleInput): RuleResult {
       const issued = new Date(req(input.issuedAt, 'issuedAt'));
       const until = new Date(req(input.paidUntil, 'paidUntil'));
       const from = input.paidFrom ? new Date(input.paidFrom) : null;
-      const covers = until >= issued && (!from || from <= issued);
+      const mismatch = input.receiptPlate && input.ticketPlate && input.receiptPlate.toUpperCase() !== input.ticketPlate.toUpperCase();
+      const covers = !mismatch && until >= issued && (!from || from <= issued);
       return {
         rule: name,
         result: covers,
-        detail: `Paid ${from ? `from ${formatBoston(from.toISOString())} ` : ''}until ${formatBoston(until.toISOString())}; ticket issued ${formatBoston(issued.toISOString())} → ${covers ? 'covered' : 'not covered'}`,
+        detail: mismatch
+          ? 'The receipt shows a different plate from the ticket.'
+          : `Paid ${from ? `from ${formatBoston(from.toISOString())} ` : ''}until ${formatBoston(until.toISOString())}; ticket issued ${formatBoston(issued.toISOString())} → ${covers ? 'covered' : 'not covered'}`,
         source: 'computed from the payment receipt photo',
       };
     }

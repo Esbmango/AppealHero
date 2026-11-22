@@ -5,4 +5,7 @@ import type { Playbook } from '@appealhero/shared';
  * meter.ts, resident_permit.ts, street_cleaning.ts, hydrant.ts, no_stopping.ts, generic.ts (+ common.ts).
  * Until WP4 lands, the fake driver keeps its v0.2 per-type logic (agent/fake).
  */
-export const BOSTON_PLAYBOOKS: readonly Playbook[] = [];
+import { meter } from './meter';
+import { permit } from './resident_permit';
+import { hydrant } from './hydrant';
+export const BOSTON_PLAYBOOKS: readonly Playbook[] = [meter, permit, hydrant];

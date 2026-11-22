@@ -4,6 +4,7 @@ import { serial } from '../../core/locks';
 import { extractTicket, transcribeAudio } from '../perception';
 import { upsertFact } from '../policy/facts';
 import { investigate } from './investigate';
+import { matchPlaybook } from '../playbooks';
 import { classifyViolation } from '../rules/boston';
 import { requestRevision } from '../writer';
 
@@ -20,6 +21,7 @@ async function runExtractionNow(ctx: Ctx, caseId: string, input: { ticketId: str
     ctx.store.mutate(caseId, (r) => {
       r.extraction = ext;
       r.violationType = classifyViolation(ext.violationDescription);
+      r.playbookId = matchPlaybook(ext.violationDescription)?.id;
       r.ticket = {
         ticketNumber: ext.ticketNumber,
         plate: ext.plateNumber,

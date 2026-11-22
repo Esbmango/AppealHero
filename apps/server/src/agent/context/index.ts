@@ -1,11 +1,29 @@
-import { LANGS } from '@appealhero/shared';
+import { matchPlaybook, playbookContext } from '../playbooks';
+import { LANGS, type Playbook, type PlaybookLang } from '@appealhero/shared';
 import type { CaseRecord } from '../../core/types';
 
 /**
  * Context builder (owner: WP2). Rebuilt every turn by code: role & limits → language → facts → evidence.
  * WP2 adds: account profile + vehicles, the matched playbook rendered as text (renderPlaybook), rule results.
  */
+export function renderPlaybook(book: Playbook, c: CaseRecord, lang: PlaybookLang) {
+  const context = playbookContext(c);
+  const pay = book.recommendPay(context);
+  return [
+    book.id,
+    'Check these rules: ' + book.autoRules.join(', '),
+    ...book.questions.filter((q) => q.askIf(context)).map((q) => q.text[lang] + ' ' + q.why[lang] + ' (record ' + q.records + ')'),
+    ...book.defenses
+      .filter((d) => d.basis !== 'rule' || d.verified)
+      .map((d) => d.reason + ': ' + d.explain[lang] + ' Cite: ' + d.needs.join(', ') + '. ' + d.draftHint + (d.source ? ' ' + d.source : '')),
+    ...(book.notes?.filter((n) => n.when(context)).map((n) => n.text[lang]) ?? []),
+    pay ? 'If no ground holds: ' + pay.why[lang] + ' Fine $' + pay.fine + ', late fee $' + pay.late + ', deadline ' + pay.deadline : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
 export function buildSystemPrompt(c: CaseRecord): string {
+  const book = matchPlaybook(c.ticket?.violation ?? '');
   const facts = c.facts.map((f) => `${f.id} | ${f.key} | ${f.label} = ${f.note ?? f.value} | ${f.provenance} | ${f.status}`).join('\n');
   const photos =
     c.evidence
@@ -18,6 +36,7 @@ export function buildSystemPrompt(c: CaseRecord): string {
     'Grounding: meter hours, holidays, fines and deadlines come ONLY from check_rule. Photo findings come ONLY from analyze_evidence. What the user says is recorded with record_fact. Never state a fact you did not get from a tool or the fact list.',
     'Honesty: if there is no lawful ground (e.g. a hydrant ticket with correct vehicle details), call propose_outcome with recommendation=PAY and explain the fine, late penalty and deadline. Never help the user claim something their own evidence contradicts.',
     "To APPEAL you need a dispute_reason, grounds citing fact ids, and the appellant's full name, mailing address and email (ask, then record_fact).",
+    book ? renderPlaybook(book, c, c.lang === 'es' || c.lang === 'zh' ? c.lang : 'en') : '',
     `Violation type: ${c.violationType ?? 'unknown'}. Photos: ${photos}.`,
     `Facts (id | key | label = value | provenance | status):\n${facts}`,
   ].join('\n\n');
