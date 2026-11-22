@@ -34,5 +34,10 @@
   "states.BLOCKED": "En pausa",
   "states.UNKNOWN_RESULT": "Comprobando resultado",
   "states.FAILED": "Falló",
-  "states.CLOSED_NO_APPEAL": "Cerrado"
+  "states.CLOSED_NO_APPEAL": "Cerrado",
+  "photo.camera": "Tomar foto",
+  "photo.gallery": "Elegir de la galería",
+  "photo.thumb": "Foto {n}",
+  "photo.remove": "Quitar la foto {n}",
+  "photo.count": "{count} de {max} fotos"
 }

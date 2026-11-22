@@ -34,5 +34,10 @@
   "states.BLOCKED": "已暂停",
   "states.UNKNOWN_RESULT": "结果核对中",
   "states.FAILED": "失败",
-  "states.CLOSED_NO_APPEAL": "已结案"
+  "states.CLOSED_NO_APPEAL": "已结案",
+  "photo.camera": "拍照",
+  "photo.gallery": "从相册选",
+  "photo.thumb": "第 {n} 张照片",
+  "photo.remove": "删除第 {n} 张照片",
+  "photo.count": "已选 {count} / {max} 张"
 }
