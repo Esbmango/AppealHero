@@ -1,13 +1,28 @@
 import { definePlaybook } from '@appealhero/shared';
-import { fines, pay, photo, platesMatch, postedHoursDefense, question, sameArea, signDefense, value, vehicleDefense, words } from './common';
+import {
+  duplicateDefense,
+  incidentQuestion,
+  fines,
+  pay,
+  photo,
+  platesMatch,
+  postedHoursDefense,
+  question,
+  sameArea,
+  signDefense,
+  value,
+  vehicleDefense,
+  words,
+} from './common';
 export const permit = definePlaybook({
   id: 'boston.resident_permit',
-  version: '1',
+  version: '2',
   title: words('Resident permit', '居民停车许可', 'Permiso de residente'),
   match: (v) => /resident|permit/i.test(v),
   autoRules: ['fine_amount', 'appeal_deadline'],
   fines: fines('RESIDENT PERMIT ONLY', 'NO VALID RESIDENT PARKING PERMIT/STICKER'),
   questions: [
+    incidentQuestion,
     question(
       'permit',
       'choice',
@@ -31,6 +46,7 @@ export const permit = definePlaybook({
     ),
   ],
   defenses: [
+    duplicateDefense,
     vehicleDefense,
     signDefense,
     postedHoursDefense,

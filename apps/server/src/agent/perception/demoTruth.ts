@@ -13,6 +13,7 @@ const truthSchema = z.discriminatedUnion('kind', [
     location: z.string().min(1),
     fineAmount: z.number().nonnegative(),
   }),
+  z.object({ kind: z.literal('sign'), text: z.string().min(1), visibility: z.enum(['clear', 'partially_obscured', 'not_visible']) }),
   z.object({ kind: z.literal('receipt'), plate: z.string().min(1), paidFrom: timestamp, paidUntil: timestamp }),
 ]);
 

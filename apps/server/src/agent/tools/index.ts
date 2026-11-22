@@ -2,6 +2,7 @@ import type { FunctionDeclaration } from '@google/genai';
 import { CASE_STATES, FORBIDDEN_TOOL_NAME, type CaseState, type DefinedTool, type ToolResult } from '@appealhero/shared';
 import type { Ctx } from '../../core/ctx';
 import type { ToolCtx } from './types';
+import { lookupTicketsTool, selectTicketTool } from './lookup';
 import { askUserTool } from './ask_user';
 import { analyzeEvidenceTool } from './analyze_evidence';
 import { checkRuleTool } from './check_rule';
@@ -16,7 +17,15 @@ import { proposeOutcomeTool } from './propose_outcome';
 export type ToolOutcome = ToolResult;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const TOOLS: readonly DefinedTool<ToolCtx, any>[] = [askUserTool, analyzeEvidenceTool, checkRuleTool, recordFactTool, proposeOutcomeTool];
+export const TOOLS: readonly DefinedTool<ToolCtx, any>[] = [
+  lookupTicketsTool,
+  selectTicketTool,
+  askUserTool,
+  analyzeEvidenceTool,
+  checkRuleTool,
+  recordFactTool,
+  proposeOutcomeTool,
+];
 
 for (const t of TOOLS) if (FORBIDDEN_TOOL_NAME.test(t.name)) throw new Error(`forbidden tool registered: ${t.name}`);
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
@@ -32,7 +41,7 @@ export const declarationsFor = (state: CaseState): FunctionDeclaration[] =>
   toolsFor(state).map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.jsonSchema }));
 
 /** Validate → check the stage → run. Invalid arguments go back to the model as an error and change nothing. */
-export async function runTool(ctx: Ctx, caseId: string, name: string, args: Record<string, unknown>): Promise<ToolOutcome> {
+export async function runTool(ctx: Ctx, caseId: string, name: string, args: Record<string, unknown>, selectedByUser?: string): Promise<ToolOutcome> {
   const t0 = Date.now();
   let out: ToolOutcome;
   try {
@@ -43,7 +52,7 @@ export async function runTool(ctx: Ctx, caseId: string, name: string, args: Reco
     else {
       const parsed = tool.params.safeParse(args);
       out = parsed.success
-        ? await tool.run({ ctx, caseId }, parsed.data)
+        ? await tool.run({ ctx, caseId, selectedByUser }, parsed.data)
         : {
             result: {
               error: 'invalid arguments',

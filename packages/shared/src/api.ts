@@ -46,6 +46,7 @@ export const CreateCaseFieldsSchema = z.object({
   plateState: z.string().max(5).optional(),
   text: z.string().max(4000).optional(),
   lang: z.string().optional(),
+  circumstances: z.string().optional(), // comma-separated CircumstanceChoice ids; empty means skip
   profileName: z.string().optional(), // v0.2 compatibility; v2 reads the profile from the account
   profileAddress: z.string().optional(),
   profileEmail: z.string().optional(),
@@ -82,6 +83,25 @@ export const ConfirmFactsRequestSchema = z.object({
 export type ConfirmFactsRequest = z.infer<typeof ConfirmFactsRequestSchema>;
 
 export const DecisionRequestSchema = z.object({ choice: z.enum(['accept_pay', 'appeal_anyway']) });
+
+/** Read-only simulated-portal search. */
+export const TicketQuerySchema = z.union([
+  z.object({
+    ticketNumber: z
+      .string()
+      .trim()
+      .regex(/^\d{6,12}$/),
+  }),
+  z.object({
+    plate: z.string().trim().min(1).max(10),
+    state: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{2}$/)
+      .toUpperCase(),
+  }),
+]);
+export type TicketQuery = z.infer<typeof TicketQuerySchema>;
 
 /** After a read-only portal lookup, the user picks one of case.lookupResults. */
 export const SelectTicketRequestSchema = z.object({ ticketNumber: z.string().regex(/^\d{6,12}$/) });

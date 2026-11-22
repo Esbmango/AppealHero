@@ -42,7 +42,15 @@ describe('wp0: invariants hold', () => {
   it('no tool can submit, approve, confirm or pay — in any state', () => {
     expect(TOOLS.length).toBeGreaterThan(0);
     for (const t of TOOLS) expect(t.name).not.toMatch(FORBIDDEN_TOOL_NAME);
-    expect(TOOLS.map((t) => t.name).sort()).toEqual(['analyze_evidence', 'ask_user', 'check_rule', 'propose_outcome', 'record_fact']);
+    expect(TOOLS.map((t) => t.name).sort()).toEqual([
+      'analyze_evidence',
+      'ask_user',
+      'check_rule',
+      'lookup_tickets',
+      'propose_outcome',
+      'record_fact',
+      'select_ticket',
+    ]);
   });
 
   it('tools are offered only while the agent may act', () => {

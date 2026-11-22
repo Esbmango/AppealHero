@@ -59,6 +59,7 @@ export interface CaseRecord {
   ticket?: TicketInfo;
   /** v2 (A4): read-only portal lookup results waiting for the user's choice */
   lookupResults?: TicketInfo[];
+  lookupMessage?: 'plate_lookup_ma_only' | 'not_found';
   /** v2: matched playbook id, e.g. 'boston.meter' (WP4) */
   playbookId?: string;
   violationType?: ViolationType;

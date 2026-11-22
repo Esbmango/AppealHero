@@ -1,11 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import {
   ADAPTER_VERSION,
+  CIRCUMSTANCE_QUESTION,
+  CIRCUMSTANCE_CHOICES,
+  CircumstanceChoiceSchema,
   ApproveRequestSchema,
   ConfirmFactsRequestSchema,
   CreateCaseFieldsSchema,
   DecisionRequestSchema,
   SelectTicketRequestSchema,
+  TicketQuerySchema,
   StatementEditRequestSchema,
   LANGS,
   isExecuting,
@@ -13,13 +17,16 @@ import {
 } from '@appealhero/shared';
 import { config } from '../core/config';
 import { approvalPreview, issueToken } from '../approval';
-import { publishFacts, view, type Ctx } from '../core/ctx';
+import { publishFacts, reportError, say, view, type Ctx } from '../core/ctx';
 import { transition } from '../core/fsm';
+import { pendingUserTurn } from '../core/locks';
 import { newCaseRecord } from '../core/store/cases';
 import { HttpError, newId, now } from '../core/util';
 import { appealAnyway, continueInvestigation, runExtraction } from '../agent/runtime';
 import { pendingFactIds, upsertFact } from '../agent/policy/facts';
 import { applyUserEdit, writeStatement } from '../agent/writer';
+import { readChoices, recordChoices } from '../agent/runtime/circumstances';
+import { searchCase, chooseTicket } from '../agent/runtime/lookup';
 import { isExecBusy, runJob } from '../portal/runner';
 import { readForm, saveEvidence } from './uploads';
 
@@ -35,14 +42,22 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
   app.post('/api/cases', async (req, reply) => {
     const { fields, files } = await readForm(req);
     const parsed = CreateCaseFieldsSchema.parse(fields);
+    const choices = readChoices(parsed.circumstances);
     const ticket = files.find((f) => f.field === 'ticket');
-    if (!ticket) {
-      if (parsed.mode === 'lookup' || parsed.mode === 'chat') throw new HttpError(501, `intake mode "${parsed.mode}" is not implemented yet (WP2)`);
+    const query =
+      parsed.mode === 'lookup'
+        ? TicketQuerySchema.parse(
+            parsed.ticketNumber ? { ticketNumber: parsed.ticketNumber } : { plate: parsed.plate, state: parsed.plateState ?? fields.state },
+          )
+        : undefined;
+    if (query && ticket) throw new HttpError(400, 'Choose lookup or a ticket photo.');
+    if (!query && !ticket) {
+      if (parsed.mode === 'chat') throw new HttpError(501, `intake mode "${parsed.mode}" is not implemented yet (WP2)`);
       throw new HttpError(400, 'a ticket photo (field "ticket") is required');
     }
     const lang = fields.lang && fields.lang in LANGS ? fields.lang : 'zh';
     const c = newCaseRecord(lang);
-    const ticketEv = saveEvidence(c, ticket, 'ticket_photo');
+    const ticketEv = ticket ? saveEvidence(c, ticket, 'ticket_photo') : undefined;
     const audio = files.find((f) => f.field === 'audio');
     const audioEv = audio ? saveEvidence(c, audio, 'audio') : undefined;
     // Saved profile values are typed by the user themselves → CONFIRMED with PROFILE provenance.
@@ -64,9 +79,22 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
       c.messages.push(msg);
     }
     c.metrics.userActiveMs += Math.max(0, Math.min(Number(fields.activeMs) || 0, 10 * 60_000));
+    if (query && fields.text?.trim())
+      upsertFact(c, { key: 'userAccount', label: 'Your account', value: fields.text.trim(), provenance: 'USER_TEXT', status: 'USER_STATEMENT' });
+    recordChoices(c, choices);
     ctx.store.put(c);
+    if (parsed.circumstances === undefined) {
+      const locale = c.lang === 'zh' || c.lang === 'es' ? c.lang : 'en';
+      say(ctx, c.id, CIRCUMSTANCE_QUESTION[locale], {
+        optional: true,
+        multiple: true,
+        options: CircumstanceChoiceSchema.options.map((id) => CIRCUMSTANCE_CHOICES[id].label[locale]),
+        optionValues: [...CircumstanceChoiceSchema.options],
+      });
+    }
     ctx.hub.emit({ type: 'case.updated', caseId: c.id, state: c.state });
-    void runExtraction(ctx, c.id, { ticketId: ticketEv.id, audioId: audioEv?.id, text: fields.text });
+    if (query) void searchCase(ctx, c.id, query).catch((err) => reportError(ctx, c.id, err));
+    else if (ticketEv) void runExtraction(ctx, c.id, { ticketId: ticketEv.id, audioId: audioEv?.id, text: fields.text });
     reply.code(202);
     return { caseId: c.id, jobId: c.id };
   });
@@ -78,6 +106,29 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
     if (isExecuting(c.state)) throw new HttpError(409, `the case is executing (${c.state}); wait for it to finish`);
     if (c.state === 'SUBMITTED' || c.state === 'FAILED') throw new HttpError(409, `the case is closed (${c.state})`);
     const { fields, files } = await readForm(req);
+    if (c.state === 'DRAFTING') throw new HttpError(409, 'Please wait for the draft before adding information.');
+    const choices = readChoices(fields.circumstances);
+    const choicesOnly = fields.circumstances !== undefined && !fields.text?.trim() && !fields.ticketNumber && !fields.plate && !files.length;
+    if (choicesOnly && (!choices.length || c.state === 'IDENTIFYING' || c.state === 'NEW')) {
+      if (choices.length) {
+        ctx.store.mutate(id, (r) => {
+          recordChoices(r, choices);
+        });
+        publishFacts(ctx, id);
+      }
+      return reply.code(202).send({ ok: true });
+    }
+    if (c.state === 'NEW' || c.state === 'IDENTIFYING') {
+      if (!c.lookupResults) throw new HttpError(409, 'Please wait for ticket identification.');
+      const query = TicketQuerySchema.parse(
+        fields.ticketNumber || fields.text
+          ? { ticketNumber: (fields.ticketNumber || fields.text).trim() }
+          : { plate: fields.plate, state: fields.plateState ?? fields.state },
+      );
+      await searchCase(ctx, id, query);
+      reply.code(202);
+      return { ok: true };
+    }
     const imageIds: string[] = [];
     let audioId: string | undefined;
     ctx.store.mutate(id, (r) => {
@@ -87,11 +138,11 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
       const text = (fields.text ?? '').trim();
       if (text || imageIds.length)
         r.messages.push({ id: newId('m'), role: 'user', text: text || `📷 ${imageIds.length} photo(s)`, at: now(), evidenceIds: imageIds });
-      r.pendingQuestion = undefined;
+      if (!choicesOnly) r.pendingQuestion = undefined;
       r.metrics.userActiveMs += Math.max(0, Math.min(Number(fields.activeMs) || 0, 10 * 60_000));
     });
     ctx.hub.emit({ type: 'case.updated', caseId: id, state: ctx.store.must(id).state });
-    void continueInvestigation(ctx, id, { text: (fields.text ?? '').trim(), evidenceIds: imageIds, audioId });
+    void continueInvestigation(ctx, id, { text: (fields.text ?? '').trim(), evidenceIds: imageIds, audioId, choices });
     reply.code(202);
     return { ok: true };
   });
@@ -100,6 +151,7 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
   app.post<IdParams>('/api/cases/:id/facts/confirm', async (req, reply) => {
     const id = req.params.id;
     const body = ConfirmFactsRequestSchema.parse(req.body ?? {});
+    await pendingUserTurn(id);
     const c = ctx.store.must(id);
     if (isExecuting(c.state) || c.state === 'SUBMITTED' || c.state === 'FAILED') throw new HttpError(409, `cannot edit facts while ${c.state}`);
     if (body.done && c.state !== 'FACTS_REVIEW') throw new HttpError(409, `nothing to confirm in state ${c.state}`);
@@ -113,7 +165,7 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
         if (f && f.provenance !== 'RULE') {
           f.value = e.value.trim();
           f.status = 'CONFIRMED';
-          f.note = 'edited by the user';
+          delete f.note;
           f.updatedAt = now();
         }
       }
@@ -141,10 +193,11 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
   });
 
   // ---- v2 (A4): the user picks a ticket from the read-only lookup results ----
-  app.post<IdParams>('/api/cases/:id/select-ticket', async (req) => {
-    SelectTicketRequestSchema.parse(req.body ?? {});
-    ctx.store.must(req.params.id);
-    throw new HttpError(501, 'ticket lookup is not implemented yet (A4)');
+  app.post<IdParams>('/api/cases/:id/select-ticket', async (req, reply) => {
+    const { ticketNumber } = SelectTicketRequestSchema.parse(req.body ?? {});
+    await chooseTicket(ctx, req.params.id, ticketNumber);
+    reply.code(202);
+    return view(ctx.store.must(req.params.id));
   });
 
   // ---- v2: the user edits the statement directly (WP5 owns the writer; WP0 fixes the contract) ----
@@ -174,6 +227,7 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
   app.post<IdParams>('/api/cases/:id/approve', async (req, reply) => {
     const id = req.params.id;
     const { payloadHash, activeMs } = ApproveRequestSchema.parse(req.body ?? {});
+    await pendingUserTurn(id);
     const c = ctx.store.must(id);
     // Idempotent: a double tap on "approve" must not start two jobs.
     if (c.approval?.payloadHash === payloadHash && (isExecuting(c.state) || c.state === 'SUBMITTED')) return { jobId: id, state: c.state, idempotent: true };

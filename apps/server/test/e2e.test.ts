@@ -115,6 +115,136 @@ async function reviewAndApprove(id: string) {
 }
 
 describe('AppealHero e2e (fake AI, simulated portal)', () => {
+  async function lookup(fields: Record<string, string>) {
+    const created = await post('/api/cases', {
+      mode: 'lookup',
+      lang: 'en',
+      profileName: 'Demo',
+      profileAddress: '1 Test St',
+      profileEmail: 'demo@example.com',
+      ...fields,
+    });
+    expect(created.status).toBe(202);
+    const { caseId } = await created.json();
+    return waitFor(caseId, (c) => c.lookupResults !== undefined);
+  }
+
+  it('wp6: lookup handles MA plates, out-of-state plates, not found and multiple tickets', async () => {
+    await scenario('normal');
+    const c = await lookup({ plate: '8kdw21', plateState: 'MA' });
+    expect(c.state).toBe('IDENTIFYING');
+    expect(c.lookupResults!.map((t) => t.ticketNumber)).toEqual(['900000001', '980000011', '980000012', '980000013']);
+    expect(c.lookupResults!.every((t) => t.source === 'PORTAL_LOOKUP')).toBe(true);
+    expect(c.messages.filter((m) => m.optional && m.multiple)).toHaveLength(1);
+    const select = '/api/cases/' + c.id + '/select-ticket';
+    expect((await post('/api/cases/' + c.id + '/messages', { circumstances: '' })).status).toBe(202);
+    for (const ticketNumber of ['900000003', '980000012']) expect((await post(select, { ticketNumber })).status).toBe(422);
+    expect((await getCase(c.id)).ticket).toBeUndefined();
+    const none = await lookup({ ticketNumber: '999999999' });
+    expect(none.lookupResults).toEqual([]);
+    expect(none.lookupMessage).toBe('not_found');
+    const ny = await lookup({ plate: 'KDT4821', plateState: 'NY' });
+    expect(ny.lookupResults).toEqual([]);
+    expect(ny.messages.at(-1)?.text).toContain('Massachusetts');
+    expect((await post('/api/cases/' + ny.id + '/messages', { text: '900000002' })).status).toBe(202);
+    expect((await getCase(ny.id)).lookupResults?.[0].ticketNumber).toBe('900000002');
+    expect((await post(select, { ticketNumber: '900000001' })).status).toBe(202);
+    const reviewed = await waitFor(c.id, (x) => x.state === 'FACTS_REVIEW');
+    expect(reviewed.facts.find((f) => f.key === 'ticketNumber')).toMatchObject({ provenance: 'PORTAL_LOOKUP', status: 'NEEDS_CONFIRMATION' });
+    expect(reviewed.triage?.strength).toBe('STRONG');
+    expect(reviewed.pendingQuestion).toBeUndefined();
+    expect(reviewed.metrics.questionsAsked).toBe(0);
+    expect((await post(select, { ticketNumber: '900000001' })).status).toBe(202);
+    expect(await appeals()).toHaveLength(0);
+    await reviewAndApprove(c.id);
+    await waitFor(c.id, (x) => x.state === 'SUBMITTED');
+    expect(await appeals()).toHaveLength(1);
+  });
+
+  it('offers a cited discretionary request for student hardship on a weekday meter ticket', async () => {
+    const id = await createCase('I am a student and I cannot afford this fine. No receipt.', demoPng({ kind: 'ticket', ...DEMO_TICKETS.meterWeekday }));
+    const c = await waitFor(id, (x) => x.state === 'FACTS_REVIEW');
+    const hardship = c.facts.find((f) => f.key === 'hardship')!;
+    expect(hardship.status).toBe('USER_STATEMENT');
+    expect(c.triage).toMatchObject({ recommendation: 'APPEAL', strength: 'WEAK', disputeReason: 'OTHER', considerations: [hardship.id], fineAmount: 40 });
+    expect(c.triage?.deadline).toBeTruthy();
+    expect(c.triage?.latePenalty).toBeDefined();
+    expect(c.triage?.strengthWhy).toContain('617-635-4410');
+    expect(c.draft).toBeUndefined();
+    const ready = await confirmFacts(id);
+    expect(ready.draft?.paragraphs.some((p) => p.factIds.includes(hardship.id) && p.text.includes('hearing officer'))).toBe(true);
+  });
+
+  it('probes a first-time visitor for stronger grounds and cites the sign photo as well as the personal account', async () => {
+    const id = await createCase(
+      'I am visiting from out of state. This was my first time parking in Boston.',
+      demoPng({ kind: 'ticket', ...DEMO_TICKETS.permit }),
+    );
+    const q = await waitFor(id, (c) => Boolean(c.pendingQuestion));
+    expect(q.pendingQuestion?.text).toContain('路牌');
+    const image = demoPng({ kind: 'sign', text: 'RESIDENT PERMIT ONLY', visibility: 'partially_obscured' });
+    const data = new FormData();
+    data.append('text', 'I photographed the obscured sign from the parking space.');
+    data.append('images', new Blob([image], { type: 'image/png' }), 'sign.png');
+    expect((await fetch(api + '/api/cases/' + id + '/messages', { method: 'POST', body: data })).status).toBe(202);
+    const c = await waitFor(id, (x) => x.state === 'FACTS_REVIEW');
+    expect(c.triage).toMatchObject({ recommendation: 'APPEAL', disputeReason: 'SIGNAGE', strength: 'MODERATE' });
+    expect(c.triage?.considerations).toHaveLength(2);
+    const ready = await confirmFacts(id);
+    expect(ready.draft?.paragraphs.some((p) => c.triage!.considerations!.every((f) => p.factIds.includes(f)))).toBe(true);
+  });
+  it('retains both student status and financial hardship from one Chinese statement', async () => {
+    const id = await createCase('我是学生，付不起罚款。没有收据。', demoPng({ kind: 'ticket', ...DEMO_TICKETS.meterWeekday }));
+    const c = await confirmFacts(id);
+    expect(c.draft?.statementEn).toContain('I am a student.');
+    expect(c.draft?.statementEn).toContain('financial hardship');
+  });
+  it('keeps Sunday grounds when circumstances arrive after drafting and uses the corrected wording at gate one', async () => {
+    const id = await createCase('This is my first time paying online. I cannot afford a new car.');
+    const first = await confirmFacts(id);
+    expect(first.triage?.considerations).toEqual([]);
+    expect((await post('/api/cases/' + id + '/messages', { circumstances: 'student,hardship' })).status).toBe(202);
+    const c = await waitFor(id, (x) => x.state === 'FACTS_REVIEW');
+    const f = c.facts.find((x) => x.key === 'hardship')!;
+    expect(c.triage).toMatchObject({ strength: 'STRONG', disputeReason: 'METER_NOT_IN_EFFECT', considerations: [f.id] });
+    expect(f.status).toBe('USER_STATEMENT');
+    expect((await post('/api/cases/' + id + '/facts/confirm', { edits: [{ id: f.id, value: 'I study full time.' }], done: true })).status).toBe(202);
+    const next = await waitFor(id, (x) => x.state === 'STATEMENT_REVIEW');
+    expect(next.draft?.statementEn).toContain('I study full time.');
+    expect(next.draft?.statementEn).not.toContain('financial hardship');
+    expect(next.preview?.payloadHash).not.toBe(first.preview?.payloadHash);
+  });
+
+  it('keeps a reported duplicate grounded in a matching second citation', async () => {
+    const id = await createCase('I received two tickets for the same incident.', demoPng({ kind: 'ticket', ...DEMO_TICKETS.meterWeekday }));
+    await waitFor(id, (c) => Boolean(c.pendingQuestion));
+    const data = new FormData();
+    data.append(
+      'images',
+      new Blob([demoPng({ kind: 'ticket', ...DEMO_TICKETS.meterWeekday, ticketNumber: '900009999' })], { type: 'image/png' }),
+      'second.png',
+    );
+    expect((await fetch(api + '/api/cases/' + id + '/messages', { method: 'POST', body: data })).status).toBe(202);
+    const c = await waitFor(id, (x) => x.state === 'FACTS_REVIEW');
+    expect(c.triage).toMatchObject({ recommendation: 'APPEAL', disputeReason: 'OTHER', strength: 'MODERATE' });
+    expect(c.facts.find((f) => f.key === 'duplicateNotice')).toMatchObject({ value: '900009999', provenance: 'PHOTO_EVIDENCE' });
+    expect((await confirmFacts(id)).draft?.statementEn).toContain('900009999');
+  });
+
+  it('labels a conflict between a driver’s recollection and a later sign photo as weak', async () => {
+    const id = await createCase('The sign was clear when I parked.', demoPng({ kind: 'ticket', ...DEMO_TICKETS.permit }));
+    await waitFor(id, (c) => Boolean(c.pendingQuestion));
+    const data = new FormData();
+    data.append(
+      'images',
+      new Blob([demoPng({ kind: 'sign', text: 'RESIDENT PERMIT', visibility: 'partially_obscured' })], { type: 'image/png' }),
+      'later-sign.png',
+    );
+    await fetch(api + '/api/cases/' + id + '/messages', { method: 'POST', body: data });
+    const c = await waitFor(id, (x) => x.state === 'FACTS_REVIEW');
+    expect(c.triage).toMatchObject({ strength: 'WEAK', disputeReason: 'SIGNAGE', considerations: [] });
+    expect((await confirmFacts(id)).draft?.statementEn).toContain('clear when I parked');
+  });
   it('normal: approve → fill → read-back → submit once → receipt', async () => {
     await scenario('normal');
     const id = await createCase();
@@ -393,6 +523,7 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
     await fetch(`${api}/api/cases/${id}/messages`, { method: 'POST', body: fd });
     c = await waitFor(id, (x) => x.triage?.recommendation === 'PAY');
     expect(c.triage?.fineAmount).toBe(100);
+    expect(c.triage?.strength).toBe('NONE');
     expect(c.state).toBe('INVESTIGATING');
     await post(`/api/cases/${id}/decision`, { choice: 'accept_pay' });
     c = await getCase(id);

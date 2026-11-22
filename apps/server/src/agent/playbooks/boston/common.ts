@@ -98,3 +98,38 @@ export const signDefense: Defense = {
   explain: words('The photo shows an obscured sign.', '照片显示路牌被遮挡。', 'La foto muestra una señal tapada.'),
   draftHint: 'Describe what is visible and when and where the photo was taken. Do not claim that a later photo proves earlier conditions.',
 };
+
+export const incidentQuestion = question(
+  'parkingAccount',
+  'text',
+  words(
+    'When did you arrive and leave, and where were you parked relative to the signs? What did you see, did you pay or display a permit, and did anything unusual happen?',
+    '你几点到、几点离开？车停在路牌的哪个位置，看到了什么？是否缴费或展示许可？当时还有什么特殊情况？',
+    '¿A qué horas llegaste y saliste, dónde estacionaste respecto a las señales y qué viste? ¿Pagaste o mostraste un permiso? ¿Ocurrió algo inusual?',
+  ),
+  words(
+    'These details connect the ticket, your account and any supporting records.',
+    '这些细节能把罚单、你的陈述和证据联系起来。',
+    'Estos datos relacionan la multa, tu relato y los comprobantes.',
+  ),
+  (c) =>
+    !c.facts.has('parkingAccount') &&
+    !c.facts.has('userAccount') &&
+    c.rules.get('meter_hours_in_effect')?.result !== false &&
+    c.rules.get('meter_free_day')?.result !== true,
+);
+export const duplicateDefense: Defense = {
+  id: 'duplicate_notice',
+  reason: 'OTHER',
+  basis: 'evidence',
+  verified: true,
+  needs: ['duplicateReport', 'duplicateNotice'],
+  holds: (c) => (photo(c, 'duplicateNotice') && !!c.answers.duplicateReport ? 'yes' : 'no'),
+  explain: words(
+    'Two distinct notices show the same vehicle, time, place and violation.',
+    '两张不同编号的罚单记载了相同的车辆、时间、地点和违章事项。',
+    'Dos multas distintas indican el mismo vehículo, hora, lugar e infracción.',
+  ),
+  draftHint:
+    'For a reported duplicate, record the driver’s words in duplicateReport and use analyze_evidence with duplicate_notice on the other ticket. Ask for review of both numbers. Never claim either ticket is automatically invalid.',
+};
