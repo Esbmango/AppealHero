@@ -35,7 +35,7 @@ import {
 const require = createRequire(import.meta.url);
 /** Self-hosted OFL fonts (no network at demo time). */
 const FONT_FILES: Record<string, string> = Object.fromEntries(
-  ['oswald-latin-500-normal', 'oswald-latin-600-normal', 'lato-latin-400-normal', 'lato-latin-700-normal'].map((f) => [
+  ['oswald-latin-400-normal', 'oswald-latin-500-normal', 'oswald-latin-600-normal', 'lato-latin-400-normal', 'lato-latin-700-normal'].map((f) => [
     `${f}.woff2`,
     require.resolve(`@fontsource/${f.split('-')[0]}/files/${f}.woff2`),
   ]),

@@ -6,6 +6,7 @@ import type { LookupQuery, LookupResult, TicketView } from './tickets';
 export const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 const FONTS = `
+@font-face{font-family:Oswald;font-weight:400;font-display:swap;src:url(/assets/fonts/oswald-latin-400-normal.woff2) format("woff2")}
 @font-face{font-family:Oswald;font-weight:500;font-display:swap;src:url(/assets/fonts/oswald-latin-500-normal.woff2) format("woff2")}
 @font-face{font-family:Oswald;font-weight:600;font-display:swap;src:url(/assets/fonts/oswald-latin-600-normal.woff2) format("woff2")}
 @font-face{font-family:Lato;font-weight:400;font-display:swap;src:url(/assets/fonts/lato-latin-400-normal.woff2) format("woff2")}
@@ -22,47 +23,53 @@ body{margin:0}
 .inline{display:inline!important;font-weight:400!important} .cb{width:auto!important;margin-right:6px}
 dl{display:grid;grid-template-columns:200px 1fr;gap:8px 14px} dt{font-weight:700} dd{margin:0;white-space:pre-wrap}`;
 
-/** Layout modelled on the real portal's structure (header, navy panels, condensed headings). No official marks. */
+/**
+ * Layout modelled on the real portal's structure: a centred 750px column (Bootstrap-3 metrics, 14px Lato body),
+ * Oswald headings, navy panels. Measured against screenshots of the real page; no official marks.
+ */
 const V1 = `
-.v1{--navy:#13202f;--blue:#3b6fb6;--link:#2f5f98;--cond:Oswald,"Roboto Condensed","Avenir Next Condensed","Arial Narrow",sans-serif;font:400 15px/1.45 Lato,"Helvetica Neue",Helvetica,Arial,sans-serif;color:#111;background:#fff}
+.v1{--navy:#0f1f2e;--blue:#366fb7;--link:#3a6392;--cond:Oswald,"Roboto Condensed","Avenir Next Condensed","Arial Narrow",sans-serif;font:400 14px/20px Lato,"Helvetica Neue",Helvetica,Arial,sans-serif;color:#000;background:#fff}
 .v1 a{color:var(--link);text-decoration:none} .v1 a:hover{text-decoration:underline}
-.v1 .top{display:flex;align-items:stretch;min-height:124px;padding:0 0 0 34px;border-bottom:2px solid var(--navy);border-top:1px solid #e5e7eb}
-.v1 .seal{display:flex;align-items:center;padding:12px 0} .v1 .emblem{width:86px;height:86px;display:block}
-.v1 .bar{width:2px;background:var(--navy);margin:16px 20px 16px 18px}
-.v1 .brand{display:flex;align-items:center;font:italic 400 27px/1.1 Georgia,"Times New Roman",serif;color:#1d2b3a;margin-right:30px;white-space:nowrap}
+.v1 .top{border-top:1px solid #e5e7eb;border-bottom:2px solid var(--navy)}
+.v1 .top-in{display:flex;align-items:stretch;min-height:124px;max-width:780px;margin:0 auto;padding:0 15px;box-sizing:border-box}
+.v1 .seal{display:flex;align-items:center;margin-left:14px} .v1 .emblem{width:82px;height:82px;display:block}
+.v1 .bar{width:2px;background:var(--navy);margin:12px 18px 12px 18px}
+.v1 .brand{display:flex;align-items:center;font:italic 400 25px/1.1 Georgia,"Times New Roman",serif;color:#1d2b3a;margin-right:18px;white-space:nowrap}
 .v1 .brand:hover{text-decoration:none}
 .v1 .top nav{display:flex;align-items:stretch}
-.v1 .top nav a{display:flex;align-items:center;padding:0 15px;font:500 23px/1 var(--cond);text-transform:uppercase;color:var(--navy);letter-spacing:.01em}
+.v1 .top nav a{display:flex;align-items:center;padding:0 15px;font:400 20px/1 var(--cond);text-transform:uppercase;color:var(--navy)}
 .v1 .top nav a.on{background:var(--navy);color:#fff} .v1 .top nav a:hover{text-decoration:none}
-.v1 main{max-width:1150px;margin:16px auto 40px;padding:0 20px}
-.v1 .panel{border:1px solid var(--navy);border-radius:5px;overflow:hidden}
-.v1 .ph{background:var(--navy);color:#fff;font:500 18px/1 var(--cond);text-transform:uppercase;padding:11px 16px}
+.v1 main{max-width:780px;margin:15px auto 40px;padding:0 15px;box-sizing:border-box}
+.v1 .panel{border:1px solid var(--navy);border-radius:4px;overflow:hidden}
+.v1 .ph{background:var(--navy);color:#fff;font:400 16px/16px var(--cond);text-transform:uppercase;padding:11.5px 15px}
 .v1 .pb{padding:15px}
-.v1 .sub{border:1px solid var(--navy);border-radius:5px;overflow:hidden;margin-bottom:6px}
-.v1 .sub h2{margin:0;background:var(--navy);color:#fff;font:500 19px/1.25 var(--cond);text-transform:uppercase;padding:18px 16px}
-.v1 .frm{display:grid;grid-template-columns:minmax(110px,34%) minmax(200px,268px) 1fr;gap:15px 30px;align-items:center;padding:30px 16px}
-.v1 .frm label{grid-column:1;text-align:right;font-weight:400;margin:0}
-.v1 .frm .ctl{grid-column:2} .v1 .frm button{grid-column:2;justify-self:start;margin:0}
-.v1 .addon{display:flex} .v1 .addon span{display:flex;align-items:center;justify-content:center;width:33px;background:#eee;border:1px solid #ccc;border-right:0;border-radius:4px 0 0 4px;color:#555}
+.v1 .sub{border:1px solid var(--navy);border-radius:4px;overflow:hidden;margin-bottom:5px}
+.v1 .sub h2{margin:0;background:var(--navy);color:#fff;font:400 18px/22px var(--cond);text-transform:uppercase;padding:19px 15px}
+.v1 .frm{display:grid;grid-template-columns:33.3333% 41.6667% 1fr;row-gap:15px;align-items:center;padding:30px 0}
+.v1 .frm label{grid-column:1;text-align:right;font-weight:400;margin:0;padding-right:15px}
+.v1 .frm .ctl{grid-column:2;margin:0 15px;width:calc(100% - 30px)} .v1 .frm button{grid-column:2;justify-self:start;margin:17px 15px 0}
+.v1 .addon{display:flex} .v1 .addon span{display:flex;align-items:center;justify-content:center;flex:none;width:33px;box-sizing:border-box;background:#eee;border:1px solid #ccc;border-right:0;border-radius:4px 0 0 4px;color:#555}
 .v1 .addon input{border-radius:0 4px 4px 0}
-.v1 input,.v1 select,.v1 textarea{width:100%;box-sizing:border-box;height:34px;padding:6px 12px;border:1px solid #ccc;border-radius:4px;font:inherit;color:#555;background:#fff}
-.v1 textarea{height:auto;min-height:100px} .v1 input[type=file]{height:auto;padding:6px}
-.v1 input:focus,.v1 select:focus,.v1 textarea:focus{outline:0;border-color:#66afe9;box-shadow:0 0 0 3px rgba(102,175,233,.35)}
-.v1 button{background:var(--blue);color:#fff;border:1px solid #2e5f9f;border-radius:3px;padding:6px 13px;font:inherit;cursor:pointer;margin-top:18px}
+.v1 input,.v1 select,.v1 textarea{width:100%;box-sizing:border-box;height:34px;padding:6px 12px;border:1px solid #ccc;border-radius:4px;font:inherit;color:#555;background:#fff;box-shadow:inset 0 1px 1px rgba(0,0,0,.075)}
+.v1 textarea{height:auto;min-height:100px} .v1 input[type=file]{height:auto;padding:6px;box-shadow:none}
+.v1 input:focus,.v1 select:focus,.v1 textarea:focus{outline:0;border-color:#66afe9;box-shadow:inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(102,175,233,.6)}
+.v1 button{background:var(--blue);color:#fff;border:1px solid #2e5f9f;border-radius:4px;padding:6px 12px;font:inherit;cursor:pointer;margin-top:18px}
 .v1 button:disabled{background:#9aa9bd;border-color:#9aa9bd;cursor:not-allowed}
-.v1 .crumbs{background:var(--navy);color:#fff;border-radius:5px;padding:9px 15px;margin-bottom:6px}
-.v1 .crumbs a{color:#fff;text-decoration:underline}
-.v1 h1{font:400 18px/1.3 Lato,"Helvetica Neue",Arial,sans-serif;margin:20px 0 10px}
-.v1 h3{font:400 15px Lato,sans-serif;text-transform:uppercase;margin:26px 0 10px}
+.v1 .crumbs{background:var(--navy);color:#fff;border-radius:4px;padding:8px 12px;font-size:15px}
+.v1 .crumbs a{color:#fff;text-decoration:underline} .v1 .crumbs .sep{padding:0 6px}
+.v1 h1{font:400 17px/1.1 Lato,"Helvetica Neue",Arial,sans-serif;margin:22px 0 10px}
+.v1 h3{font:400 14px/20px Lato,sans-serif;text-transform:uppercase;margin:20px 0 10px}
+.v1 p{margin:0 0 10px}
 .v1 .std{max-width:600px} .v1 .std label{display:block;font-weight:700;margin-top:14px} .v1 .std input,.v1 .std select,.v1 .std textarea{margin-top:6px}
 .v1 .tks{border:1px solid #ddd}
-.v1 .tk{padding:9px 7px;border-bottom:1px solid #ddd;font-size:15px} .v1 .tk:last-child{border-bottom:0}
-.v1 .tk>div{margin:3px 0} .v1 .tk .l1{display:flex;gap:14px;font-size:16px;margin-bottom:10px}
-.v1 .tk .st{margin-left:auto} .v1 .tk .gap{margin-top:12px}
-.v1 .tk .links a,.v1 .tk .links button{margin:0 12px 0 0} .v1 .tk .links button{margin-top:0;padding:2px 10px}
-.v1 .msg{border-left:4px solid var(--blue);background:#f1f5fb;padding:10px 14px}
-.v1 .foot{margin-top:18px;color:#444;font-size:14px}
-@media (max-width:900px){.v1 .top{flex-wrap:wrap;padding:0 12px}.v1 .brand{font-size:21px}.v1 .top nav{width:100%}.v1 .top nav a{font-size:18px;padding:10px 12px}.v1 .frm{grid-template-columns:1fr}.v1 .frm label,.v1 .frm .ctl,.v1 .frm button{grid-column:1;text-align:left}}`;
+.v1 .tk{padding:5px 6px 6px;border-bottom:1px solid #ddd} .v1 .tk:last-child{border-bottom:0}
+.v1 .tk .l1{display:flex;gap:15px;font-size:15px;line-height:21px;margin-bottom:8px}
+.v1 .tk .st{margin-left:auto} .v1 .tk .gap{margin-top:9px;font-size:15px}
+.v1 .tk .links a,.v1 .tk .links button{margin:0 12px 0 0} .v1 .tk .links button{margin-top:0;padding:0 10px;line-height:20px}
+.v1 .msg{border-left:4px solid var(--blue);background:#f1f5fb;padding:10px 14px;margin:15px 0}
+.v1 .foot{margin-top:18px;color:#444}
+.v1 dl{margin:10px 0}
+@media (max-width:767px){.v1 .top-in{flex-wrap:wrap;padding:0 12px}.v1 .brand{font-size:21px}.v1 .top nav{width:100%}.v1 .top nav a{font-size:18px;padding:10px 12px}.v1 .frm{grid-template-columns:1fr;padding:20px 15px}.v1 .frm label,.v1 .frm .ctl,.v1 .frm button{grid-column:1;text-align:left;margin-left:0;margin-right:0}}`;
 
 /** "redesign" scenario: deliberately different markup and look, to test the executor's resilience. */
 const V2 = `
@@ -95,7 +102,7 @@ function head(title: string) {
 }
 
 const crumbBar = (crumbs: [string, string?][]) =>
-  `<nav class="crumbs" aria-label="Breadcrumb">${crumbs.map(([label, href]) => (href ? `<a href="${esc(href)}">${esc(label)}</a>` : esc(label))).join(' / ')}</nav>`;
+  `<nav class="crumbs" aria-label="Breadcrumb">${crumbs.map(([label, href]) => (href ? `<a href="${esc(href)}">${esc(label)}</a>` : esc(label))).join('<span class="sep">/</span>')}</nav>`;
 
 export function layout(title: string, body: string, scenario: Scenario, opts: LayoutOpts = {}) {
   if (scenario === 'redesign') {
@@ -105,9 +112,9 @@ export function layout(title: string, body: string, scenario: Scenario, opts: La
   const nav = opts.nav ?? 'none';
   const link = (key: NavKey, href: string, label: string) => `<a href="${href}"${nav === key ? ' class="on" aria-current="page"' : ''}>${label}</a>`;
   return `${head(title)}<body class="v1">${SIM_BANNER}
-<header class="top"><a class="seal" href="/">${EMBLEM_SVG}</a><span class="bar" aria-hidden="true"></span>
+<header class="top"><div class="top-in"><a class="seal" href="/">${EMBLEM_SVG}</a><span class="bar" aria-hidden="true"></span>
 <a class="brand" href="/">Pahk the Cah</a>
-<nav aria-label="Main">${link('home', '/', 'Home')}${link('faq', '/faq', 'FAQ')}${link('contact', '/contact', 'Contact Us')}</nav></header>
+<nav aria-label="Main">${link('home', '/', 'Home')}${link('faq', '/faq', 'FAQ')}${link('contact', '/contact', 'Contact Us')}</nav></div></header>
 <main><section class="panel"><div class="ph">${esc(opts.panel ?? title)}</div><div class="pb">${opts.crumbs ? crumbBar(opts.crumbs) : ''}${body}</div></section></main>
 ${scenario === 'normal' ? '' : `<div class="badge">scenario: ${esc(scenario)}</div>`}</body></html>`;
 }
@@ -210,7 +217,7 @@ export function resultsPage(scenario: Scenario, q: LookupQuery, r: LookupResult)
     : '';
   const list = r.tickets.length
     ? `<h1>Select Ticket to Pay or Appeal</h1>
-<p>The following ticket(s) were found for the information entered. Please verify the tickets you would like to pay or appeal and select options.</p>
+<p>The following ticket(s) were found for the information entered. Please verify the tickets you would like to pay or appeal and select options</p>
 <h3>Tickets</h3>`
     : '';
   return layout(
