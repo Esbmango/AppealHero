@@ -92,5 +92,5 @@ export function factText(fact: Fact) {
     return t('common.bostonTime', { date: formatDate(fact.value) });
   }
   // Keep the user's original account; the optional note can be a backend English translation.
-  return fact.key === 'userAccount' ? fact.value : (fact.note ?? fact.value);
+  return fact.provenance === 'USER_TEXT' || fact.provenance === 'USER_VOICE' ? fact.value : (fact.note ?? fact.value);
 }

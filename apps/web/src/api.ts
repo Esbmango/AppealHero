@@ -1,4 +1,4 @@
-import type { CaseView, Scenario } from '@appealhero/shared';
+import { ProofResponseSchema, StatusCheckResponseSchema, type CaseView, type Scenario } from '@appealhero/shared';
 
 export class ApiError extends Error {
   constructor(
@@ -34,6 +34,9 @@ export const api = {
   listCases: () => j<CaseView[]>('/api/cases'),
   /** gate 1: done=true asks the server to move FACTS_REVIEW → DRAFTING (422 if anything is still unconfirmed) */
   confirmFacts: (id: string, confirm: string[], done = false) => j<CaseView>(`/api/cases/${id}/facts/confirm`, json({ confirm, edits: [], done })),
+  selectTicket: (id: string, ticketNumber: string) => j<CaseView>(`/api/cases/${id}/select-ticket`, json({ ticketNumber })),
+  proof: async (id: string) => ProofResponseSchema.parse(await j(`/api/cases/${id}/proof`)),
+  checkStatus: async (id: string) => StatusCheckResponseSchema.parse(await j(`/api/cases/${id}/status-check`, json({}))),
   editStatement: (id: string, paragraphs: { text: string; factIds: string[] }[]) =>
     j<CaseView>(`/api/cases/${id}/statement`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ paragraphs }) }),
   editFact: (id: string, factId: string, value: string) => j<CaseView>(`/api/cases/${id}/facts/confirm`, json({ confirm: [], edits: [{ id: factId, value }] })),

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import {
   ADAPTER_VERSION,
@@ -19,13 +20,16 @@ import { config } from '../core/config';
 import { approvalPreview, issueToken } from '../approval';
 import { publishFacts, reportError, say, view, type Ctx } from '../core/ctx';
 import { transition } from '../core/fsm';
-import { pendingUserTurn } from '../core/locks';
+import { serial, pendingUserTurn } from '../core/locks';
 import { newCaseRecord } from '../core/store/cases';
 import { HttpError, newId, now } from '../core/util';
 import { appealAnyway, continueInvestigation, runExtraction } from '../agent/runtime';
 import { pendingFactIds, upsertFact } from '../agent/policy/facts';
 import { applyUserEdit, writeStatement } from '../agent/writer';
-import { readChoices, recordChoices } from '../agent/runtime/circumstances';
+import { isCircumstanceKey, readChoices, recordChoices } from '../agent/runtime/circumstances';
+import { investigate } from '../agent/runtime/investigate';
+import { classifyViolation } from '../agent/rules/boston';
+import { matchPlaybook } from '../agent/playbooks';
 import { searchCase, chooseTicket } from '../agent/runtime/lookup';
 import { isExecBusy, runJob } from '../portal/runner';
 import { readForm, saveEvidence } from './uploads';
@@ -153,8 +157,25 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
     const body = ConfirmFactsRequestSchema.parse(req.body ?? {});
     await pendingUserTurn(id);
     const c = ctx.store.must(id);
-    if (isExecuting(c.state) || c.state === 'SUBMITTED' || c.state === 'FAILED') throw new HttpError(409, `cannot edit facts while ${c.state}`);
+    if (isExecuting(c.state) || c.state === 'DRAFTING' || c.state === 'SUBMITTED' || c.state === 'FAILED')
+      throw new HttpError(409, `cannot edit facts while ${c.state}`);
     if (body.done && c.state !== 'FACTS_REVIEW') throw new HttpError(409, `nothing to confirm in state ${c.state}`);
+    const changed = c.facts.filter((f) => f.provenance !== 'RULE' && body.edits.some((e) => e.id === f.id && e.value.trim() !== f.value));
+    for (const edit of body.edits) {
+      const f = changed.find((f) => f.id === edit.id);
+      if (!f) continue;
+      if (['issuedAt', 'paidFrom', 'paidUntil'].includes(f.key) && !z.iso.datetime({ offset: true }).safeParse(edit.value.trim()).success)
+        throw new HttpError(422, 'Enter a valid date and time with a time zone.');
+      if (f.key === 'fineAmount' && (!edit.value.trim() || !Number.isFinite(Number(edit.value)) || Number(edit.value) < 0))
+        throw new HttpError(422, 'Enter a valid fine amount.');
+    }
+    const reassess = changed.some(
+      (f) =>
+        !['fullName', 'email', 'mailingAddress'].includes(f.key) &&
+        !isCircumstanceKey(f.key) &&
+        !f.key.startsWith('revision') &&
+        (f.key !== 'location' || c.facts.some((v) => v.key === 'duplicateNotice')),
+    );
     ctx.store.mutate(id, (r) => {
       for (const fid of body.confirm) {
         const f = r.facts.find((x) => x.id === fid);
@@ -164,6 +185,30 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
         const f = r.facts.find((x) => x.id === e.id);
         if (f && f.provenance !== 'RULE') {
           f.value = e.value.trim();
+          if (r.ticket) {
+            r.ticket = { ...r.ticket };
+            switch (f.key) {
+              case 'violation':
+                r.ticket.violation = f.value;
+                r.violationType = classifyViolation(f.value);
+                r.playbookId = matchPlaybook(f.value)?.id;
+                break;
+              case 'ticketNumber':
+              case 'location':
+              case 'issuedAt':
+                r.ticket[f.key] = f.value;
+                break;
+              case 'plateNumber':
+                r.ticket.plate = f.value;
+                break;
+              case 'plateState':
+                r.ticket = { ...r.ticket, state: f.value.toUpperCase() };
+                break;
+              case 'fineAmount':
+                r.ticket.fine = Number(f.value);
+                break;
+            }
+          }
           f.status = 'CONFIRMED';
           delete f.note;
           f.updatedAt = now();
@@ -176,6 +221,20 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
       transition(ctx, id, 'FACTS_REVIEW', 'user', 'user edited a fact — confirm, then the statement is rewritten', (r) => {
         r.approval = undefined;
       });
+    if (reassess && c.state === 'FACTS_REVIEW') {
+      transition(ctx, id, 'INVESTIGATING', 'user', 'corrected facts require a new assessment', (r) => {
+        r.triage = undefined;
+        r.draft = undefined;
+        r.approval = undefined;
+        r.pendingQuestion = undefined;
+        r.fake.awaiting = undefined;
+        const duplicate = r.facts.find((f) => f.key === 'duplicateNotice');
+        if (duplicate?.sourceRef) r.fake.analyzed = r.fake.analyzed.filter((id) => id !== duplicate.sourceRef);
+        r.facts = r.facts.filter((f) => f.provenance !== 'RULE' && f.key !== 'duplicateNotice');
+      });
+      void serial(id, () => investigate(ctx, id, { kind: 'correction', keys: changed.map((f) => f.key) })).catch((err) => reportError(ctx, id, err));
+      return reply.code(202).send(view(c));
+    }
     const after = ctx.store.must(id);
     const pending = pendingFactIds(after);
     if (after.state === 'FACTS_REVIEW') {

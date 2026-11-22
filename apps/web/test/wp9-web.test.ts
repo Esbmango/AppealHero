@@ -1,4 +1,4 @@
-/** WP9 acceptance names stay identical to docs/TASKS.md; later B tasks retain their todos. */
+/** Static WP9 checks; browser acceptance scenarios live in wp9-flow.test.ts. */
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -35,10 +35,6 @@ function hardcodedCopy(source: string): string[] {
 }
 
 describe('WP9 phone web app v2', () => {
-  it.todo("wp9: smoke (zh) completes Lin's path on a 390×844 viewport");
-  it.todo("wp9: smoke (es) completes María's path");
-  it.todo('wp9: facts review blocks drafting while any fact is unconfirmed');
-  it.todo('wp9: statement edits invalidate the approval and require re-approval');
   it('wp9: no hardcoded UI strings outside locale files', () => {
     const violations = filesIn(sourceRoot)
       .filter((file) => file.endsWith('.tsx') && !file.includes('/i18n/'))

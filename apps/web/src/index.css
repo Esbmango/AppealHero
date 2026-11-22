@@ -89,3 +89,47 @@ body {
   outline: 2px solid #0369a1;
   outline-offset: 3px;
 }
+
+.form-label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+}
+.form-label :is(input, select, textarea) {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #adbdb9;
+  border-radius: 0.6rem;
+  background: white;
+  padding: 0.45rem 0.6rem;
+  color: #142f2a;
+  font-weight: 400;
+}
+.choice-chip {
+  border: 1px solid #acbdb7;
+  border-radius: 0.7rem;
+  padding: 0.45rem 0.75rem;
+  background: white;
+  color: #17473c;
+  font-size: 0.85rem;
+}
+.choice-chip[aria-pressed='true'] {
+  background: #17473c;
+  border-color: #17473c;
+  color: white;
+}
+.phone-flow summary {
+  cursor: pointer;
+  padding-block: 0.65rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.flow-header {
+  border-top: 3px solid #226958;
+}
+.flow-header .font-bold {
+  letter-spacing: -0.035em;
+  color: #164a3e;
+}

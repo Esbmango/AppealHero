@@ -1,42 +1,60 @@
-"""Usage: python3 scripts/make_ticket.py meter|permit|hydrant out.png
-Synthetic demo ticket image. Deliberately NOT a replica of a real Boston citation (no seal, no city branding)."""
-import sys
-from PIL import Image, ImageDraw, ImageFont
+"""Render a synthetic ticket or receipt with the same data used to seed the demo portal.
+Usage (from repo root): python scripts/make_ticket.py meter_weekday|meter|permit|hydrant|receipt out.png
+"""
+import argparse
+import json
+import subprocess
+from datetime import datetime
+from pathlib import Path
 
-TICKETS = {
-    "meter": [("TICKET NO.", "900000001"), ("DATE / TIME", "11/15/2026  2:32 PM"), ("PLATE", "8KDW21"), ("STATE", "MA"), ("VIOLATION", "METER FEE UNPAID"), ("LOCATION", "700 COMMONWEALTH AVE"), ("FINE", "$40.00")],
-    "permit": [("TICKET NO.", "900000002"), ("DATE / TIME", "11/18/2026  10:05 AM"), ("PLATE", "KDT4821"), ("STATE", "NY"), ("VIOLATION", "RESIDENT PERMIT ONLY"), ("LOCATION", "BAY STATE RD"), ("FINE", "$60.00")],
-    "hydrant": [("TICKET NO.", "900000003"), ("DATE / TIME", "11/19/2026  7:40 PM"), ("PLATE", "5NB302"), ("STATE", "MA"), ("VIOLATION", "HYDRANT"), ("LOCATION", "BEACON ST"), ("FINE", "$100.00")],
-}
-key, out = sys.argv[1], sys.argv[2]
-W, H = 900, 1000
-img = Image.new("RGB", (W, H), (252, 250, 240))
-d = ImageDraw.Draw(img)
-F = "/usr/share/fonts/truetype/dejavu/"
-big = ImageFont.truetype(F + "DejaVuSans-Bold.ttf", 46)
-mid = ImageFont.truetype(F + "DejaVuSans-Bold.ttf", 30)
-reg = ImageFont.truetype(F + "DejaVuSans.ttf", 30)
-mono = ImageFont.truetype(F + "DejaVuSansMono-Bold.ttf", 40)
-small = ImageFont.truetype(F + "DejaVuSans.ttf", 22)
+from PIL import Image, ImageDraw, ImageFont, PngImagePlugin
 
-d.rectangle([0, 0, W, 120], fill=(30, 41, 59))
-d.text((40, 32), "PARKING VIOLATION NOTICE", font=big, fill="white")
-d.text((40, 138), "SAMPLE FOR SOFTWARE DEMO - NOT A REAL CITATION", font=ImageFont.truetype(F + "DejaVuSans-Bold.ttf", 25), fill=(185, 28, 28))
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("sample", choices=["meter", "permit", "hydrant", "meter_weekday", "receipt"])
+parser.add_argument("output", type=Path)
+args = parser.parse_args()
+root = Path(__file__).resolve().parent.parent
+source = "import {DEMO_TICKETS,DEMO_RECEIPTS} from './packages/shared/src/demo.ts'; console.log(JSON.stringify([DEMO_TICKETS,DEMO_RECEIPTS]))"
+tickets, receipts = json.loads(subprocess.check_output(["node", "--import", "tsx", "--input-type=module", "-e", source], cwd=root))
+is_receipt = args.sample == "receipt"
+ticket = tickets["meterWeekday" if args.sample in ("receipt", "meter_weekday") else args.sample]
+ink, accent, muted = "#193833", "#14675c", "#4d625f"
+image = Image.new("RGB", (940, 920), "#f7f6ef")
+draw = ImageDraw.Draw(image)
 
-rows = TICKETS[key]
-y = 210
-for label, value in rows:
-    d.text((40, y), label, font=reg, fill=(71, 85, 105))
-    d.text((360, y - 4), value, font=mono, fill=(15, 23, 42))
-    y += 90
-    d.line([40, y - 22, W - 40, y - 22], fill=(203, 213, 225), width=2)
+def font(size, bold=False):
+    for name in (("DejaVuSans-Bold.ttf", "arialbd.ttf") if bold else ("DejaVuSans.ttf", "arial.ttf")):
+        try:
+            return ImageFont.truetype(name, size)
+        except OSError:
+            continue
+    return ImageFont.load_default(size=size)
 
-d.text((40, y + 10), "Pay or appeal within 21 days. (Synthetic data for AppealHero tests.)", font=small, fill=(71, 85, 105))
-# diagonal watermark
-wm = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-wd = ImageDraw.Draw(wm)
-wd.text((60, 520), "SAMPLE  SAMPLE  SAMPLE", font=ImageFont.truetype(F + "DejaVuSans-Bold.ttf", 90), fill=(185, 28, 28, 55))
-wm = wm.rotate(28, center=(W / 2, H / 2))
-img = Image.alpha_composite(img.convert("RGBA"), wm).convert("RGB")
-img.save(out, optimize=True)
-print("wrote", out)
+def moment(value):
+    return datetime.fromisoformat(value).strftime("%b %d, %Y  %I:%M %p")
+
+if is_receipt:
+    receipt = receipts["meterWeekday"]
+    truth = dict(kind="receipt", plate=ticket["plateNumber"], paidFrom=receipt["paidFrom"], paidUntil=receipt["paidUntil"])
+    title = "SIMULATED RECEIPT"
+    rows = [("Plate", truth["plate"]), ("Parking zone (demo)", "890 / Commonwealth Ave"),
+            ("Paid from", moment(truth["paidFrom"])), ("Paid until", moment(truth["paidUntil"])),
+            ("Amount paid", "$%.2f" % receipt["amount"])]
+else:
+    truth = dict(kind="ticket", **ticket)
+    title = "SAMPLE PARKING TICKET"
+    rows = [("Ticket number", ticket["ticketNumber"]), ("Issued at", moment(ticket["issuedAt"])),
+            ("Vehicle", ticket["plateState"] + "   " + ticket["plateNumber"]), ("Violation", ticket["violationDescription"]),
+            ("Location", ticket["location"]), ("Fine", "$%.2f" % ticket["fineAmount"])]
+draw.rectangle((0, 0, 940, 150), fill=ink)
+draw.text((46, 32), "AppealHero   /   Demo", font=font(24), fill="#a7ddd0")
+draw.text((46, 77), title, font=font(43, True), fill="white")
+for index, (label, value) in enumerate(rows):
+    y = 188 + index * 100
+    draw.text((48, y), label, font=font(22), fill=muted)
+    draw.text((48, y + 33), value, font=font(32, True), fill=ink)
+    draw.line((48, y + 83, 892, y + 83), fill="#c9d3ce", width=2)
+draw.text((48, 843), "Synthetic data for AppealHero tests.", font=font(23), fill=accent)
+metadata = PngImagePlugin.PngInfo()
+metadata.add_text("appealhero:truth", json.dumps(truth, separators=(",", ":")))
+image.save(args.output, pnginfo=metadata, optimize=True)

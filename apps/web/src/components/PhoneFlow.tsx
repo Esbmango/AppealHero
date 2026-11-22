@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { type AgentEvent, type CaseView, type ChatMessage } from '@appealhero/shared';
+import { type TicketQuery, type CircumstanceChoice, type AgentEvent, type CaseView, type ChatMessage } from '@appealhero/shared';
 import { api } from '../api';
-import { t, useLang, setLang, LANGUAGES, isLang, formatDate, fieldLabel } from '../i18n';
+import { t, useLang, formatDate, fieldLabel } from '../i18n';
 import { Onboarding } from '../features/onboarding/Onboarding';
 import { useProfile, type Profile } from '../features/onboarding/profile';
+import { LookupForm, LookupResults } from '../features/intake/Lookup';
+import { Circumstances } from '../features/intake/Circumstances';
+import { loadSample } from '../features/intake/Samples';
+import { StrengthCard } from './StrengthCard';
+import { BrandBar } from './BrandBar';
 import { compressImage } from '../lib/media';
 import { Recorder } from './Recorder';
 import { ReviewCard } from './ReviewCard';
@@ -29,35 +34,25 @@ export function PhoneFlow({
 }) {
   const lang = useLang();
   const [profile, setProfile] = useProfile();
+  const panel = useRef<HTMLDivElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
   // Braces matter: newer Chrome returns a Promise from scrollIntoView, and React would treat it as a cleanup fn.
   useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [c?.messages.length, c?.state]);
+    const focusPanel = c && (c.state !== 'INVESTIGATING' || c.triage?.recommendation === 'PAY');
+    (focusPanel ? panel : bottom).current?.scrollIntoView({ block: focusPanel ? 'start' : 'end', behavior: 'instant' });
+  }, [c?.messages.length, c?.state, c?.triage?.recommendation]);
   return (
     <div className="phone-flow flex h-full min-w-0 flex-col" lang={lang === 'zh' ? 'zh-CN' : lang}>
       <header className="flow-header shrink-0 border-b bg-white">
-        <div className="flex items-center justify-between gap-2">
-          <div className="font-bold">{t('common.brand')}</div>
-          <select
-            aria-label={t('common.language')}
-            data-testid="language-switch"
-            value={lang}
-            onChange={(event) => {
-              if (isLang(event.target.value)) setLang(event.target.value);
-            }}
-            className="min-h-11 rounded-xl border border-slate-200 bg-white px-2 text-sm"
-          >
-            {LANGUAGES.map((language) => (
-              <option key={language} value={language} lang={language}>
-                {t(`common.languages.${language}`)}
-              </option>
-            ))}
-          </select>
-        </div>
+        <BrandBar />
         {c && (
           <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-            <StateChip state={c.state} />
+            <div className="flex flex-wrap items-center gap-2">
+              <StateChip state={c.state} />
+              {['FACTS_REVIEW', 'STATEMENT_REVIEW'].includes(c.state) && (
+                <span className="text-xs font-medium text-slate-600">{t(c.state === 'FACTS_REVIEW' ? 'review.step1' : 'review.step2')}</span>
+              )}
+            </div>
             <button className="min-h-11 min-w-11 text-sm text-slate-500 underline" onClick={onNew}>
               {t('common.newCase')}
             </button>
@@ -74,7 +69,10 @@ export function PhoneFlow({
         <>
           <div className="flow-scroll space-y-3">
             <Chat messages={c.messages} />
-            <StatePanel c={c} events={events} refresh={refresh} />
+            <div ref={panel} className="space-y-3">
+              {c.triage && (c.state === 'FACTS_REVIEW' || (c.state === 'INVESTIGATING' && c.triage.recommendation === 'PAY')) && <StrengthCard c={c} />}
+              <StatePanel c={c} events={events} refresh={refresh} />
+            </div>
             <div ref={bottom} />
           </div>
           {COMPOSER_STATES.includes(c.state) && !(c.triage?.recommendation === 'PAY' && c.state === 'INVESTIGATING') && <Composer c={c} />}
@@ -93,25 +91,45 @@ function Intake({ profile, onCreated, onChangeProfile }: { profile: Profile; onC
   const [err, setErr] = useState('');
   const startedAt = useRef(Date.now());
 
+  const [mode, setMode] = useState<'photo' | 'lookup'>('photo');
+  const [sample, setSample] = useState('meter-weekday');
+  const [preview, setPreview] = useState('');
+  useEffect(() => {
+    if (!photo) {
+      setPreview('');
+      return;
+    }
+    const url = URL.createObjectURL(photo);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photo]);
+  const [samplePhoto, setSamplePhoto] = useState(false);
+  const [choices, setChoices] = useState<CircumstanceChoice[]>([]);
+
   async function useSample() {
+    setBusy(true);
     setErr('');
     try {
-      const response = await fetch('/sample-ticket.png');
-      if (!response.ok) throw new Error('sample unavailable');
-      const blob = await response.blob();
-      setPhoto(new File([blob], 'sample-ticket.png', { type: blob.type || 'image/png' }));
+      setPhoto(await loadSample('sample-ticket-' + sample + '.png'));
+      setSamplePhoto(true);
     } catch {
       setErr(t('common.error'));
+    } finally {
+      setBusy(false);
     }
   }
 
-  async function submit() {
-    if (!photo || busy) return;
+  async function submit(query?: TicketQuery) {
+    if ((!query && !photo) || busy) return;
     setBusy(true);
     setErr('');
     try {
       const fd = new FormData();
-      fd.append('ticket', await compressImage(photo));
+      if (query) {
+        fd.set('mode', 'lookup');
+        for (const [key, value] of Object.entries(query)) fd.set(key, value);
+      } else if (photo) fd.append('ticket', samplePhoto ? photo : await compressImage(photo));
+      fd.set('circumstances', choices.join(','));
       if (audio) fd.append('audio', audio, 'voice.wav');
       if (text.trim()) fd.append('text', text.trim());
       fd.append('lang', lang);
@@ -140,22 +158,57 @@ function Intake({ profile, onCreated, onChangeProfile }: { profile: Profile; onC
           {t('onboarding.change')}
         </button>
       </div>
-      <Card title={t('intake.photoTitle')}>
-        <label className="relative block cursor-pointer rounded-xl border-2 border-dashed border-slate-300 p-4 text-center text-sm">
-          {photo ? t('intake.photoSelected', { name: photo.name }) : t('intake.photo')}
-          <input
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            aria-label={t('intake.photo')}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={(event) => setPhoto(event.target.files?.[0] ?? null)}
-          />
-        </label>
-        <button className="mt-2 min-h-11 w-full text-sm text-sky-700 underline" onClick={useSample}>
-          {t('intake.sample')}
+      <div className="flex flex-wrap gap-2">
+        <button className="choice-chip" aria-pressed={mode === 'photo'} onClick={() => setMode('photo')}>
+          {t('intake.photoTitle')}
         </button>
-      </Card>
+        <button className="choice-chip" aria-pressed={mode === 'lookup'} onClick={() => setMode('lookup')}>
+          {t('intake.lookup')}
+        </button>
+      </div>
+      {mode === 'photo' && (
+        <Card>
+          <label className="relative block cursor-pointer rounded-xl border-2 border-dashed border-slate-300 p-4 text-center text-sm">
+            {preview && <img className="mx-auto mb-2 max-h-32 rounded border border-slate-200" src={preview} alt="" />}
+            {photo ? t('intake.photoSelected', { name: photo.name }) : t('intake.photo')}
+            <input
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              aria-label={t('intake.photo')}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(event) => {
+                setPhoto(event.target.files?.[0] ?? null);
+                setSamplePhoto(false);
+              }}
+            />
+          </label>
+          <label className="form-label mt-3">
+            {t('intake.sampleType')}
+            <select
+              aria-label={t('intake.sampleType')}
+              value={sample}
+              onChange={(e) => {
+                setSample(e.target.value);
+                if (samplePhoto) {
+                  setPhoto(null);
+                  setSamplePhoto(false);
+                }
+              }}
+            >
+              {['meter-weekday', 'meter', 'permit', 'hydrant'].map((id) => (
+                <option key={id} value={id}>
+                  {t(`intake.sample.${id}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button disabled={busy} className="mt-2 min-h-11 w-full text-sm text-sky-700 underline" onClick={useSample}>
+            {t('intake.sample')}
+          </button>
+        </Card>
+      )}
+      <Circumstances value={choices} onChange={setChoices} />
       <Card title={t('intake.accountTitle')}>
         <textarea
           className="w-full rounded-lg border p-2 text-base"
@@ -170,9 +223,15 @@ function Intake({ profile, onCreated, onChangeProfile }: { profile: Profile; onC
           {audio && <p className="mt-1 text-xs text-violet-800">{t('intake.audioReady', { size: Math.round(audio.size / 1024) })}</p>}
         </div>
       </Card>
-      <Button className="w-full py-3" disabled={!photo || busy} onClick={submit}>
-        {t(busy ? 'intake.uploading' : 'intake.start')}
-      </Button>
+      {mode === 'lookup' ? (
+        <Card title={t('intake.lookup')}>
+          <LookupForm initialPlate={profile.vehicles[0]?.plate} initialState={profile.vehicles[0]?.state} onSearch={submit} />
+        </Card>
+      ) : (
+        <Button className="w-full py-3" disabled={!photo || busy} onClick={() => submit()}>
+          {t(busy ? 'intake.uploading' : 'intake.start')}
+        </Button>
+      )}
       {err && (
         <p role="alert" className="text-sm text-rose-700">
           {err}
@@ -195,7 +254,7 @@ function Chat({ messages }: { messages: ChatMessage[] }) {
             )}
           >
             {m.text}
-            {m.textEn && <div className="mt-1 text-[10px] opacity-60">{t('common.english', { text: m.textEn })}</div>}
+            {m.textEn && m.textEn !== m.text && <div className="mt-1 text-[10px] opacity-60">{t('common.english', { text: m.textEn })}</div>}
           </div>
         </div>
       ))}
@@ -215,13 +274,14 @@ function Composer({ c }: { c: CaseView }) {
     shownAt.current = Date.now();
   }, [q?.id]);
 
-  async function send(override?: string, audio?: Blob) {
+  async function send(override?: string, audio?: Blob, sampleReceipt = false) {
     const message = (override ?? text).trim();
-    if (busy || (!message && !photos.length && !audio)) return;
+    if (busy || (!message && !photos.length && !audio && !sampleReceipt)) return;
     setError('');
     setBusy(true);
     try {
       const fd = new FormData();
+      if (sampleReceipt) fd.append('images', await loadSample('sample-receipt.png'));
       if (message) fd.append('text', message);
       for (const p of photos) fd.append('images', await compressImage(p));
       if (audio) fd.append('audio', audio, 'voice.wav');
@@ -238,6 +298,11 @@ function Composer({ c }: { c: CaseView }) {
 
   return (
     <div className="flow-composer space-y-2 border-t bg-white">
+      {q?.expects === 'photo' && c.ticket?.ticketNumber === '900000006' && (
+        <Button variant="ghost" disabled={busy} onClick={() => send(undefined, undefined, true)}>
+          {t('chat.sampleReceipt')}
+        </Button>
+      )}
       {q?.options && (
         <div className="flex flex-wrap gap-2">
           {q.options.map((o) => (
@@ -332,7 +397,7 @@ function StatePanel({ c, events, refresh }: { c: CaseView; events: AgentEvent[];
         <p className="text-xs text-slate-600">{t('review.draftingHelp')}</p>
       </Card>
     );
-  if (c.state === 'STATEMENT_REVIEW') return <ReviewCard c={c} onChanged={refresh} />;
+  if (c.state === 'STATEMENT_REVIEW') return <ReviewCard key={c.preview?.payloadHash} c={c} onChanged={refresh} />;
   if (EXECUTING.includes(c.state)) return <Progress events={events} />;
   if (c.state === 'UNKNOWN_RESULT')
     return (
@@ -400,7 +465,9 @@ function StatePanel({ c, events, refresh }: { c: CaseView; events: AgentEvent[];
             cost: c.metrics.costUsd.toFixed(4),
           })}
         </p>
-        <p className="mt-1 text-[11px] text-slate-500">{t('filing.receiptHelp')}</p>
+        <a className="choice-chip mt-3 inline-flex items-center" href={`/cases/${encodeURIComponent(c.id)}/proof`}>
+          {t('filing.proof')}
+        </a>
       </Card>
     );
   if (c.state === 'CLOSED_NO_APPEAL')
@@ -409,6 +476,7 @@ function StatePanel({ c, events, refresh }: { c: CaseView; events: AgentEvent[];
         <p className="text-sm">{t('filing.closedHelp')}</p>
       </Card>
     );
+  if (c.state === 'IDENTIFYING' && c.lookupResults !== undefined) return <LookupResults c={c} />;
   if (c.state === 'NEW' || c.state === 'IDENTIFYING') return <p className="text-center text-xs text-slate-500">{t('filing.identifying')}</p>;
   if (c.state === 'FAILED') return <Card tone="bad">{t('filing.failed')}</Card>;
   return null;
@@ -420,6 +488,7 @@ function Progress({ events }: { events: AgentEvent[] }) {
   const shot = [...events].reverse().find((e): e is Extract<AgentEvent, { type: 'exec.screenshot' }> => e.type === 'exec.screenshot');
   return (
     <Card title={t('filing.progress')}>
+      <p className="mb-2 text-sm">{t('intake.simulated')}</p>
       {shot && <img src={shot.url} alt={shot.label} className="mb-2 w-full rounded-lg border" />}
       <ul className="space-y-1 text-xs">
         {steps.map((s, i) => (

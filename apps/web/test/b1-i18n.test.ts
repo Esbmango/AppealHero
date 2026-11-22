@@ -42,6 +42,8 @@ describe('B1 locale and profile boundaries', () => {
     for (const value of [null, {}, { ready: true }, { ...personaProfile('lin'), vehicles: [null] }]) expect(validProfile(value)).toBe(false);
   });
   it('shows original user statements instead of the backend English note', () => {
-    expect(factText({ key: 'userAccount', value: 'Mi relato', note: 'My account' } as Parameters<typeof factText>[0])).toBe('Mi relato');
+    expect(factText({ key: 'userAccount', provenance: 'USER_TEXT', value: 'Mi relato', note: 'My account' } as Parameters<typeof factText>[0])).toBe(
+      'Mi relato',
+    );
   });
 });

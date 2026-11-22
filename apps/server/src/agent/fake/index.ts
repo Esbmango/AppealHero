@@ -14,13 +14,20 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
   const tool = (name: string, args: Record<string, unknown>) => runTool(ctx, caseId, name, args);
   const c0 = ctx.store.must(caseId);
   const zh = c0.lang === 'zh';
-  const T = (zhText: string, enText: string) => (zh ? zhText : enText);
+  const T = (zhText: string, enText: string, esText: string) => (zh ? zhText : c0.lang === 'es' ? esText : enText);
   const fact = (key: string) => latestFact(ctx.store.must(caseId), key);
   const ask = async (awaiting: string, q: string, qEn: string, expects: 'text' | 'photo' | 'choice', options?: string[]) => {
     ctx.store.mutate(caseId, (r) => {
       r.fake.awaiting = awaiting;
     });
-    await tool('ask_user', { question: q, question_en: qEn, expects, options, why: awaiting });
+    const spanish: Record<string, string> = {
+      paid: '¿Pagaste el estacionamiento? Puedes subir una foto del recibo de pago.',
+      contact: 'Para presentar la apelación necesito tu nombre completo, dirección postal y correo electrónico, uno por línea.',
+      sign: '¿Se veía bien la señal de estacionamiento residencial? Puedes subir una foto.',
+      vehicleMatch: '¿Coinciden la placa y el vehículo de la multa con los tuyos?',
+      account: 'Describe con tus propias palabras qué pasó y por qué deseas apelar.',
+    };
+    await tool('ask_user', { question: T(q, qEn, spanish[awaiting] ?? q), question_en: qEn, expects, options, why: awaiting });
   };
   const awaiting = c0.fake.awaiting;
   const text = input.kind === 'user' ? input.text : '';
@@ -33,6 +40,7 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
       T(
         `我读到了这张罚单：${fact('violation')?.value}${fine ? `（$${fine}）` : ''}，${formatBoston(fact('issuedAt')?.value ?? '', 'zh')}，${fact('location')?.value}。我先核对官方规则。`,
         `I read the ticket: ${fact('violation')?.value}${fine ? ` ($${fine})` : ''}, ${formatBoston(fact('issuedAt')?.value ?? '')}, ${fact('location')?.value}. Checking the official rules first.`,
+        'Revisaré las reglas aplicables a esta multa.',
       ),
     );
   }
@@ -81,6 +89,7 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
       summary_user_lang: T(
         `我核对后认为这张罚单没有站得住的申诉理由：${why}。建议在 21 天期限内缴纳${f ? ` $${f.fine}` : ''}，逾期会加收${f ? ` $${f.late}` : '滞纳金'}。如果你仍想申诉，也可以继续，但我不会替你编造理由。`,
         `I don't see a valid ground to appeal: ${whyEn}. Paying within 21 days avoids the late penalty${f ? ` ($${f.late})` : ''}. You can still appeal, but I won't invent reasons.`,
+        'Con los datos disponibles, recomiendo pagar dentro del plazo. Si lo deseas, puedes continuar con una apelación.',
       ),
       grounds: [{ text_en: whyEn, fact_ids: factIds }],
     });
@@ -95,6 +104,7 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
       T(
         '好的，我只用你本人的陈述来写申诉。请先核对下面的事实，确认后我再写申诉信。',
         "OK — I'll use only your own statement. Please confirm the facts below first; I will write the statement after that.",
+        'Usaré tu propia declaración. Primero revisa y confirma los datos.',
       ),
     );
   }
@@ -114,7 +124,11 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
     return proposeAppeal(
       'VEHICLE_INFO',
       [{ text_en: 'I reported that the vehicle on the ticket does not match mine.', fact_ids: [fact('vehicleMatches')!.id, fact('plateNumber')!.id] }],
-      T('罚单上的车辆信息可能有误，请核对。', 'Please review the reported discrepancy in the vehicle details.'),
+      T(
+        '罚单上的车辆信息可能有误，请核对。',
+        'Please review the reported discrepancy in the vehicle details.',
+        'Revisa la discrepancia en los datos del vehículo.',
+      ),
     );
   if (/\b(?:the sign was clear|I could clearly see the sign) when I parked\b|停车时路牌很清楚|la señal estaba clara cuando estacioné/i.test(statement))
     await tool('record_fact', { key: 'signClearAtIssue', label: 'Sign clearly visible when I parked', value: 'yes', provenance: 'USER_TEXT' });
@@ -147,9 +161,11 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
             fact_ids: [vis.id, sign.id, ...(clear ? [clear.id] : [])],
           },
         ],
-        c0.lang === 'es'
-          ? 'Revisa la evidencia sobre la visibilidad de la señal.'
-          : T('请核对照片和开单时的路牌可见度。', 'Please review the evidence about the sign’s visibility.'),
+        T(
+          '请核对照片和开单时的路牌可见度。',
+          'Please review the evidence about the sign’s visibility.',
+          'Revisa la evidencia sobre la visibilidad de la señal.',
+        ),
       );
       return true;
     }
@@ -165,7 +181,11 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
               fact_ids: [report.id, duplicate.id],
             },
           ],
-          T('两张罚单的车辆、时间、地点和违章事项相同，请核对。', 'The two notices record the same vehicle, time, place and violation.'),
+          T(
+            '两张罚单的车辆、时间、地点和违章事项相同，请核对。',
+            'The two notices record the same vehicle, time, place and violation.',
+            'Ambas multas indican el mismo vehículo, hora, lugar e infracción.',
+          ),
         );
       else if (!photos.length && awaiting !== 'duplicateNotice')
         await ask(
@@ -218,6 +238,7 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
           T(
             '好消息：罚单开在计时器免费的时段（周日/市政假日），按官方规则可以申诉。请先核对下面的事实，确认后我再写申诉信。',
             'Good news: the ticket was issued when meters are free, so the official rule supports an appeal. Please confirm the facts below first; I will write the statement after that.',
+            'La multa se emitió en un horario gratuito. Confirma los datos antes de redactar la carta.',
           ),
         );
       }
@@ -232,6 +253,7 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
             T(
               '付款记录覆盖了罚单时间，申诉理由成立。请先核对下面的事实，确认后我再写申诉信。',
               'Your receipt covers the ticket time. Please confirm the facts below first; I will write the statement after that.',
+              'El recibo cubre la hora de la multa. Confirma los datos antes de redactar la carta.',
             ),
           );
         if (await offerOtherGround()) return;
@@ -266,10 +288,11 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
             T(
               '车辆信息不符可以作为申诉理由。请先核对下面的事实，确认后我再写申诉信。',
               'A vehicle mismatch is a valid ground. Please confirm the facts below first; I will write the statement after that.',
+              'Los datos del vehículo difieren. Confirma los datos antes de redactar la carta.',
             ),
           );
         }
-        if (/^(?:一致|匹配|是的|yes\b|they match\b|sí\b|coinciden\b)/iu.test(text.trim()))
+        if (/^(?:一致|匹配|是的|yes\b|they match\b|sí(?:\s|[.!]|$)|coinciden\b)/iu.test(text.trim()))
           await tool('record_fact', { key: 'vehicleMatches', label: 'Vehicle details on ticket match my car', value: 'Yes', provenance: 'USER_TEXT' });
       }
       if (fact('vehicleMatches')?.value === 'Yes') {
@@ -283,7 +306,7 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
         '罚单上的车牌和车型跟你的车一致吗？',
         'Do the plate and vehicle on the ticket match your car?',
         'choice',
-        zh ? ['一致', '不一致'] : ['Yes', 'No'],
+        zh ? ['一致', '不一致'] : c0.lang === 'es' ? ['Sí', 'No'] : ['Yes', 'No'],
       );
     }
     case 'RESIDENT_PERMIT': {
@@ -304,6 +327,7 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
           T(
             '我会根据你的陈述来写申诉。请先核对下面的事实，确认后我再写申诉信。',
             'I will base the appeal on your statement. Please confirm the facts below first; I will write the statement after that.',
+            'Basaré la carta en lo que has contado. Confirma los datos antes de continuar.',
           ),
         );
       return ask('account', '请简单描述当时的情况。', 'Please briefly describe what happened.', 'text');

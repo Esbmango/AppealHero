@@ -419,6 +419,18 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
     expect(await appeals()).toHaveLength(0);
   });
 
+  it('rechecks the meter rule when the driver corrects a Sunday ticket to a weekday', async () => {
+    const id = await createCase();
+    const review = await waitFor(id, (c) => c.state === 'FACTS_REVIEW');
+    const issued = review.facts.find((f) => f.key === 'issuedAt')!;
+    const date = '2026-11-17T10:05:00-05:00';
+    expect((await post(`/api/cases/${id}/facts/confirm`, { edits: [{ id: issued.id, value: date }], done: true })).status).toBe(202);
+    const updated = await waitFor(id, (c) => Boolean(c.pendingQuestion));
+    expect(updated.ticket?.issuedAt).toBe(date);
+    expect(updated.triage).toBeUndefined();
+    expect(updated.draft).toBeUndefined();
+    expect(updated.pendingQuestion?.expects).toBe('photo');
+  });
   it('a fact edited after gate 1 sends the case back through it; the old approval hash is refused', async () => {
     await scenario('normal');
     const id = await createCase();

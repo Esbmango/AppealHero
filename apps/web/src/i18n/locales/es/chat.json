@@ -9,5 +9,6 @@
   "micError": "No se pudo usar el micrófono. Revisa los permisos del navegador.",
   "converting": "Procesando audio…",
   "stop": "■ Terminar grabación",
-  "record": "🎙 Grabar nota de voz"
+  "record": "🎙 Grabar nota de voz",
+  "sampleReceipt": "Usar recibo de pago de ejemplo"
 }
