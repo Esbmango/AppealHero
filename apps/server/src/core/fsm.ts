@@ -9,14 +9,7 @@ export class TransitionError extends Error {}
  * The ONLY way to change a case's state. Checks the transition table and the actor rules
  * (only 'approval' can approve, only 'executor' can submit, the agent is confined to investigation).
  */
-export function transition(
-  ctx: Ctx,
-  caseId: string,
-  to: CaseState,
-  actor: Actor,
-  reason: string,
-  patch?: (c: CaseRecord) => void,
-): CaseRecord {
+export function transition(ctx: Ctx, caseId: string, to: CaseState, actor: Actor, reason: string, patch?: (c: CaseRecord) => void): CaseRecord {
   const from = ctx.store.must(caseId).state;
   const check = checkTransition(from, to, actor);
   if (!check.ok) throw new TransitionError(check.reason);

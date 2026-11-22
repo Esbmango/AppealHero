@@ -48,6 +48,7 @@ export function Button({
 
 const PROV: Record<Provenance, [string, string]> = {
   TICKET_OCR: ['罚单OCR', 'bg-sky-100 text-sky-800'],
+  PORTAL_LOOKUP: ['门户查询', 'bg-teal-100 text-teal-800'],
   USER_VOICE: ['用户语音', 'bg-violet-100 text-violet-800'],
   USER_TEXT: ['用户陈述', 'bg-violet-100 text-violet-800'],
   PHOTO_EVIDENCE: ['照片证据', 'bg-amber-100 text-amber-800'],
@@ -69,9 +70,11 @@ export function StatusMark({ s }: { s?: FactStatus }) {
 
 export const STATE_ZH: Record<CaseState, string> = {
   NEW: '新建',
-  EXTRACTED: '已识别',
+  IDENTIFYING: '识别中',
   INVESTIGATING: '调查中',
-  READY_FOR_REVIEW: '待你核对',
+  FACTS_REVIEW: '待确认事实',
+  DRAFTING: '撰写中',
+  STATEMENT_REVIEW: '待批准申诉信',
   APPROVED: '已批准',
   FILLING: '填写中',
   SUBMITTING: '提交中',

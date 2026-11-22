@@ -44,7 +44,8 @@ async function analyzeEvidence(ctx: Ctx, caseId: string, a: Record<string, unkno
 
 async function analyzeWithGemini(ctx: Ctx, caseId: string, ev: EvidenceRecord, extract: string, question: string): Promise<Finding> {
   const ask: Record<string, string> = {
-    paid_until: 'This is a parking payment receipt or a ParkBoston app screenshot. Return paid_from and paid_until as ISO 8601 with the America/New_York offset if visible.',
+    paid_until:
+      'This is a parking payment receipt or a ParkBoston app screenshot. Return paid_from and paid_until as ISO 8601 with the America/New_York offset if visible.',
     sign_text: 'Transcribe the parking sign text exactly and classify visibility as clear, partially_obscured or not_visible.',
     vehicle_description: 'Describe the vehicle: make, color, plate state and number if visible.',
     general: question || 'Describe what this photo shows that is relevant to a parking ticket appeal.',
@@ -81,7 +82,10 @@ function fakeFinding(c: CaseRecord, _ev: EvidenceRecord, extract: string): Findi
   const issued = latestFact(c, 'issuedAt')?.value ?? new Date().toISOString();
   if (extract === 'paid_until') {
     const until = new Date(new Date(issued).getTime() + 13 * 60_000).toISOString();
-    return { summary: '[fake] receipt shows paid until 13 minutes after the ticket time', facts: [{ key: 'paidUntil', label: 'Paid until (receipt)', value: until }] };
+    return {
+      summary: '[fake] receipt shows paid until 13 minutes after the ticket time',
+      facts: [{ key: 'paidUntil', label: 'Paid until (receipt)', value: until }],
+    };
   }
   if (extract === 'sign_text') {
     const obscured = /遮|看不清|obscur|hidden|block/i.test(latestFact(c, 'userAccount')?.value ?? '');

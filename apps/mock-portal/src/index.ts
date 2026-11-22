@@ -67,7 +67,12 @@ export async function buildPortal(opts: { hangMs?: number } = {}) {
     const existing = db.appeals.get(b.ticketNumber);
     if (existing) return html(reply, alreadyOnFilePage(db.scenario, existing), 409);
     const sid = newSid();
-    db.sessions.set(sid, { sid, createdAt: Date.now(), data: { ticketNumber: b.ticketNumber, plateNumber: b.plateNumber.toUpperCase(), plateState: b.plateState }, evidence: [] });
+    db.sessions.set(sid, {
+      sid,
+      createdAt: Date.now(),
+      data: { ticketNumber: b.ticketNumber, plateNumber: b.plateNumber.toUpperCase(), plateState: b.plateState },
+      evidence: [],
+    });
     return reply.redirect(`/appeal/details?sid=${sid}`, 303);
   });
 
@@ -98,7 +103,8 @@ export async function buildPortal(opts: { hangMs?: number } = {}) {
       if (part.type === 'file') {
         const buf = await part.toBuffer();
         if (!buf.length) continue;
-        if (!EVIDENCE_LIMITS.mimeTypes.includes(part.mimetype)) return html(reply, messagePage(db.scenario, 'Upload rejected', `${part.filename}: only JPG, PNG or PDF files are accepted.`), 415);
+        if (!EVIDENCE_LIMITS.mimeTypes.includes(part.mimetype))
+          return html(reply, messagePage(db.scenario, 'Upload rejected', `${part.filename}: only JPG, PNG or PDF files are accepted.`), 415);
         files.push({ filename: part.filename, bytes: buf.length, sha256: createHash('sha256').update(buf).digest('hex'), mime: part.mimetype });
       } else if (part.fieldname === 'sid') sid = String(part.value);
     }
@@ -142,7 +148,12 @@ export async function buildPortal(opts: { hangMs?: number } = {}) {
       createdAt: new Date().toISOString(),
     };
     db.appeals.set(appeal.ticketNumber, appeal);
-    db.inbox.push({ to: appeal.email, subject: `Appeal received (${appeal.confirmationNumber})`, confirmationNumber: appeal.confirmationNumber, at: appeal.createdAt });
+    db.inbox.push({
+      to: appeal.email,
+      subject: `Appeal received (${appeal.confirmationNumber})`,
+      confirmationNumber: appeal.confirmationNumber,
+      at: appeal.createdAt,
+    });
     db.sessions.delete(s.sid);
     if (db.scenario === 'submit_timeout_after_record' && db.timeoutArmed) {
       db.timeoutArmed = false;
@@ -162,12 +173,26 @@ export async function buildPortal(opts: { hangMs?: number } = {}) {
   });
 
   app.get('/inbox', (req, reply) => {
-    const email = String((req.query as { email?: string }).email ?? '').trim().toLowerCase();
-    return html(reply, inboxPage(db.scenario, email, db.inbox.filter((m) => !email || m.to.toLowerCase() === email)));
+    const email = String((req.query as { email?: string }).email ?? '')
+      .trim()
+      .toLowerCase();
+    return html(
+      reply,
+      inboxPage(
+        db.scenario,
+        email,
+        db.inbox.filter((m) => !email || m.to.toLowerCase() === email),
+      ),
+    );
   });
 
   // ---- admin (demo switches + test oracle) ----
-  app.get('/admin/state', async () => ({ scenario: db.scenario, timeoutArmed: db.timeoutArmed, sessions: db.sessions.size, appeals: [...db.appeals.values()] }));
+  app.get('/admin/state', async () => ({
+    scenario: db.scenario,
+    timeoutArmed: db.timeoutArmed,
+    sessions: db.sessions.size,
+    appeals: [...db.appeals.values()],
+  }));
   app.post('/admin/scenario', async (req, reply) => {
     const scenario = (req.body as { scenario?: string } | undefined)?.scenario as Scenario;
     if (!SCENARIOS.includes(scenario)) return reply.code(400).send({ error: `scenario must be one of ${SCENARIOS.join(', ')}` });

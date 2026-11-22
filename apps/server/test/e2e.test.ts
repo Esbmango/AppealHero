@@ -46,7 +46,8 @@ beforeAll(async () => {
 afterAll(() => close());
 
 const getCase = async (id: string) => (await (await fetch(`${api}/api/cases/${id}`)).json()) as CaseView;
-const post = (url: string, body: unknown) => fetch(`${api}${url}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+const post = (url: string, body: unknown) =>
+  fetch(`${api}${url}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
 async function waitFor(id: string, pred: (c: CaseView) => boolean, ms = 60_000): Promise<CaseView> {
   const t0 = Date.now();
@@ -64,7 +65,9 @@ async function scenario(s: Scenario) {
 }
 
 async function appeals(ticket = TICKET) {
-  const st = (await (await fetch(`${portal}/admin/state`)).json()) as { appeals: { ticketNumber: string; statement: string; fullName: string; extra: Record<string, string>; evidence: unknown[] }[] };
+  const st = (await (await fetch(`${portal}/admin/state`)).json()) as {
+    appeals: { ticketNumber: string; statement: string; fullName: string; extra: Record<string, string>; evidence: unknown[] }[];
+  };
   return st.appeals.filter((a) => a.ticketNumber === ticket);
 }
 
@@ -200,7 +203,11 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
     const oldHash = c.preview!.payloadHash;
     const paragraphs = c.draft!.paragraphs.map((p) => ({ text: p.text, factIds: p.factIds }));
     paragraphs.splice(paragraphs.length - 1, 0, { text: 'I was attending a medical appointment nearby.', factIds: [] });
-    const r = await fetch(`${api}/api/cases/${id}/statement`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ paragraphs }) });
+    const r = await fetch(`${api}/api/cases/${id}/statement`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ paragraphs }),
+    });
     expect(r.status).toBe(200);
     const after = (await r.json()) as CaseView;
     expect(after.draft?.revision).toBe(2);
@@ -251,7 +258,12 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
     const browser = await getBrowser();
     const context = await browser.newContext();
     const blocked: string[] = [];
-    await installNetworkGuard(context, { allowedOrigin: new URL(portal).origin, submitPath: /\/appeal\/submit$/, interlock: new Interlock(), onBlocked: (u) => blocked.push(u) });
+    await installNetworkGuard(context, {
+      allowedOrigin: new URL(portal).origin,
+      submitPath: /\/appeal\/submit$/,
+      interlock: new Interlock(),
+      onBlocked: (u) => blocked.push(u),
+    });
     const page = await context.newPage();
     await page.goto(`${portal}/`);
     const outcome = await page.evaluate(async () => {

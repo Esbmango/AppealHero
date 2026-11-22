@@ -1,0 +1,7 @@
+node_modules
+dist
+data
+package-lock.json
+apps/web/public
+# docs are hand-formatted (CJK tables); keep them out of the formatter
+*.md

@@ -23,7 +23,7 @@
 
 **仓库**：https://github.com/Esbmango/AppealHero（公开）
 - `main` 分支：v0.2 可运行代码 + v2 设计文档（本轮评审对象）。
-- `wp0-foundation` 分支：WP0 地基做到一半的代码（未完成，进度见该分支的 `WP0_STATUS.md`），可选评审。
+- `wp0-foundation` 分支：WP0 地基（已完成，交付说明见该分支的 `WP0_STATUS.md`），可选评审。
 - 只想读一个文件：`docs/REVIEW_BUNDLE.md` 是全部文档的合并版（自动生成，内容以各单独文件为准）。
 
 **背景**
@@ -93,7 +93,7 @@ For residents who are more at home in Chinese or Spanish, that friction can be e
 | Read-back gate, one-shot submit interlock, check-status-before-retry | ✅ v0.2 |
 | Judge console: state machine, live screenshots, tool trace, time and cost | ✅ v0.2 |
 | Light accounts with saved vehicles; "find my tickets" | 🆕 v2 |
-| Separate fact confirmation and statement approval; statement edits | 🆕 v2 |
+| Separate fact confirmation and statement approval; statement edits | ✅ v2 (WP0) |
 | Chinese / Spanish / English interface | 🆕 v2 |
 | Proof page, hash-chained audit log, downloadable Playwright trace | 🆕 v2 |
 
@@ -145,6 +145,7 @@ npm run smoke             # with the app running: clicks through the phone flow 
 
 ## Verified so far
 
+- ✅ v2 foundation (WP0): 35 automated tests pass, plus 53 acceptance tests stubbed as `it.todo` for the parallel work packages. They cover the two confirmation gates, statement edits voiding old approvals, crash recovery, the invariants in AGENTS.md, and docs matching the state machine. The UI smoke test passes on the new two-step flow.
 - ✅ v0.2: 21 automated tests and the UI smoke test pass in fake mode. The tests cover a normal filing, the portal-redesign fallback, both timeout reconciliations, CAPTCHA stop, missing-field re-approval, honest triage and the network interlock.
 - ⚠️ Not yet run with a real Gemini key: chat, vision and Computer Use.
 - ⚠️ Not yet tested on real iPhone or Android devices.
@@ -161,6 +162,7 @@ npm run smoke             # with the app running: clicks through the phone flow 
 | [docs/DEMO.md](docs/DEMO.md) | Demo script, checklist and Q&A (Chinese) |
 | [AGENTS.md](AGENTS.md) | Rules for AI coding agents working in this repo |
 | [docs/REVIEW_PROMPT.md](docs/REVIEW_PROMPT.md) | Prompt for external design reviewers (Chinese) |
+| [docs/REVIEW_BUNDLE.md](docs/REVIEW_BUNDLE.md) | All docs merged into one file for external reviewers (generated) |
 
 ## Built with
 
@@ -333,6 +335,7 @@ AppealHero（申诉英雄）是一个专门处理 Boston 停车罚单的 AI Agen
 
 > 本文是团队和所有 AI 编码代理共用的设计说明。字段级定义以 `packages/shared` 的代码为准，本文只描述结构、流程和规则。
 > 状态标记：✅ v0.2 已实现并有测试 · 🔧 v0.2 已有、需按 v2 重构 · 🆕 v2 新增
+> **WP0 已完成（分支 `wp0-foundation`）**：§1 状态机 v2、§2 数据模型契约、§3 接口契约、§4.2/§4.6 工具注册表、§8 存储、§10 目录迁移已经实现并有测试。其余 🆕 项由 WP1–WP9 完成。
 > 需求见 [PRODUCT_SPEC.md](PRODUCT_SPEC.md)，罚单知识见 [PLAYBOOKS.md](PLAYBOOKS.md)，分工见 [TASKS.md](TASKS.md)，AI 编码规则见 [../AGENTS.md](../AGENTS.md)。
 
 ## 0. 总览
@@ -1350,8 +1353,8 @@ golden({
 1. **WP0 先合并**，其他卡才开工。WP0 完成后契约冻结，打 tag `contracts-v2`。
 2. **只改“拥有路径”**。需要改 `packages/shared`、冻结接口或别人的文件时，停下来，在 PR 描述末尾写“契约变更请求”（格式见 §7），由 WP0 负责人处理。
 3. **验收测试已预先写好**：WP0 会把每张卡的验收项写成 `it.todo('wpN: …')`，名字与本文完全一致。你的任务是把它们变成通过的测试，不能删除或放宽已有测试。
-4. **完成标准**：本卡验收测试全部通过；`npm run typecheck && npm test` 全绿；`AI_MODE=fake` 仍能跑完全流程。
-5. **分支与提交**：分支名用 `wp3-perception` 这种格式，小步提交，合并前 rebase 到 main。仓库目前还没初始化 git，WP0 第一步就是 `git init` 并提交 v0.2 基线。
+4. **完成标准**：本卡验收测试全部通过；`npm run format && npm run typecheck && npm test` 全绿；`AI_MODE=fake` 仍能跑完全流程。CI 还会检查格式（`npm run format:check`）和文档中的状态机（`npm run docs:fsm -- --check`）。
+5. **分支与提交**：仓库在 https://github.com/Esbmango/AppealHero 。分支名用 `wp3-perception` 这种格式，从合并了 WP0 的 main 拉出，小步提交，合并前 rebase 到 main。
 
 ## 1. 时间线（2026-11-21 晚 → 11-22 09:00 截止）
 
@@ -1409,6 +1412,8 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 ## 5. 任务卡
 
 ### WP0 地基与契约（阻塞全部）
+
+**状态：✅ 已完成**，在分支 `wp0-foundation`，等设计评审结束后合并到 main，然后打 tag `contracts-v2`。交付说明见该分支的 `WP0_STATUS.md`。
 
 **目标**：把 v0.2 平滑迁移到 v2 骨架，功能不倒退；冻结契约；为每张卡准备好桩代码和待办测试。
 
@@ -1782,7 +1787,7 @@ AppealHero is a human-in-the-loop agent that helps people appeal Boston parking 
 
 Before changing anything: read this file, your task card in `docs/TASKS.md`, and the relevant section of `docs/ARCHITECTURE.md`.
 
-> Paths below follow the v2 layout created by WP0. Until WP0 lands, use the v0.2 → v2 map in `docs/ARCHITECTURE.md` §10.
+> Paths below follow the v2 layout created by WP0 (branch `wp0-foundation`, merged into `main` after the design review). On a v0.2 checkout, use the v0.2 → v2 map in `docs/ARCHITECTURE.md` §10.
 
 ## Non-negotiable invariants (each one has a test — never weaken the test to make your change pass)
 
@@ -1822,7 +1827,7 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 ## Workflow
 
 - Edit only the paths your task card owns.
-- Before you finish: `npm run typecheck && npm test` must pass. Add tests for new behavior: golden conversation tests for playbooks, e2e scenarios for portal changes.
+- Before you finish: `npm run format && npm run typecheck && npm test` must pass (CI also runs `npm run format:check` and `npm run docs:fsm -- --check`). Add tests for new behavior: golden conversation tests for playbooks, e2e scenarios for portal changes.
 - No new dependencies without a one-line justification in the PR.
 - All user-facing strings go through i18n. Never hardcode UI text.
 - Every rule or legal claim in a playbook needs an official source URL. Unverified rules must be marked `verified: false` and are never used to auto-generate appeal grounds.
@@ -1964,59 +1969,69 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 # FILE: WP0_STATUS.md
 <!-- ======================================================= -->
 
-# WP0 进度：未完成（2026-11-21 19:05 暂停）
+# WP0 交付说明（v2 地基）
 
-这是 WP0（v2 地基）做到一半的快照，位于分支 `wp0-foundation`。设计评审请看 `main` 分支（v0.2 可运行代码 + v2 设计文档）。
+状态：✅ 已完成，在分支 `wp0-foundation`。设计评审结束后合并到 `main`，然后打 tag `contracts-v2`，WP1–WP9 从合并后的 main 拉分支并行开发。
 
-## 已完成（共享包 10 个 + 服务器 15 个测试通过）
+## 交付内容
 
-**`packages/shared`：契约 v2**
-- 状态机 v2：`TRANSITION_TABLE` 是唯一来源，默认拒绝；包含 AGENT_TRANSITIONS 和崩溃恢复表 RECOVERY。
+**`packages/shared`：契约 v2（合并后冻结，只允许增量修改）**
+- 状态机 v2：`TRANSITION_TABLE` 是唯一来源，默认拒绝，每条转移都写明谁能触发。
 - 新实体：User、Vehicle、TicketInfo、AuditEvent、DraftParagraph（作者 + revision）。
-- 新增数据：来源 PORTAL_LOOKUP、申诉理由 PERMIT_DISPLAYED、事件 `facts.review` 和 `lookup.results`。
-- v2 接口结构：V2_API、CreateCaseFields、ConfirmFacts（增加 `done`）、StatementEdit、Me/Vehicle/Persona、Proof/StatusCheck；另外预留了 3 个新场景名。
-- 新文件：`playbook.ts`、`tool.ts`（`defineTool` 拒绝 submit/approve/confirm/pay 类工具）、`adapter.ts`。
-- 演示数据：5 张合成罚单和 3 个演示身份（lin / maria / sam）。
+- 新增枚举：来源 PORTAL_LOOKUP、申诉理由 PERMIT_DISPLAYED。
+- 新事件：`facts.review`、`lookup.results`。
+- 接口结构：V2_API 全部接口的请求和响应结构。
+- `playbook.ts`、`tool.ts`（`defineTool` 拒绝 submit/approve/confirm/pay 类工具名）、`adapter.ts`。
+- 演示数据：5 张合成罚单和 3 个演示身份。
 
 **`apps/server`**
-- 已按 v2 目录迁移：`core/`、`approval/`、`agent/{runtime,context,fake,tools,rules,perception,writer,policy,llm,playbooks}`、`portal/{adapters/mockBoston,browser,cu,runner}`、`audit/`、`users/`、`routes/`。
+- 已按 v2 目录迁移（ARCHITECTURE §10）。
 - 两次确认流程：
-  - INVESTIGATING → FACTS_REVIEW
-  - 用户确认全部事实后（`done=true`，否则返回 422）→ DRAFTING → STATEMENT_REVIEW
-  - 签名批准 → APPROVED
-- 修改申诉信有两种方式：
-  - `PUT /api/cases/:id/statement`：修改后的段落作者记为 user，revision 加一，旧批准作废。
-  - 在 STATEMENT_REVIEW 阶段发聊天消息：作为修改请求，经 DRAFTING 生成新版本。
-- 工具注册表：每个工具一个文件，参数用 Zod 定义，只在对应状态开放，参数不合法时把错误回给模型。
-- 账户和审计存储都是 JSON 实现。审计是哈希链，所有状态转移都已写入。
-- 桩接口（返回 501）：`/api/me` 系列（WP1）、`/proof`、`/trace`、`/status-check`（WP8）。
-- 崩溃恢复 v2 与状态转移放在同一个文件（`core/fsm.ts`）。
-- `npm run docs:fsm`：ARCHITECTURE §1.1 的完整转移表由代码生成；加 `--check` 检查文档是否与代码一致。
+  - 第一道门：事实确认，未确认就请求 `done` 会返回 422。
+  - 写作：DRAFTING。
+  - 第二道门：签名批准。
+  - 修改申诉信：PUT 接口或聊天消息都会生成新版本，旧批准随即作废。
+- 工具注册表：每个工具一个文件，参数用 Zod 定义，只在 IDENTIFYING / INVESTIGATING 阶段开放。
+- 账户和审计都有仓储接口和 JSON 实现。每次状态转移都写入审计哈希链。
+- 崩溃恢复 v2，和状态转移放在同一个文件里。
+- 桩接口（返回 501）：`/api/me` 系列（WP1）；`/proof`、`/trace`、`/status-check`（WP8）。
 
-## 未完成（按顺序）
+**`apps/web`**：适配两次确认，是最小改动。新增事实确认卡片，DRAFTING 阶段显示提示，STATEMENT_REVIEW 阶段沿用原来的核对卡。路由和多语言由 WP9 完成。
 
-1. **前端还没适配新状态。**
-   - 现状：`npm run typecheck` 在 apps/web 报 5 个错误；手机流程会停在事实确认这一步。
-   - 要做：
-     - 更新状态名称（`ui.tsx`）
-     - 新增事实确认卡片（调用 `confirmFacts(..., done: true)`）
-     - DRAFTING 阶段显示“正在撰写”
-     - STATEMENT_REVIEW 阶段沿用原来的 ReviewCard
-     - `api.confirmFacts` 增加 `done` 参数
-2. `scripts/ui-smoke.mjs` 改成两步确认的流程。
-3. 测试骨架：
-   - `invariants.test.ts`
-   - WP1–WP10 的 `it.todo` 验收测试，名字与 TASKS.md 一致
-   - wp0 元测试
-4. CI（`.github/workflows/ci.yml`）和 Prettier。
-5. `git init`、基线提交、打 tag `contracts-v2`。
-6. 更新 TASKS.md 里 WP0 的状态。
+**测试与工具链**
+- 35 个测试通过，覆盖：
+  - 状态机
+  - 审批门禁
+  - 端到端 10 个场景，包括修改申诉信后旧批准失效、聊天修改走 DRAFTING
+  - AGENTS.md 中的不变量
+  - WP0 元测试
+- 53 个验收测试以 `it.todo` 形式写好，名字与 TASKS.md 完全一致。WP0 元测试会检查每个名字都存在。
+- UI 冒烟测试已改为两步确认流程，并在手机视口跑通（正常场景和改版场景都通过），桌面控制台也正常。
+- `npm run docs:fsm`：ARCHITECTURE §1.1 的完整转移表由代码生成，CI 会检查文档与代码一致。
+- Prettier 已对全部代码格式化一次；`npm run format` / `format:check`。
+- CI：`.github/workflows/ci.yml`。
 
-## 怎么跑测试
+## 刻意留给其他任务卡的
+
+| 内容 | 任务卡 |
+|---|---|
+| 账户、会话、演示身份切换 | WP1 |
+| 代查罚单、get_profile / lookup_tickets / select_ticket 工具、手册渲染进上下文 | WP2 |
+| 多张照片识别、新的证据提取目标、合成素材 | WP3 |
+| 5 份手册与规则文件、通用 fake 驱动、黄金测试 | WP4 |
+| 真正的修改器（“写短一点”真的变短）、诚实检查、对照翻译更新 | WP5 |
+| mockBoston 适配器、查询、trace、新场景处理 | WP6 |
+| `/lookup` 页面、新场景、校准页 | WP7 |
+| 凭证页、工具调用和执行步骤写入审计链、verify-audit 脚本 | WP8 |
+| 路由、三语界面、完整的事实核对和申诉信编辑界面 | WP9 |
+
+## 怎么验证
 
 ```bash
 npm install
-npm run browsers                         # 或者用本机 Chrome：BROWSER_CHANNEL=chrome
-BROWSER_CHANNEL=chrome npx vitest run    # 共享包 + 服务器：25 个测试
+npm run browsers                       # 或者用本机 Chrome：BROWSER_CHANNEL=chrome
+npm run typecheck
+npm test                               # 35 个通过，53 个待办
 npm run docs:fsm -- --check
+npm start                              # 另开一个终端运行：npm run smoke
 ```

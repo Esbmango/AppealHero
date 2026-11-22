@@ -15,7 +15,11 @@ function readyCase() {
   ocr('issuedAt', 'Issued at', '2026-11-15T14:32:00-05:00');
   ocr('location', 'Location', '700 Commonwealth Ave, Boston');
   ocr('violation', 'Violation', 'METER FEE UNPAID');
-  for (const [key, value] of [['fullName', 'Alex Demo'], ['mailingAddress', '1 Demo St, Boston, MA 02215'], ['email', 'alex@example.com']])
+  for (const [key, value] of [
+    ['fullName', 'Alex Demo'],
+    ['mailingAddress', '1 Demo St, Boston, MA 02215'],
+    ['email', 'alex@example.com'],
+  ])
     upsertFact(c, { key, label: key, value, provenance: 'PROFILE', status: 'CONFIRMED' });
   const rule = upsertFact(c, { key: 'rule:meter_free_day', label: 'Sunday', value: 'Sunday — meters free', provenance: 'RULE', status: 'RULE_VERIFIED' });
   c.draft = templateDraft(c, 'METER_NOT_IN_EFFECT', [{ text: 'Meters are free on Sundays.', factIds: [rule.id] }]);
@@ -49,17 +53,26 @@ describe('approval gate', () => {
     c.facts.find((f) => f.key === 'email')!.value = 'attacker@example.com';
     const after = hashPayload(buildApprovalPayload(c));
     expect(after).not.toBe(ph);
-    expect(verifyToken('secret', token, { caseId: c.id, payloadHash: after, adapterVersion: ADAPTER_VERSION })).toMatchObject({ ok: false, reason: 'payload changed since approval' });
+    expect(verifyToken('secret', token, { caseId: c.id, payloadHash: after, adapterVersion: ADAPTER_VERSION })).toMatchObject({
+      ok: false,
+      reason: 'payload changed since approval',
+    });
   });
 
   it('tampered or expired tokens are rejected', () => {
     const c = readyCase();
     const ph = hashPayload(buildApprovalPayload(c));
     const { token } = issueToken('secret', { caseId: c.id, payloadHash: ph, adapterVersion: ADAPTER_VERSION, ttlMs: -1 });
-    expect(verifyToken('secret', token, { caseId: c.id, payloadHash: ph, adapterVersion: ADAPTER_VERSION })).toMatchObject({ ok: false, reason: 'approval expired' });
+    expect(verifyToken('secret', token, { caseId: c.id, payloadHash: ph, adapterVersion: ADAPTER_VERSION })).toMatchObject({
+      ok: false,
+      reason: 'approval expired',
+    });
     const [body, sig] = token.split('.');
     const forged = `${Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(body, 'base64url').toString()), exp: Date.now() + 1e9 })).toString('base64url')}.${sig}`;
-    expect(verifyToken('secret', forged, { caseId: c.id, payloadHash: ph, adapterVersion: ADAPTER_VERSION })).toMatchObject({ ok: false, reason: 'bad signature' });
+    expect(verifyToken('secret', forged, { caseId: c.id, payloadHash: ph, adapterVersion: ADAPTER_VERSION })).toMatchObject({
+      ok: false,
+      reason: 'bad signature',
+    });
   });
 
   it('crash recovery never leaves a case mid-submission', () => {

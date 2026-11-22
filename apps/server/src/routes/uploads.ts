@@ -28,7 +28,19 @@ export async function readForm(req: FastifyRequest): Promise<{ fields: Record<st
   return { fields, files };
 }
 
-const EXT: Record<string, string> = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/heic': '.heic', 'application/pdf': '.pdf', 'audio/wav': '.wav', 'audio/wave': '.wav', 'audio/x-wav': '.wav', 'audio/webm': '.webm', 'audio/mp4': '.m4a', 'audio/mpeg': '.mp3' };
+const EXT: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/heic': '.heic',
+  'application/pdf': '.pdf',
+  'audio/wav': '.wav',
+  'audio/wave': '.wav',
+  'audio/x-wav': '.wav',
+  'audio/webm': '.webm',
+  'audio/mp4': '.m4a',
+  'audio/mpeg': '.mp3',
+};
 
 /** Store a file under data/uploads/<case>/ with a sha256. Portal filenames are normalized ASCII names. */
 export function saveEvidence(c: CaseRecord, f: UploadedFile, kind: Evidence['kind']): EvidenceRecord {

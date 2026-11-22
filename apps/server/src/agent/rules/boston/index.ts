@@ -177,7 +177,12 @@ export function runRule(name: RuleName, input: RuleInput): RuleResult {
     case 'fine_amount': {
       const t = (input.violationType ?? 'OTHER') as ViolationType;
       const f = FINES[t];
-      return { rule: name, result: f?.fine ?? null, detail: f ? `${t}: fine $${f.fine}, late penalty $${f.late}` : 'Unknown violation type — check the ticket', source: RULE_SOURCES.fines };
+      return {
+        rule: name,
+        result: f?.fine ?? null,
+        detail: f ? `${t}: fine $${f.fine}, late penalty $${f.late}` : 'Unknown violation type — check the ticket',
+        source: RULE_SOURCES.fines,
+      };
     }
     case 'video_hearing_eligibility': {
       const nonMa = Boolean(input.plateState && input.plateState !== 'MA' && input.isMaResident === false);
@@ -196,7 +201,9 @@ export function runRule(name: RuleName, input: RuleInput): RuleResult {
       return {
         rule: name,
         result: ok,
-        detail: ok ? 'MA plates can be looked up online by plate number' : 'Only MA-registered plates can be looked up online by plate — use the ticket number instead',
+        detail: ok
+          ? 'MA plates can be looked up online by plate number'
+          : 'Only MA-registered plates can be looked up online by plate — use the ticket number instead',
         source: RULE_SOURCES.plateLookup,
       };
     }

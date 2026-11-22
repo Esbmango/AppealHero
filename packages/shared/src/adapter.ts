@@ -36,7 +36,10 @@ export interface PortalAdapter<Page = unknown> {
   /** requests matching this pass the one-shot submit interlock at most once */
   submitPath: RegExp;
   /** read-only (GET) lookup; out-of-state plates need a ticket number */
-  lookup(page: Page, q: { plate?: string; state?: string; ticketNumber?: string }): Promise<{ tickets: TicketInfo[]; message?: 'plate_lookup_ma_only' | 'not_found' }>;
+  lookup(
+    page: Page,
+    q: { plate?: string; state?: string; ticketNumber?: string },
+  ): Promise<{ tickets: TicketInfo[]; message?: 'plate_lookup_ma_only' | 'not_found' }>;
   fillToReview(page: Page, payload: ApprovalPayload, files: UploadFile[], hooks: AdapterHooks): Promise<ReviewReadback>;
   submit(page: Page, timeoutMs: number): Promise<SubmitOutcome>;
   checkStatus(page: Page, ticketNumber: string): Promise<{ found: boolean; confirmationNumber?: string }>;

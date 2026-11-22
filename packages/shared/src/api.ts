@@ -1,13 +1,5 @@
 import { z } from 'zod';
-import {
-  ApprovalPayloadSchema,
-  CaseStateSchema,
-  PersonaIdSchema,
-  ReceiptSchema,
-  TicketInfoSchema,
-  UserSchema,
-  VehicleSchema,
-} from './schemas';
+import { ApprovalPayloadSchema, CaseStateSchema, PersonaIdSchema, ReceiptSchema, TicketInfoSchema, UserSchema, VehicleSchema } from './schemas';
 import { TierSchema } from './events';
 
 /**
@@ -44,7 +36,10 @@ export const CaseModeSchema = z.enum(CASE_MODES);
 /** Multipart text fields of POST /api/cases (files: ticket* (1–3 photos), audio?). All optional and additive. */
 export const CreateCaseFieldsSchema = z.object({
   mode: CaseModeSchema.optional(), // default 'photo' when a ticket photo is attached, else 'chat'
-  ticketNumber: z.string().regex(/^\d{6,12}$/).optional(), // lookup by ticket number
+  ticketNumber: z
+    .string()
+    .regex(/^\d{6,12}$/)
+    .optional(), // lookup by ticket number
   vehicleId: z.string().optional(), // lookup by a saved vehicle (MA plates only — see PLAYBOOKS §8)
   text: z.string().max(4000).optional(),
   lang: z.string().optional(),

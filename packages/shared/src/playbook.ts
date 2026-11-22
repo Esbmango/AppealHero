@@ -13,16 +13,7 @@ export type FactKey = string;
 export type RuleId = string;
 
 /** What analyze_evidence should extract from a photo (WP3 implements each target). */
-export const EVIDENCE_TARGETS = [
-  'receipt_paid_until',
-  'sign',
-  'permit_sticker',
-  'placard',
-  'hydrant_distance',
-  'temp_sign',
-  'vehicle',
-  'general',
-] as const;
+export const EVIDENCE_TARGETS = ['receipt_paid_until', 'sign', 'permit_sticker', 'placard', 'hydrant_distance', 'temp_sign', 'vehicle', 'general'] as const;
 export type EvidenceTarget = (typeof EVIDENCE_TARGETS)[number];
 
 export interface RuleResult {

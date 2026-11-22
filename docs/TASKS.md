@@ -8,8 +8,8 @@
 1. **WP0 先合并**，其他卡才开工。WP0 完成后契约冻结，打 tag `contracts-v2`。
 2. **只改“拥有路径”**。需要改 `packages/shared`、冻结接口或别人的文件时，停下来，在 PR 描述末尾写“契约变更请求”（格式见 §7），由 WP0 负责人处理。
 3. **验收测试已预先写好**：WP0 会把每张卡的验收项写成 `it.todo('wpN: …')`，名字与本文完全一致。你的任务是把它们变成通过的测试，不能删除或放宽已有测试。
-4. **完成标准**：本卡验收测试全部通过；`npm run typecheck && npm test` 全绿；`AI_MODE=fake` 仍能跑完全流程。
-5. **分支与提交**：分支名用 `wp3-perception` 这种格式，小步提交，合并前 rebase 到 main。仓库目前还没初始化 git，WP0 第一步就是 `git init` 并提交 v0.2 基线。
+4. **完成标准**：本卡验收测试全部通过；`npm run format && npm run typecheck && npm test` 全绿；`AI_MODE=fake` 仍能跑完全流程。CI 还会检查格式（`npm run format:check`）和文档中的状态机（`npm run docs:fsm -- --check`）。
+5. **分支与提交**：仓库在 https://github.com/Esbmango/AppealHero 。分支名用 `wp3-perception` 这种格式，从合并了 WP0 的 main 拉出，小步提交，合并前 rebase 到 main。
 
 ## 1. 时间线（2026-11-21 晚 → 11-22 09:00 截止）
 
@@ -67,6 +67,8 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 ## 5. 任务卡
 
 ### WP0 地基与契约（阻塞全部）
+
+**状态：✅ 已完成**，在分支 `wp0-foundation`，等设计评审结束后合并到 main，然后打 tag `contracts-v2`。交付说明见该分支的 `WP0_STATUS.md`。
 
 **目标**：把 v0.2 平滑迁移到 v2 骨架，功能不倒退；冻结契约；为每张卡准备好桩代码和待办测试。
 

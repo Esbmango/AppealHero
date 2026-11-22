@@ -4,7 +4,7 @@ AppealHero is a human-in-the-loop agent that helps people appeal Boston parking 
 
 Before changing anything: read this file, your task card in `docs/TASKS.md`, and the relevant section of `docs/ARCHITECTURE.md`.
 
-> Paths below follow the v2 layout created by WP0. Until WP0 lands, use the v0.2 → v2 map in `docs/ARCHITECTURE.md` §10.
+> Paths below follow the v2 layout created by WP0 (branch `wp0-foundation`, merged into `main` after the design review). On a v0.2 checkout, use the v0.2 → v2 map in `docs/ARCHITECTURE.md` §10.
 
 ## Non-negotiable invariants (each one has a test — never weaken the test to make your change pass)
 
@@ -44,7 +44,7 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 ## Workflow
 
 - Edit only the paths your task card owns.
-- Before you finish: `npm run typecheck && npm test` must pass. Add tests for new behavior: golden conversation tests for playbooks, e2e scenarios for portal changes.
+- Before you finish: `npm run format && npm run typecheck && npm test` must pass (CI also runs `npm run format:check` and `npm run docs:fsm -- --check`). Add tests for new behavior: golden conversation tests for playbooks, e2e scenarios for portal changes.
 - No new dependencies without a one-line justification in the PR.
 - All user-facing strings go through i18n. Never hardcode UI text.
 - Every rule or legal claim in a playbook needs an official source URL. Unverified rules must be marked `verified: false` and are never used to auto-generate appeal grounds.

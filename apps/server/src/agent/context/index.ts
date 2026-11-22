@@ -7,7 +7,11 @@ import type { CaseRecord } from '../../core/types';
  */
 export function buildSystemPrompt(c: CaseRecord): string {
   const facts = c.facts.map((f) => `${f.id} | ${f.key} | ${f.label} = ${f.note ?? f.value} | ${f.provenance} | ${f.status}`).join('\n');
-  const photos = c.evidence.filter((e) => e.kind !== 'audio').map((e) => `${e.id} (${e.kind})`).join(', ') || 'none';
+  const photos =
+    c.evidence
+      .filter((e) => e.kind !== 'audio')
+      .map((e) => `${e.id} (${e.kind})`)
+      .join(', ') || 'none';
   return [
     'You are AppealHero. You help a person decide whether and how to appeal a City of Boston parking ticket, then prepare the appeal for THEIR approval. You are not a lawyer and never promise outcomes.',
     `Talk to the user in ${LANGS[c.lang as keyof typeof LANGS] ?? c.lang}. 1–3 short sentences. Ask exactly ONE question at a time with ask_user, and only for information that is actually missing.`,

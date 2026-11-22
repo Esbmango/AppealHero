@@ -12,7 +12,7 @@ const log = (...a) => console.log('[smoke]', ...a);
 async function phoneFlow(label, text) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const page = await ctx.newPage();
-  page.on('pageerror', (e) => log('PAGE ERROR', e.message, (e.stack||'').split('\n').slice(0,5).join(' | ')));
+  page.on('pageerror', (e) => log('PAGE ERROR', e.message, (e.stack || '').split('\n').slice(0, 5).join(' | ')));
   await page.goto(BASE + '/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
@@ -24,13 +24,17 @@ async function phoneFlow(label, text) {
   await page.getByPlaceholder('邮箱（接收回执）').fill('alex.demo@example.com');
   await page.screenshot({ path: `${out}/${label}-1-intake.png` });
   await page.getByRole('button', { name: '开始处理这张罚单' }).click();
-  await page.getByText('核对并授权').waitFor({ timeout: 20000 });
-  await page.screenshot({ path: `${out}/${label}-2-review.png`, fullPage: true });
-  await page.getByRole('button', { name: '全部核对无误' }).click();
+  // v2 gate 1: confirm every fact before anything is written
+  await page.getByText('核对事实').waitFor({ timeout: 20000 });
+  await page.screenshot({ path: `${out}/${label}-2-facts.png`, fullPage: true });
+  await page.getByRole('button', { name: '全部核对无误，开始写申诉信' }).click();
+  // v2 gate 2: review the exact statement, then approve once
+  await page.getByText('核对申诉信并授权').waitFor({ timeout: 20000 });
+  await page.screenshot({ path: `${out}/${label}-3-statement.png`, fullPage: true });
   await page.getByRole('checkbox').check();
   await page.getByRole('button', { name: '批准并提交' }).click();
   await page.getByText('申诉已提交').waitFor({ timeout: 40000 });
-  await page.screenshot({ path: `${out}/${label}-3-receipt.png`, fullPage: true });
+  await page.screenshot({ path: `${out}/${label}-4-receipt.png`, fullPage: true });
   log(label, 'phone flow OK');
   await ctx.close();
 }

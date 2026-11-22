@@ -1,17 +1,5 @@
 import type { Content } from '@google/genai';
-import type {
-  Actor,
-  CaseState,
-  ChatMessage,
-  Draft,
-  Evidence,
-  Fact,
-  Metrics,
-  NeedsUser,
-  Receipt,
-  TicketInfo,
-  Triage,
-} from '@appealhero/shared';
+import type { Actor, CaseState, ChatMessage, Draft, Evidence, Fact, Metrics, NeedsUser, Receipt, TicketInfo, Triage } from '@appealhero/shared';
 import type { ViolationType } from '../agent/rules/boston';
 
 export interface EvidenceRecord extends Evidence {

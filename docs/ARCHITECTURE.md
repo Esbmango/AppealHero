@@ -2,6 +2,7 @@
 
 > 本文是团队和所有 AI 编码代理共用的设计说明。字段级定义以 `packages/shared` 的代码为准，本文只描述结构、流程和规则。
 > 状态标记：✅ v0.2 已实现并有测试 · 🔧 v0.2 已有、需按 v2 重构 · 🆕 v2 新增
+> **WP0 已完成（分支 `wp0-foundation`）**：§1 状态机 v2、§2 数据模型契约、§3 接口契约、§4.2/§4.6 工具注册表、§8 存储、§10 目录迁移已经实现并有测试。其余 🆕 项由 WP1–WP9 完成。
 > 需求见 [PRODUCT_SPEC.md](PRODUCT_SPEC.md)，罚单知识见 [PLAYBOOKS.md](PLAYBOOKS.md)，分工见 [TASKS.md](TASKS.md)，AI 编码规则见 [../AGENTS.md](../AGENTS.md)。
 
 ## 0. 总览

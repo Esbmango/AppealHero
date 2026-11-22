@@ -1,12 +1,4 @@
-import {
-  LANGS,
-  PORTAL_FIELDS,
-  type DisputeReason,
-  type Draft,
-  type DraftParagraph,
-  type Ground,
-  type StatementEditRequest,
-} from '@appealhero/shared';
+import { LANGS, PORTAL_FIELDS, type DisputeReason, type Draft, type DraftParagraph, type Ground, type StatementEditRequest } from '@appealhero/shared';
 import { config } from '../../core/config';
 import { reportError, say, type Ctx } from '../../core/ctx';
 import { transition } from '../../core/fsm';
@@ -47,7 +39,9 @@ export async function composeDraft(
               'Write a formal, concise English appeal statement to the City of Boston Office of the Parking Clerk.',
               `Use ONLY these facts (id: label = value [status]):\n${facts}`,
               `Grounds to argue:\n${grounds.map((g) => `- ${g.text} (facts: ${g.factIds.join(', ')})`).join('\n')}`,
-              ...(opts.instructions?.length ? [`The user asked for these changes (apply them without adding unlisted facts):\n${opts.instructions.map((i) => `- ${i}`).join('\n')}`] : []),
+              ...(opts.instructions?.length
+                ? [`The user asked for these changes (apply them without adding unlisted facts):\n${opts.instructions.map((i) => `- ${i}`).join('\n')}`]
+                : []),
               `3–5 short paragraphs, at most ${MAX_LEN - 300} characters in total. First paragraph identifies the ticket. No legal threats, no promises, no facts that are not listed.`,
               'Every paragraph must list the fact ids it relies on in factIds.',
               `Also return a faithful translation of the whole statement into ${LANGS[c.lang as keyof typeof LANGS] ?? c.lang} in "translation" (for the user to review — it is not submitted).`,
@@ -59,7 +53,11 @@ export async function composeDraft(
           properties: {
             paragraphs: {
               type: 'array',
-              items: { type: 'object', properties: { text: { type: 'string' }, factIds: { type: 'array', items: { type: 'string' } } }, required: ['text', 'factIds'] },
+              items: {
+                type: 'object',
+                properties: { text: { type: 'string' }, factIds: { type: 'array', items: { type: 'string' } } },
+                required: ['text', 'factIds'],
+              },
             },
             translation: { type: 'string' },
           },
@@ -87,12 +85,12 @@ export function templateDraft(c: CaseRecord, reason: DisputeReason, grounds: Gro
   const introIds = [t, issued, loc, viol].filter(Boolean).map((f) => f!.id);
   const intro: DraftParagraph = {
     text: `I am writing to appeal parking ticket ${t?.value ?? ''}, issued on ${issued ? formatBoston(issued.value) : 'the date shown on the ticket'} at ${loc?.value ?? 'the location shown on the ticket'} for "${viol?.value ?? 'the listed violation'}".`,
-    factIds: introIds.length ? introIds : grounds[0]?.factIds ?? [],
+    factIds: introIds.length ? introIds : (grounds[0]?.factIds ?? []),
     author: 'agent',
   };
   const closing: DraftParagraph = {
     text: 'I respectfully request that this ticket be dismissed. The supporting evidence is attached for your review.',
-    factIds: t ? [t.id] : grounds[0]?.factIds ?? [],
+    factIds: t ? [t.id] : (grounds[0]?.factIds ?? []),
     author: 'agent',
   };
   const paragraphs: DraftParagraph[] = [intro, ...grounds.map((g) => ({ ...g, author: 'agent' as const })), closing];
@@ -102,7 +100,8 @@ export function templateDraft(c: CaseRecord, reason: DisputeReason, grounds: Gro
 }
 
 const ZH_REASON: Record<DisputeReason, string> = {
-  METER_NOT_IN_EFFECT: '罚单开具时是周日或市政假日（或不在计时器运营时间内）。根据 boston.gov，计时器周一至周六 8:00–20:00 运营，周日和全市假日免费，因此当时不需要缴费。',
+  METER_NOT_IN_EFFECT:
+    '罚单开具时是周日或市政假日（或不在计时器运营时间内）。根据 boston.gov，计时器周一至周六 8:00–20:00 运营，周日和全市假日免费，因此当时不需要缴费。',
   PAID: '我当时已经付了停车费，付款记录显示的有效时间覆盖了罚单开具时间。',
   SIGNAGE: '现场路牌缺失、被遮挡或不适用，照片证据已附上。',
   VEHICLE_INFO: '罚单上的车辆或车牌信息与我的车辆不符。',
@@ -110,7 +109,8 @@ const ZH_REASON: Record<DisputeReason, string> = {
   OTHER: '具体情况见我本人的陈述。',
 };
 const ES_REASON: Record<DisputeReason, string> = {
-  METER_NOT_IN_EFFECT: 'La multa se emitió en domingo o día festivo de la ciudad (o fuera del horario de los parquímetros). Según boston.gov, los parquímetros funcionan de lunes a sábado de 8:00 a 20:00 y son gratuitos los domingos y festivos, así que no se debía pagar.',
+  METER_NOT_IN_EFFECT:
+    'La multa se emitió en domingo o día festivo de la ciudad (o fuera del horario de los parquímetros). Según boston.gov, los parquímetros funcionan de lunes a sábado de 8:00 a 20:00 y son gratuitos los domingos y festivos, así que no se debía pagar.',
   PAID: 'Pagué el estacionamiento y el recibo cubre la hora en que se emitió la multa.',
   SIGNAGE: 'La señal faltaba, estaba tapada o no correspondía; adjunto foto.',
   VEHICLE_INFO: 'Los datos del vehículo o de la placa en la multa no coinciden con mi vehículo.',
@@ -173,12 +173,14 @@ export function applyUserEdit(ctx: Ctx, caseId: string, edit: StatementEditReque
   if (statementEn.length > MAX_LEN) errors.push(`the statement is longer than ${MAX_LEN} characters`);
   if (errors.length) throw new HttpError(422, 'invalid statement', { missing: errors });
   const changed = paragraphs.some((p) => p.author === 'user' && !before.has(p.text));
-  const note = c.lang === 'zh' ? '（你修改了英文正文；对照译文尚未更新）\n' : c.lang === 'es' ? '(Editaste el texto en inglés; la traducción no se ha actualizado)\n' : '';
+  const note =
+    c.lang === 'zh' ? '（你修改了英文正文；对照译文尚未更新）\n' : c.lang === 'es' ? '(Editaste el texto en inglés; la traducción no se ha actualizado)\n' : '';
   const draft: Draft = {
     ...c.draft,
     paragraphs,
     statementEn,
-    statementUserLang: changed && c.draft.statementUserLang && !c.draft.statementUserLang.startsWith(note) ? note + c.draft.statementUserLang : c.draft.statementUserLang,
+    statementUserLang:
+      changed && c.draft.statementUserLang && !c.draft.statementUserLang.startsWith(note) ? note + c.draft.statementUserLang : c.draft.statementUserLang,
     revision: c.draft.revision + 1,
   };
   ctx.store.mutate(caseId, (r) => {

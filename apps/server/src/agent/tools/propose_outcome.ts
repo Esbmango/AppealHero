@@ -58,7 +58,8 @@ async function proposeOutcome(ctx: Ctx, caseId: string, a: Record<string, unknow
 
   if (!grounds.length) return { result: { error: 'APPEAL needs at least one ground that cites fact ids' }, isError: true };
   const missingContact = (['fullName', 'mailingAddress', 'email'] as const).filter((k) => !latestFact(c, k)?.value);
-  if (missingContact.length) return { result: { error: `missing appellant details: ${missingContact.join(', ')} — ask the user with ask_user, then record_fact` }, isError: true };
+  if (missingContact.length)
+    return { result: { error: `missing appellant details: ${missingContact.join(', ')} — ask the user with ask_user, then record_fact` }, isError: true };
   const reason = (DISPUTE_REASON_KEYS as readonly string[]).includes(str(a.dispute_reason)) ? (str(a.dispute_reason) as DisputeReason) : 'OTHER';
   // v2: the agent only PROPOSES. The user confirms every fact (gate 1) before anything is written.
   ctx.store.mutate(caseId, (r) => {
@@ -67,7 +68,8 @@ async function proposeOutcome(ctx: Ctx, caseId: string, a: Record<string, unknow
     r.approval = undefined;
     r.pendingQuestion = undefined;
   });
-  if (ctx.store.must(caseId).state === 'INVESTIGATING') transition(ctx, caseId, 'FACTS_REVIEW', 'agent', `agent proposed APPEAL (${reason}) — waiting for the user to confirm the facts`);
+  if (ctx.store.must(caseId).state === 'INVESTIGATING')
+    transition(ctx, caseId, 'FACTS_REVIEW', 'agent', `agent proposed APPEAL (${reason}) — waiting for the user to confirm the facts`);
   const after = ctx.store.must(caseId);
   ctx.hub.emit({ type: 'facts.review', caseId, facts: after.facts, pendingFactIds: pendingFactIds(after) });
   if (summary) say(ctx, caseId, summary);

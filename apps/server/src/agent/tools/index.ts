@@ -44,7 +44,13 @@ export async function runTool(ctx: Ctx, caseId: string, name: string, args: Reco
       const parsed = tool.params.safeParse(args);
       out = parsed.success
         ? await tool.run({ ctx, caseId }, parsed.data)
-        : { result: { error: 'invalid arguments', issues: parsed.error.issues.map((i: { path: PropertyKey[]; message: string }) => `${i.path.map(String).join('.') || '(root)'}: ${i.message}`) }, isError: true };
+        : {
+            result: {
+              error: 'invalid arguments',
+              issues: parsed.error.issues.map((i: { path: PropertyKey[]; message: string }) => `${i.path.map(String).join('.') || '(root)'}: ${i.message}`),
+            },
+            isError: true,
+          };
     }
   } catch (err) {
     out = { result: { error: (err as Error).message ?? String(err) }, isError: true };

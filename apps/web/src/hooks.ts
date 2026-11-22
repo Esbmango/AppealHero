@@ -18,7 +18,10 @@ export function useCase(caseId: string | null) {
     const load = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        api.getCase(caseId).then((v) => alive && setC(v), () => undefined);
+        api.getCase(caseId).then(
+          (v) => alive && setC(v),
+          () => undefined,
+        );
       }, 60);
     };
     load();

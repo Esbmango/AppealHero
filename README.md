@@ -36,7 +36,7 @@ For residents who are more at home in Chinese or Spanish, that friction can be e
 | Read-back gate, one-shot submit interlock, check-status-before-retry | ✅ v0.2 |
 | Judge console: state machine, live screenshots, tool trace, time and cost | ✅ v0.2 |
 | Light accounts with saved vehicles; "find my tickets" | 🆕 v2 |
-| Separate fact confirmation and statement approval; statement edits | 🆕 v2 |
+| Separate fact confirmation and statement approval; statement edits | ✅ v2 (WP0) |
 | Chinese / Spanish / English interface | 🆕 v2 |
 | Proof page, hash-chained audit log, downloadable Playwright trace | 🆕 v2 |
 
@@ -88,6 +88,7 @@ npm run smoke             # with the app running: clicks through the phone flow 
 
 ## Verified so far
 
+- ✅ v2 foundation (WP0): 35 automated tests pass, plus 53 acceptance tests stubbed as `it.todo` for the parallel work packages. They cover the two confirmation gates, statement edits voiding old approvals, crash recovery, the invariants in AGENTS.md, and docs matching the state machine. The UI smoke test passes on the new two-step flow.
 - ✅ v0.2: 21 automated tests and the UI smoke test pass in fake mode. The tests cover a normal filing, the portal-redesign fallback, both timeout reconciliations, CAPTCHA stop, missing-field re-approval, honest triage and the network interlock.
 - ⚠️ Not yet run with a real Gemini key: chat, vision and Computer Use.
 - ⚠️ Not yet tested on real iPhone or Android devices.

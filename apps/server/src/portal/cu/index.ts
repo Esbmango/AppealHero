@@ -44,7 +44,19 @@ export class CuHandoff extends Error {
 export const toPx = (n: unknown, size: number) => Math.round((Math.min(Math.max(Number(n) || 0, 0), 999) / 1000) * size);
 export const toNorm = (px: number, size: number) => Math.min(999, Math.max(0, Math.round((px / size) * 1000)));
 
-const EXCLUDED = ['navigate', 'go_back', 'go_forward', 'drag_and_drop', 'hotkey', 'key_down', 'key_up', 'mouse_down', 'mouse_up', 'right_click', 'middle_click'];
+const EXCLUDED = [
+  'navigate',
+  'go_back',
+  'go_forward',
+  'drag_and_drop',
+  'hotkey',
+  'key_down',
+  'key_up',
+  'mouse_down',
+  'mouse_up',
+  'right_click',
+  'middle_click',
+];
 
 const SYSTEM = [
   'You operate a web browser to fill exactly ONE form field on a simulated parking-ticket appeal form.',
@@ -80,12 +92,18 @@ export class GeminiCuModel implements CuModel {
     ];
   }
 
-  private parse(it: { id: string; steps?: unknown[]; usage?: { total_input_tokens?: number; total_output_tokens?: number; total_thought_tokens?: number } }): CuAction[] {
+  private parse(it: {
+    id: string;
+    steps?: unknown[];
+    usage?: { total_input_tokens?: number; total_output_tokens?: number; total_thought_tokens?: number };
+  }): CuAction[] {
     this.prevId = it.id;
     this.tokens.tokensIn += it.usage?.total_input_tokens ?? 0;
     this.tokens.tokensOut += (it.usage?.total_output_tokens ?? 0) + (it.usage?.total_thought_tokens ?? 0);
     return (it.steps ?? [])
-      .filter((s): s is { type: 'function_call'; id: string; name: string; arguments: Record<string, unknown> } => (s as { type?: string }).type === 'function_call')
+      .filter(
+        (s): s is { type: 'function_call'; id: string; name: string; arguments: Record<string, unknown> } => (s as { type?: string }).type === 'function_call',
+      )
       .map((s) => ({ id: s.id, name: s.name, args: s.arguments ?? {} }));
   }
 
@@ -144,7 +162,15 @@ export class FakeCuModel implements CuModel {
     const box = loc ? await loc.boundingBox() : null;
     if (!box) return [{ id: 'fake-1', name: 'yield_to_user', args: { reason: `could not find "${this.field.label}"` } }];
     return [
-      { id: 'fake-1', name: 'click', args: { x: toNorm(box.x + box.width / 2, VIEWPORT.width), y: toNorm(box.y + Math.min(box.height / 2, 18), VIEWPORT.height), intent: `focus ${this.field.label}` } },
+      {
+        id: 'fake-1',
+        name: 'click',
+        args: {
+          x: toNorm(box.x + box.width / 2, VIEWPORT.width),
+          y: toNorm(box.y + Math.min(box.height / 2, 18), VIEWPORT.height),
+          intent: `focus ${this.field.label}`,
+        },
+      },
       { id: 'fake-2', name: 'type', args: { text: this.value, intent: `type ${this.field.label}` } },
     ];
   }
@@ -186,7 +212,9 @@ export async function guardAction(page: Page, a: CuAction, allowedOrigin: string
           const el = document.elementFromPoint(x, y) as HTMLElement | null;
           if (!el) return null;
           const clickable = el.closest('button, a, [role=button], input[type=submit], input[type=button], input[type=image]') as HTMLElement | null;
-          return clickable ? { tag: clickable.tagName.toLowerCase(), text: (clickable.innerText || (clickable as HTMLInputElement).value || '').trim().slice(0, 60) } : null;
+          return clickable
+            ? { tag: clickable.tagName.toLowerCase(), text: (clickable.innerText || (clickable as HTMLInputElement).value || '').trim().slice(0, 60) }
+            : null;
         },
         [toPx(a.args.x, VIEWPORT.width), toPx(a.args.y, VIEWPORT.height)] as const,
       );

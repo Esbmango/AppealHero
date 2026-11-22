@@ -55,7 +55,8 @@ export async function extractTicket(
 
 /** Follow-up voice messages: transcribe + translate in one call. */
 export async function transcribeAudio(ctx: Ctx, caseId: string, audio: EvidenceRecord, lang: string) {
-  if (config.aiMode === 'fake') return { original: '（语音消息 · fake 模式不转写）', language: lang, english: '(voice message — not transcribed in fake mode)' };
+  if (config.aiMode === 'fake')
+    return { original: '（语音消息 · fake 模式不转写）', language: lang, english: '(voice message — not transcribed in fake mode)' };
   return generateJson<{ original: string; language: string; english: string }>(
     ctx,
     caseId,

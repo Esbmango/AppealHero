@@ -1,8 +1,7 @@
 import { DISPUTE_REASONS, PORTAL_FIELDS, US_STATES, type Scenario } from '@appealhero/shared';
 import type { Appeal, Session } from './db';
 
-export const esc = (s: unknown) =>
-  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+export const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 const CSS = `
 body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;background:#f3f4f6;color:#111827}
@@ -44,7 +43,13 @@ const stateOptions = (selected = '') =>
     .join('');
 
 const reasonOptions = (v2: boolean) => {
-  const v2Text: Record<string, string> = { METER_NOT_IN_EFFECT: 'Meter not in effect', PAID: 'Paid / app receipt', SIGNAGE: 'Sign problem', VEHICLE_INFO: 'Wrong vehicle info', OTHER: 'Something else' };
+  const v2Text: Record<string, string> = {
+    METER_NOT_IN_EFFECT: 'Meter not in effect',
+    PAID: 'Paid / app receipt',
+    SIGNAGE: 'Sign problem',
+    VEHICLE_INFO: 'Wrong vehicle info',
+    OTHER: 'Something else',
+  };
   return `<option value="">— choose —</option>${Object.entries(DISPUTE_REASONS)
     .map(([k, label]) => `<option value="${k}">${esc(v2 ? v2Text[k] : label)}</option>`)
     .join('')}`;
@@ -138,12 +143,16 @@ export function reviewPage(scenario: Scenario, s: Session, error = '') {
   const err = error ? `<p class="err">${esc(error)}</p>` : '';
   const rows = PORTAL_FIELDS.map((f) => {
     const v = s.data[f.id] ?? '';
-    const shown = f.id === 'disputeReason' ? DISPUTE_REASONS[v as keyof typeof DISPUTE_REASONS] ?? v : f.id === 'plateState' ? `${US_STATES[v] ?? v} (${v})` : v;
+    const shown =
+      f.id === 'disputeReason' ? (DISPUTE_REASONS[v as keyof typeof DISPUTE_REASONS] ?? v) : f.id === 'plateState' ? `${US_STATES[v] ?? v} (${v})` : v;
     const dataValue = f.id === 'disputeReason' || f.id === 'plateState' ? ` data-value="${esc(v)}"` : '';
     return `<dt>${esc(f.label)}</dt><dd data-review-field="${f.id}"${dataValue}>${esc(shown)}</dd>`;
   }).join('');
   const extra = s.data.vehicleMake ? `<dt>Vehicle make</dt><dd data-review-extra="Vehicle make">${esc(s.data.vehicleMake)}</dd>` : '';
-  const ev = s.evidence.map((e) => `<li data-review-evidence data-filename="${esc(e.filename)}" data-bytes="${e.bytes}">${esc(e.filename)} (${e.bytes} bytes)</li>`).join('') || '<li>No files</li>';
+  const ev =
+    s.evidence
+      .map((e) => `<li data-review-evidence data-filename="${esc(e.filename)}" data-bytes="${e.bytes}">${esc(e.filename)} (${e.bytes} bytes)</li>`)
+      .join('') || '<li>No files</li>';
   const captcha =
     scenario === 'captcha'
       ? `<div class="captcha" data-captcha role="group" aria-label="Human verification"><input class="cb" type="checkbox" id="human" name="human"><label class="inline" for="human">I'm not a robot</label></div>`
@@ -167,7 +176,11 @@ export const confirmationPage = (scenario: Scenario, a: Appeal) =>
   );
 
 export const alreadyOnFilePage = (scenario: Scenario, a: Appeal) =>
-  layout('Already on file', `<h1>An appeal for this ticket is already on file</h1><p data-already-on-file>Confirmation number: ${esc(a.confirmationNumber)}</p>`, scenario);
+  layout(
+    'Already on file',
+    `<h1>An appeal for this ticket is already on file</h1><p data-already-on-file>Confirmation number: ${esc(a.confirmationNumber)}</p>`,
+    scenario,
+  );
 
 export function statusPage(scenario: Scenario, ticket: string, a: Appeal | undefined) {
   const result = ticket
@@ -186,9 +199,11 @@ export const inboxPage = (scenario: Scenario, email: string, items: { to: string
   layout(
     'Inbox',
     `<h1>Simulated email receipts${email ? ` for ${esc(email)}` : ''}</h1><ul>${
-      items.map((m) => `<li data-receipt data-confirmation="${esc(m.confirmationNumber)}">${esc(m.at)} — To: ${esc(m.to)} — ${esc(m.subject)}</li>`).join('') || '<li>No messages</li>'
+      items.map((m) => `<li data-receipt data-confirmation="${esc(m.confirmationNumber)}">${esc(m.at)} — To: ${esc(m.to)} — ${esc(m.subject)}</li>`).join('') ||
+      '<li>No messages</li>'
     }</ul>`,
     scenario,
   );
 
-export const messagePage = (scenario: Scenario, title: string, text: string) => layout(title, `<h1>${esc(title)}</h1><p class="err">${esc(text)}</p>`, scenario);
+export const messagePage = (scenario: Scenario, title: string, text: string) =>
+  layout(title, `<h1>${esc(title)}</h1><p class="err">${esc(text)}</p>`, scenario);

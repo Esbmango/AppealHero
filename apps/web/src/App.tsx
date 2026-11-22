@@ -13,7 +13,7 @@ export default function App() {
   const [localId, setLocalId] = useLocalStorage<string | null>('cp.caseId', null);
   const [since, setSince] = useState('1970-01-01T00:00:00.000Z');
   const latest = useLatestCaseId(wide, since);
-  const caseId = wide ? latest ?? (localId && since === '1970-01-01T00:00:00.000Z' ? localId : null) : localId;
+  const caseId = wide ? (latest ?? (localId && since === '1970-01-01T00:00:00.000Z' ? localId : null)) : localId;
   const { c, events, refresh } = useCase(caseId);
 
   const onNew = () => {

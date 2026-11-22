@@ -8,12 +8,10 @@ let browser: Promise<Browser> | null = null;
 
 export function getBrowser(): Promise<Browser> {
   if (!browser) {
-    browser = chromium
-      .launch({ headless: config.headless, channel: config.browserChannel, slowMo: config.slowMoMs || undefined })
-      .catch((err: Error) => {
-        browser = null;
-        throw new Error(`Could not launch Chromium (${err.message}). Run "npm run browsers" or set BROWSER_CHANNEL=chrome.`);
-      });
+    browser = chromium.launch({ headless: config.headless, channel: config.browserChannel, slowMo: config.slowMoMs || undefined }).catch((err: Error) => {
+      browser = null;
+      throw new Error(`Could not launch Chromium (${err.message}). Run "npm run browsers" or set BROWSER_CHANNEL=chrome.`);
+    });
   }
   return browser;
 }

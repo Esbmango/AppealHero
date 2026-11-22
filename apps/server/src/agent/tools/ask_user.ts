@@ -27,7 +27,16 @@ function askUser(ctx: Ctx, caseId: string, a: Record<string, unknown>): ToolResu
   if (!question) throw new Error('question is required');
   const expects = (['text', 'photo', 'choice', 'yesno'].includes(str(a.expects)) ? str(a.expects) : 'text') as ChatMessage['expects'];
   const options = Array.isArray(a.options) ? a.options.map(String).slice(0, 6) : undefined;
-  const msg: ChatMessage = { id: newId('m'), role: 'agent', text: question, textEn: str(a.question_en) || undefined, at: now(), questionId: newId('q'), expects, options };
+  const msg: ChatMessage = {
+    id: newId('m'),
+    role: 'agent',
+    text: question,
+    textEn: str(a.question_en) || undefined,
+    at: now(),
+    questionId: newId('q'),
+    expects,
+    options,
+  };
   ctx.store.mutate(caseId, (c) => {
     c.messages.push(msg);
     c.pendingQuestion = msg;

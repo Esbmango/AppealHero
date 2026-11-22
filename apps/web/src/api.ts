@@ -23,13 +23,19 @@ export const api = {
   createCase: (fd: FormData) => j<{ caseId: string; jobId: string }>('/api/cases', { method: 'POST', body: fd }),
   postMessage: (id: string, fd: FormData) => j<{ ok: true }>(`/api/cases/${id}/messages`, { method: 'POST', body: fd }),
   approve: (id: string, payloadHash: string, activeMs?: number) =>
-    j<{ jobId: string; idempotent: boolean }>(`/api/cases/${id}/approve`, json({ payloadHash, activeMs: activeMs === undefined ? undefined : Math.min(Math.round(activeMs), 600_000) })),
+    j<{ jobId: string; idempotent: boolean }>(
+      `/api/cases/${id}/approve`,
+      json({ payloadHash, activeMs: activeMs === undefined ? undefined : Math.min(Math.round(activeMs), 600_000) }),
+    ),
   resume: (id: string, body: { action: 'retry' | 'reconcile' | 'back_to_review' | 'provide_info'; field?: string; value?: string }) =>
     j<unknown>(`/api/jobs/${id}/resume`, json(body)),
   // helpers
   getCase: (id: string) => j<CaseView>(`/api/cases/${id}`),
   listCases: () => j<CaseView[]>('/api/cases'),
-  confirmFacts: (id: string, confirm: string[]) => j<CaseView>(`/api/cases/${id}/facts/confirm`, json({ confirm, edits: [] })),
+  /** gate 1: done=true asks the server to move FACTS_REVIEW → DRAFTING (422 if anything is still unconfirmed) */
+  confirmFacts: (id: string, confirm: string[], done = false) => j<CaseView>(`/api/cases/${id}/facts/confirm`, json({ confirm, edits: [], done })),
+  editStatement: (id: string, paragraphs: { text: string; factIds: string[] }[]) =>
+    j<CaseView>(`/api/cases/${id}/statement`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ paragraphs }) }),
   editFact: (id: string, factId: string, value: string) => j<CaseView>(`/api/cases/${id}/facts/confirm`, json({ confirm: [], edits: [{ id: factId, value }] })),
   decide: (id: string, choice: 'accept_pay' | 'appeal_anyway') => j<unknown>(`/api/cases/${id}/decision`, json({ choice })),
   health: () => j<{ aiMode: 'gemini' | 'fake'; model: string; cuModel: string; tiers: string[]; headless: boolean }>('/api/health'),

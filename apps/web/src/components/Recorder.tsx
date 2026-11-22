@@ -45,7 +45,11 @@ export function Recorder({ onAudio, disabled }: { onAudio: (wav: Blob) => void; 
         type="button"
         disabled={disabled || busy}
         onClick={rec ? () => (rec.stop(), setRec(null)) : start}
-        className={cx('no-callout w-full rounded-xl px-3 py-2 text-sm font-semibold', rec ? 'animate-pulse bg-rose-600 text-white' : 'bg-violet-100 text-violet-900', (disabled || busy) && 'opacity-50')}
+        className={cx(
+          'no-callout w-full rounded-xl px-3 py-2 text-sm font-semibold',
+          rec ? 'animate-pulse bg-rose-600 text-white' : 'bg-violet-100 text-violet-900',
+          (disabled || busy) && 'opacity-50',
+        )}
       >
         {busy ? '转换中…' : rec ? '■ 点一下结束录音' : '🎙 点一下开始说话'}
       </button>

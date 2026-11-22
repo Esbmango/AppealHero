@@ -4,7 +4,7 @@
 
 **仓库**：https://github.com/Esbmango/AppealHero（公开）
 - `main` 分支：v0.2 可运行代码 + v2 设计文档（本轮评审对象）。
-- `wp0-foundation` 分支：WP0 地基做到一半的代码（未完成，进度见该分支的 `WP0_STATUS.md`），可选评审。
+- `wp0-foundation` 分支：WP0 地基（已完成，交付说明见该分支的 `WP0_STATUS.md`），可选评审。
 - 只想读一个文件：`docs/REVIEW_BUNDLE.md` 是全部文档的合并版（自动生成，内容以各单独文件为准）。
 
 **背景**

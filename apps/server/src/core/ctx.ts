@@ -36,7 +36,7 @@ export function manualPack(c: CaseRecord) {
   const p = buildApprovalPayload(c);
   const rows = PORTAL_FIELDS.map((f) => {
     const v = p.fields[f.id];
-    const pretty = f.id === 'disputeReason' ? DISPUTE_REASONS[v as DisputeReason] ?? v : f.id === 'plateState' ? `${US_STATES[v] ?? v} (${v})` : v;
+    const pretty = f.id === 'disputeReason' ? (DISPUTE_REASONS[v as DisputeReason] ?? v) : f.id === 'plateState' ? `${US_STATES[v] ?? v} (${v})` : v;
     return { label: f.label, value: pretty };
   });
   for (const [label, value] of Object.entries(p.extra)) rows.push({ label, value });

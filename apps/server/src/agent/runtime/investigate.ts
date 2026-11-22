@@ -6,10 +6,7 @@ import { declarationsFor, runTool, type ToolOutcome } from '../tools';
 import { buildSystemPrompt } from '../context';
 import { fakeTurn } from '../fake';
 
-export type TurnInput =
-  | { kind: 'start' }
-  | { kind: 'user'; text: string; evidenceIds: string[] }
-  | { kind: 'decision'; choice: 'appeal_anyway' };
+export type TurnInput = { kind: 'start' } | { kind: 'user'; text: string; evidenceIds: string[] } | { kind: 'decision'; choice: 'appeal_anyway' };
 
 /** One agent turn. Gemini decides inside the INVESTIGATING state; code owns every transition. */
 export async function investigate(ctx: Ctx, caseId: string, input: TurnInput) {
@@ -74,5 +71,9 @@ async function geminiTurn(ctx: Ctx, caseId: string, input: TurnInput) {
     ctx.store.mutate(caseId, (r) => r.llm.contents.push({ role: 'user', parts }));
     if (endTurn) return;
   }
-  say(ctx, caseId, ctx.store.must(caseId).lang === 'zh' ? '这一步我需要你的帮助：请补充一下情况。' : 'I need your help to continue — could you add some detail?');
+  say(
+    ctx,
+    caseId,
+    ctx.store.must(caseId).lang === 'zh' ? '这一步我需要你的帮助：请补充一下情况。' : 'I need your help to continue — could you add some detail?',
+  );
 }

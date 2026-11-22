@@ -5,11 +5,26 @@ import { useLocalStorage } from '../hooks';
 import { compressImage } from '../lib/media';
 import { Recorder } from './Recorder';
 import { ReviewCard } from './ReviewCard';
+import { FactsReviewCard } from './FactsReviewCard';
 import { Button, Card, StateChip, cx, ms } from './ui';
 
 const EXECUTING = ['APPROVED', 'FILLING', 'SUBMITTING', 'VERIFYING'];
+/** INVESTIGATING: answer the agent · FACTS_REVIEW: add info (back to investigation) · STATEMENT_REVIEW: ask for a revision */
+const COMPOSER_STATES = ['INVESTIGATING', 'FACTS_REVIEW', 'STATEMENT_REVIEW'];
 
-export function PhoneFlow({ c, events, onCreated, onNew, refresh }: { c: CaseView | null; events: AgentEvent[]; onCreated: (id: string) => void; onNew: () => void; refresh: () => void }) {
+export function PhoneFlow({
+  c,
+  events,
+  onCreated,
+  onNew,
+  refresh,
+}: {
+  c: CaseView | null;
+  events: AgentEvent[];
+  onCreated: (id: string) => void;
+  onNew: () => void;
+  refresh: () => void;
+}) {
   const bottom = useRef<HTMLDivElement>(null);
   // Braces matter: newer Chrome returns a Promise from scrollIntoView, and React would treat it as a cleanup fn.
   useEffect(() => {
@@ -37,9 +52,7 @@ export function PhoneFlow({ c, events, onCreated, onNew, refresh }: { c: CaseVie
             <StatePanel c={c} events={events} refresh={refresh} />
             <div ref={bottom} />
           </div>
-          {(c.state === 'INVESTIGATING' || c.state === 'READY_FOR_REVIEW') && !(c.triage?.recommendation === 'PAY' && c.state === 'INVESTIGATING') && (
-            <Composer c={c} />
-          )}
+          {COMPOSER_STATES.includes(c.state) && !(c.triage?.recommendation === 'PAY' && c.state === 'INVESTIGATING') && <Composer c={c} />}
         </>
       )}
     </div>
@@ -107,7 +120,13 @@ function Intake({ onCreated }: { onCreated: (id: string) => void }) {
             </option>
           ))}
         </select>
-        <textarea className="w-full rounded-lg border p-2 text-sm" rows={3} placeholder="例如：周日下午在 Comm Ave 停车被开了计时器罚单（可用键盘语音输入）" value={text} onChange={(e) => setText(e.target.value)} />
+        <textarea
+          className="w-full rounded-lg border p-2 text-sm"
+          rows={3}
+          placeholder="例如：周日下午在 Comm Ave 停车被开了计时器罚单（可用键盘语音输入）"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
         <div className="mt-2">
           <Recorder onAudio={setAudio} />
           {audio && <p className="mt-1 text-xs text-violet-800">✓ 已录音（{Math.round(audio.size / 1024)} KB WAV）</p>}
@@ -246,7 +265,14 @@ function StatePanel({ c, events, refresh }: { c: CaseView; events: AgentEvent[];
       </Card>
     );
   }
-  if (c.state === 'READY_FOR_REVIEW') return <ReviewCard c={c} onChanged={refresh} />;
+  if (c.state === 'FACTS_REVIEW') return <FactsReviewCard c={c} onChanged={refresh} />;
+  if (c.state === 'DRAFTING')
+    return (
+      <Card title="正在撰写申诉信…">
+        <p className="text-xs text-slate-600">只使用你刚刚确认过的事实。写好后你可以修改，确认无误再批准。</p>
+      </Card>
+    );
+  if (c.state === 'STATEMENT_REVIEW') return <ReviewCard c={c} onChanged={refresh} />;
   if (EXECUTING.includes(c.state)) return <Progress events={events} />;
   if (c.state === 'UNKNOWN_RESULT')
     return (
@@ -303,7 +329,7 @@ function StatePanel({ c, events, refresh }: { c: CaseView; events: AgentEvent[];
         <p className="text-sm">按期缴费可以避免滞纳金。你随时可以补充信息重新调查。</p>
       </Card>
     );
-  if (c.state === 'NEW' || c.state === 'EXTRACTED') return <p className="text-center text-xs text-slate-500">正在识别罚单…</p>;
+  if (c.state === 'NEW' || c.state === 'IDENTIFYING') return <p className="text-center text-xs text-slate-500">正在识别罚单…</p>;
   if (c.state === 'FAILED') return <Card tone="bad">处理失败，请新建案件重试。</Card>;
   return null;
 }
@@ -317,7 +343,11 @@ function Progress({ events }: { events: AgentEvent[] }) {
       <ul className="space-y-1 text-xs">
         {steps.map((s, i) => (
           <li key={i} className="flex gap-2">
-            <span className={cx('w-12 shrink-0 font-mono', s.status === 'blocked' ? 'text-rose-600' : s.status === 'fail' ? 'text-amber-600' : 'text-emerald-700')}>{s.tier ?? s.status}</span>
+            <span
+              className={cx('w-12 shrink-0 font-mono', s.status === 'blocked' ? 'text-rose-600' : s.status === 'fail' ? 'text-amber-600' : 'text-emerald-700')}
+            >
+              {s.tier ?? s.status}
+            </span>
             <span className="truncate">
               {s.step} {s.detail ? `· ${s.detail}` : ''}
             </span>

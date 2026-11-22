@@ -53,7 +53,13 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
     for (const [key, label, value] of profile)
       if (value?.trim()) upsertFact(c, { key, label, value: value.trim(), provenance: 'PROFILE', status: 'CONFIRMED' });
     if (fields.text || audioEv) {
-      const msg: ChatMessage = { id: newId('m'), role: 'user', text: fields.text || '🎙 (voice note)', at: now(), evidenceIds: audioEv ? [audioEv.id] : undefined };
+      const msg: ChatMessage = {
+        id: newId('m'),
+        role: 'user',
+        text: fields.text || '🎙 (voice note)',
+        at: now(),
+        evidenceIds: audioEv ? [audioEv.id] : undefined,
+      };
       c.messages.push(msg);
     }
     c.metrics.userActiveMs += Math.max(0, Math.min(Number(fields.activeMs) || 0, 10 * 60_000));
@@ -78,7 +84,8 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
       const audio = files.find((x) => x.field === 'audio');
       if (audio) audioId = saveEvidence(r, audio, 'audio').id;
       const text = (fields.text ?? '').trim();
-      if (text || imageIds.length) r.messages.push({ id: newId('m'), role: 'user', text: text || `📷 ${imageIds.length} photo(s)`, at: now(), evidenceIds: imageIds });
+      if (text || imageIds.length)
+        r.messages.push({ id: newId('m'), role: 'user', text: text || `📷 ${imageIds.length} photo(s)`, at: now(), evidenceIds: imageIds });
       r.pendingQuestion = undefined;
       r.metrics.userActiveMs += Math.max(0, Math.min(Number(fields.activeMs) || 0, 10 * 60_000));
     });
@@ -161,7 +168,8 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
     const preview = approvalPreview(c);
     if (preview.missing.length || preview.unconfirmedFactIds.length)
       throw new HttpError(422, 'not ready for approval', { missing: preview.missing, unconfirmedFactIds: preview.unconfirmedFactIds });
-    if (preview.payloadHash !== payloadHash) throw new HttpError(409, 'the content changed since you reviewed it — please review again', { currentHash: preview.payloadHash });
+    if (preview.payloadHash !== payloadHash)
+      throw new HttpError(409, 'the content changed since you reviewed it — please review again', { currentHash: preview.payloadHash });
     const token = issueToken(config.approvalSecret, { caseId: id, payloadHash, adapterVersion: ADAPTER_VERSION, ttlMs: config.approvalTtlMs });
     transition(ctx, id, 'APPROVED', 'approval', `user approved payload ${payloadHash.slice(0, 12)}…`, (r) => {
       r.approval = { token: token.token, payloadHash, issuedAt: now(), expiresAt: token.expiresAt, attempts: 0 };

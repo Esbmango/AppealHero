@@ -1,13 +1,5 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import {
-  ADAPTER_VERSION,
-  PORTAL_FIELDS,
-  PORTAL_ID,
-  canonicalize,
-  type ApprovalPayload,
-  type ApprovalPreview,
-  type PortalFieldId,
-} from '@appealhero/shared';
+import { ADAPTER_VERSION, PORTAL_FIELDS, PORTAL_ID, canonicalize, type ApprovalPayload, type ApprovalPreview, type PortalFieldId } from '@appealhero/shared';
 import type { CaseRecord } from '../core/types';
 import { SUBMITTABLE, factsNeedingConfirmation, latestFact, validateGrounds } from '../agent/policy/facts';
 import { sha256Hex } from '../core/util';
@@ -32,7 +24,7 @@ export function buildApprovalPayload(c: CaseRecord): ApprovalPayload {
   const fields = {} as Record<PortalFieldId, string>;
   for (const f of PORTAL_FIELDS) {
     const key = FIELD_FACT[f.id];
-    fields[f.id] = key ? latestFact(c, key)?.value ?? '' : '';
+    fields[f.id] = key ? (latestFact(c, key)?.value ?? '') : '';
   }
   fields.disputeReason = c.draft?.disputeReason ?? '';
   fields.statement = c.draft?.statementEn ?? '';
@@ -44,9 +36,7 @@ export function buildApprovalPayload(c: CaseRecord): ApprovalPayload {
     portal: { id: PORTAL_ID, adapterVersion: ADAPTER_VERSION },
     fields,
     extra,
-    evidence: c.evidence
-      .filter((e) => e.submitToPortal)
-      .map((e) => ({ sha256: e.sha256, filename: e.filename, mime: e.mime, bytes: e.bytes })),
+    evidence: c.evidence.filter((e) => e.submitToPortal).map((e) => ({ sha256: e.sha256, filename: e.filename, mime: e.mime, bytes: e.bytes })),
     attestation: true,
   };
 }

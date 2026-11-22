@@ -11,7 +11,10 @@ export function Console({ c, events }: { c: CaseView | null; events: AgentEvent[
   const [scenario, setScenario] = useState<Scenario>('normal');
   useEffect(() => {
     api.health().then(setHealth, () => undefined);
-    api.demoState().then((s) => setScenario(s.scenario), () => undefined);
+    api.demoState().then(
+      (s) => setScenario(s.scenario),
+      () => undefined,
+    );
   }, []);
 
   const shots = events.filter((e): e is Extract<AgentEvent, { type: 'exec.screenshot' }> => e.type === 'exec.screenshot');
@@ -24,7 +27,12 @@ export function Console({ c, events }: { c: CaseView | null; events: AgentEvent[
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-lg font-bold">AppealHero · Agent console</span>
         {health && (
-          <span className={cx('rounded-full px-2 py-0.5 text-xs font-semibold', health.aiMode === 'gemini' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900')}>
+          <span
+            className={cx(
+              'rounded-full px-2 py-0.5 text-xs font-semibold',
+              health.aiMode === 'gemini' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900',
+            )}
+          >
             AI: {health.aiMode === 'gemini' ? health.model : 'FAKE (no Gemini key)'} · tiers {health.tiers.join('→')}
           </span>
         )}
@@ -73,7 +81,18 @@ export function Console({ c, events }: { c: CaseView | null; events: AgentEvent[
           <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border bg-white p-2 font-mono text-[11px]">
             {steps.map((s, i) => (
               <div key={i} className="flex gap-2">
-                <span className={cx('w-14 shrink-0', s.status === 'blocked' ? 'text-rose-600' : s.status === 'fail' ? 'text-amber-600' : s.status === 'ok' ? 'text-emerald-700' : 'text-slate-500')}>
+                <span
+                  className={cx(
+                    'w-14 shrink-0',
+                    s.status === 'blocked'
+                      ? 'text-rose-600'
+                      : s.status === 'fail'
+                        ? 'text-amber-600'
+                        : s.status === 'ok'
+                          ? 'text-emerald-700'
+                          : 'text-slate-500',
+                  )}
+                >
                   {s.tier ?? ''} {s.status}
                 </span>
                 <span className="break-all">
@@ -96,7 +115,12 @@ export function Console({ c, events }: { c: CaseView | null; events: AgentEvent[
                 ['AI cost', `$${c.metrics.costUsd.toFixed(4)}`],
                 ['Tokens in/out', `${c.metrics.tokensIn}/${c.metrics.tokensOut}`],
                 ['CU actions', String(c.metrics.cuSteps)],
-                ['Tiers', Object.entries(c.metrics.tiers).map(([k, v]) => `${k}:${v}`).join(' ') || '—'],
+                [
+                  'Tiers',
+                  Object.entries(c.metrics.tiers)
+                    .map(([k, v]) => `${k}:${v}`)
+                    .join(' ') || '—',
+                ],
               ].map(([k, v]) => (
                 <div key={k} className="rounded-lg border bg-white p-1.5">
                   <div className="text-[10px] text-slate-500">{k}</div>
@@ -118,7 +142,10 @@ export function Console({ c, events }: { c: CaseView | null; events: AgentEvent[
             <div className="mb-1 font-semibold">State history (who did what)</div>
             {c?.stateHistory.map((h, i) => (
               <div key={i} className="font-mono">
-                {h.from} → <b>{h.to}</b> <span className="text-slate-500">[{h.actor}] {h.reason}</span>
+                {h.from} → <b>{h.to}</b>{' '}
+                <span className="text-slate-500">
+                  [{h.actor}] {h.reason}
+                </span>
               </div>
             ))}
           </div>

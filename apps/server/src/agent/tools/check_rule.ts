@@ -46,7 +46,14 @@ function checkRule(ctx: Ctx, caseId: string, a: Record<string, unknown>): ToolRe
   const r = runRule(rule, ruleInputFromCase(c, isObj(a.input) ? a.input : {}));
   let factId = '';
   ctx.store.mutate(caseId, (rec) => {
-    factId = upsertFact(rec, { key: `rule:${rule}`, label: RULE_LABELS[rule], value: r.detail, provenance: 'RULE', status: 'RULE_VERIFIED', sourceRef: r.source }).id;
+    factId = upsertFact(rec, {
+      key: `rule:${rule}`,
+      label: RULE_LABELS[rule],
+      value: r.detail,
+      provenance: 'RULE',
+      status: 'RULE_VERIFIED',
+      sourceRef: r.source,
+    }).id;
   });
   publishFacts(ctx, caseId);
   return { result: { ...r, factId } };

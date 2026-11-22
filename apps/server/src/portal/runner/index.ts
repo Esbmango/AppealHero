@@ -68,9 +68,16 @@ function diff(a: ApprovalPayload, b: ApprovalPayload): string[] {
 
 async function finishSubmitted(ctx: Ctx, caseId: string, receipt: Omit<Receipt, 'at'>) {
   const full: Receipt = { ...receipt, at: now() };
-  transition(ctx, caseId, 'SUBMITTED', 'executor', `receipt ${receipt.confirmationNumber} via ${receipt.source}${receipt.alreadyOnFile ? ' (already on file)' : ''}`, (r) => {
-    r.receipt = full;
-  });
+  transition(
+    ctx,
+    caseId,
+    'SUBMITTED',
+    'executor',
+    `receipt ${receipt.confirmationNumber} via ${receipt.source}${receipt.alreadyOnFile ? ' (already on file)' : ''}`,
+    (r) => {
+      r.receipt = full;
+    },
+  );
   ctx.hub.emit({ type: 'receipt', caseId, receipt: full });
 }
 
@@ -141,13 +148,26 @@ export async function runJob(ctx: Ctx, caseId: string): Promise<void> {
     await portal.stepEvidence(files);
     const review = await portal.readReview();
     if (review.captcha)
-      throw new BlockedError('CAPTCHA', 'The portal asks for human verification. AppealHero never bypasses CAPTCHAs — finish it yourself using the manual filing pack.');
+      throw new BlockedError(
+        'CAPTCHA',
+        'The portal asks for human verification. AppealHero never bypasses CAPTCHAs — finish it yourself using the manual filing pack.',
+      );
 
     // 1) Read-back gate: what the portal shows must hash to exactly what the user approved.
     const rb = readbackPayload(payload, review);
     const rbHash = hashPayload(rb);
-    if (rbHash !== ph) throw new NeedsUserError('READBACK_MISMATCH', `The portal shows different values than you approved (${diff(payload, rb).join(', ')}). Nothing was submitted.`);
-    ctx.hub.emit({ type: 'exec.step', caseId, step: 'read-back', status: 'ok', detail: `portal values hash ${rbHash.slice(0, 12)}… = approved ${ph.slice(0, 12)}…` });
+    if (rbHash !== ph)
+      throw new NeedsUserError(
+        'READBACK_MISMATCH',
+        `The portal shows different values than you approved (${diff(payload, rb).join(', ')}). Nothing was submitted.`,
+      );
+    ctx.hub.emit({
+      type: 'exec.step',
+      caseId,
+      step: 'read-back',
+      status: 'ok',
+      detail: `portal values hash ${rbHash.slice(0, 12)}… = approved ${ph.slice(0, 12)}…`,
+    });
 
     // 2) Submit exactly once.
     transition(ctx, caseId, 'SUBMITTING', 'executor', `read-back verified (${rbHash.slice(0, 12)}…) — submitting once`, (r) => {
@@ -221,11 +241,20 @@ export async function reconcile(ctx: Ctx, caseId: string): Promise<void> {
       if (r.approval) r.approval.lastReconcile = 'NOT_FOUND';
     });
     if ((ctx.store.must(caseId).approval?.attempts ?? MAX_ATTEMPTS) < MAX_ATTEMPTS) {
-      ctx.hub.emit({ type: 'exec.step', caseId, step: 'reconcile', status: 'info', detail: 'status page proves nothing was filed → one safe retry under the same approval' });
+      ctx.hub.emit({
+        type: 'exec.step',
+        caseId,
+        step: 'reconcile',
+        status: 'info',
+        detail: 'status page proves nothing was filed → one safe retry under the same approval',
+      });
       retry = true;
     } else {
       transition(ctx, caseId, 'NEEDS_USER', 'system', 'Still no appeal on file after the retry. Please check your email or file manually.', (r) => {
-        r.needsUser = { code: 'STILL_UNKNOWN', reason: 'Still no appeal on file after the retry. Check your email for a receipt, or file manually with the pack below.' };
+        r.needsUser = {
+          code: 'STILL_UNKNOWN',
+          reason: 'Still no appeal on file after the retry. Check your email for a receipt, or file manually with the pack below.',
+        };
       });
     }
   } catch (err) {
