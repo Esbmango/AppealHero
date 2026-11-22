@@ -90,6 +90,11 @@ body {
 
 /* A single reading column grows with the window, without a simulated phone frame. */
 .app-shell {
+  /* fixed to the visible viewport (see useVisibleViewportHeight): follows the iOS keyboard pan instead of scrolling away */
+  position: fixed;
+  top: var(--app-top, 0px);
+  left: 0;
+  right: 0;
   width: 100%;
   max-width: 52rem;
   height: 100vh;

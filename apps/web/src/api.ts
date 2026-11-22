@@ -10,9 +10,13 @@ export class ApiError extends Error {
   }
 }
 
+/** fired when the server's Demo Mode gate refuses a call (DEMO_KEY is set and this browser has no key) */
+export const DEMO_KEY_EVENT = 'ah:demo-key-required';
+
 async function j<T>(input: string, init?: RequestInit): Promise<T> {
   const r = await fetch(input, init);
   const body = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+  if (r.status === 401) window.dispatchEvent(new Event(DEMO_KEY_EVENT));
   if (!r.ok) throw new ApiError(String(body.error ?? r.statusText), r.status, body);
   return body as T;
 }

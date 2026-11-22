@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import type { AnalyzedTicket, TicketListAnalysis } from '@appealhero/shared';
+import type { AnalyzedPhotoTicket, AnalyzedTicket, TicketListAnalysis } from '@appealhero/shared';
 import { api } from '../../api';
 import { t, useLang, formatDate } from '../../i18n';
 import { Button, Card, cx } from '../../components/ui';
@@ -9,7 +9,7 @@ import { useLocalStorage } from '../../hooks';
 import { compressImage } from '../../lib/media';
 import { loadSample } from '../intake/Samples';
 
-type Turn = { role: 'user' | 'assistant'; text: string; screenshot?: boolean; analysis?: TicketListAnalysis };
+type Turn = { role: 'user' | 'assistant'; text: string; screenshot?: boolean; analysis?: TicketListAnalysis; photoTicket?: AnalyzedPhotoTicket };
 const STORAGE_KEY = 'appealhero.assistant.v1';
 const SYNTHETIC = /^9\d{8}$/;
 
@@ -72,11 +72,52 @@ function TicketList({ analysis, onAppeal }: { analysis: TicketListAnalysis; onAp
   );
 }
 
+/** One paper ticket read from a photo; the deadline is the printed PAY BY date or ticket date + 21 days (computed by code). */
+function PhotoTicketCard({ ticket, onAppeal }: { ticket: AnalyzedPhotoTicket; onAppeal?: () => void }) {
+  useLang();
+  const rows: [string, string][] = [
+    [t('assistant.photo.number'), ticket.ticketNumber ? `#${ticket.ticketNumber}` : '—'],
+    [t('assistant.photo.when'), `${day(ticket.issueDate)}${ticket.issueTime ? ` · ${ticket.issueTime}` : ''}`],
+    [t('assistant.photo.where'), ticket.location || '—'],
+    [t('assistant.photo.violation'), ticket.violation || '—'],
+    [t('assistant.photo.plate'), [ticket.plate, ticket.plateState].filter(Boolean).join(' · ') || '—'],
+    [t('assistant.photo.amount'), ticket.amount === null ? '—' : `$${ticket.amount.toFixed(2)}`],
+  ];
+  return (
+    <div className="mt-2 space-y-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" data-testid="assistant-photo-ticket">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+        {rows.map(([label, value]) => (
+          <Fragment key={label}>
+            <dt className="text-slate-500">{label}</dt>
+            <dd className="font-medium">{value}</dd>
+          </Fragment>
+        ))}
+      </dl>
+      <div className={cx('font-medium', ticket.overdue ? 'text-rose-700' : 'text-amber-800')}>
+        {ticket.overdue
+          ? t('assistant.overdue', { date: day(ticket.deadline), days: -ticket.daysLeft })
+          : t('assistant.dueBy', { date: day(ticket.deadline), days: ticket.daysLeft })}
+        {ticket.overdue && ticket.lateAmount !== null ? ` · ${t('assistant.photo.lateAmount', { amount: `$${ticket.lateAmount.toFixed(2)}` })}` : ''}
+      </div>
+      <div className="text-xs text-slate-500">
+        {t(ticket.deadlineSource === 'printed' ? 'assistant.photo.printedDeadline' : 'assistant.photo.ruleDeadline')}
+      </div>
+      {onAppeal ? (
+        <Button className="mt-1" data-testid="assistant-photo-appeal" onClick={onAppeal}>
+          {t('assistant.photo.appeal')}
+        </Button>
+      ) : (
+        <p className="text-xs text-slate-500">{t('assistant.photo.reupload')}</p>
+      )}
+    </div>
+  );
+}
+
 /**
  * Free-form chat. Read-only by design: the server side has no browsing, submitting or approving tools.
  * For the driver's own tickets it points to the official site and reads the screenshot the driver uploads.
  */
-export function Assistant({ onAppeal }: { onAppeal: (ticketNumber: string) => void }) {
+export function Assistant({ onAppeal, onAppealPhoto }: { onAppeal: (ticketNumber: string) => void; onAppealPhoto: (photo: File, sample: boolean) => void }) {
   const lang = useLang();
   const [stored, setStored] = useLocalStorage<Turn[]>(STORAGE_KEY, []);
   const turns = Array.isArray(stored) ? stored : [];
@@ -85,6 +126,8 @@ export function Assistant({ onAppeal }: { onAppeal: (ticketNumber: string) => vo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  // the last ticket photo stays in memory (never stored) so it can start an appeal
+  const [ticketPhoto, setTicketPhoto] = useState<{ file: File; sample: boolean; turn: number } | null>(null);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => {
     end.current?.scrollIntoView({ block: 'end', behavior: 'instant' });
@@ -106,7 +149,9 @@ export function Assistant({ onAppeal }: { onAppeal: (ticketNumber: string) => vo
       fd.set('history', JSON.stringify(history));
       for (const image of images) fd.append('images', sample ? image : await compressImage(image));
       const r = await api.assistant(fd);
-      setStored([...turns, userTurn, { role: 'assistant' as const, text: r.reply, analysis: r.analysis }].slice(-40));
+      const next = [...turns, userTurn, { role: 'assistant' as const, text: r.reply, analysis: r.analysis, photoTicket: r.photoTicket }].slice(-40);
+      setStored(next);
+      if (r.photoTicket && images[0]) setTicketPhoto({ file: images[0], sample, turn: next.length - 1 });
       setText('');
       setShots([]);
     } catch {
@@ -145,6 +190,12 @@ export function Assistant({ onAppeal }: { onAppeal: (ticketNumber: string) => vo
               {turn.screenshot && <div className="text-xs opacity-80">{t('assistant.shotAttached')}</div>}
               {turn.text && <Linkified text={turn.text} />}
               {turn.analysis && turn.analysis.tickets.length > 0 && <TicketList analysis={turn.analysis} onAppeal={appeal} />}
+              {turn.photoTicket && (
+                <PhotoTicketCard
+                  ticket={turn.photoTicket}
+                  onAppeal={ticketPhoto?.turn === i ? () => onAppealPhoto(ticketPhoto.file, ticketPhoto.sample) : undefined}
+                />
+              )}
             </div>
           </div>
         ))}

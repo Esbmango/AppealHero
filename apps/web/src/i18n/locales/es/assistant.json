@@ -1,6 +1,6 @@
 {
   "title": "Asistente IA",
-  "intro": "Pregúntame lo que quieras sobre multas de estacionamiento en Boston. Para ver tus multas: búscalas en el sitio oficial y sube una captura de la página de resultados.",
+  "intro": "Pregúntame lo que quieras sobre multas de estacionamiento en Boston. Fotografía una multa de papel y te la explico; para ver todas tus multas, búscalas en el sitio oficial y sube una captura de la página de resultados.",
   "readonly": "Asistente de solo lectura: no visita sitios web por ti ni envía nada. La captura solo se usa para esta respuesta y el servidor no la guarda.",
   "placeholder": "Escribe tu pregunta, por ejemplo: ¿mi última multa está vencida?",
   "send": "Enviar",
@@ -24,5 +24,16 @@
   "cat.APPEAL_PENDING": "Apelación en trámite",
   "cat.APPEAL_ACCEPTED": "Apelación aceptada",
   "cat.APPEAL_DENIED": "Apelación rechazada",
-  "cat.OTHER": "Otro"
+  "cat.OTHER": "Otro",
+  "photo.number": "N.º de multa",
+  "photo.when": "Cuándo",
+  "photo.where": "Dónde",
+  "photo.violation": "Infracción",
+  "photo.plate": "Matrícula",
+  "photo.amount": "Monto",
+  "photo.lateAmount": "{amount} después del plazo",
+  "photo.printedDeadline": "Plazo tomado de la fecha PAY BY impresa en la multa.",
+  "photo.ruleDeadline": "No se ve fecha PAY BY: 21 días desde la fecha de la multa (FAQ de boston.gov).",
+  "photo.appeal": "Apelar con esta multa",
+  "photo.reupload": "Para apelar, vuelve a subir esta foto en «Foto de la multa»."
 }

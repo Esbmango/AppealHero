@@ -27,7 +27,9 @@ export function Button({
   variant = 'primary',
   className,
   type = 'button',
+  'data-testid': testId,
 }: {
+  'data-testid'?: string;
   children: ReactNode;
   onClick?: () => void;
   disabled?: boolean;
@@ -43,6 +45,7 @@ export function Button({
   return (
     <button
       type={type}
+      data-testid={testId}
       onClick={onClick}
       disabled={disabled}
       className={cx('min-h-11 min-w-11 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors', v, className)}

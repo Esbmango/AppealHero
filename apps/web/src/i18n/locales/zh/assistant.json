@@ -1,6 +1,6 @@
 {
   "title": "AI 助手",
-  "intro": "问我任何关于 Boston 停车罚单的问题。想看自己的罚单：在官网查询后，把结果页截图上传，我来读。",
+  "intro": "问我任何关于 Boston 停车罚单的问题。可以直接拍下纸质罚单，我来解释；想看自己所有罚单：在官网查询后，把结果页截图上传，我来读。",
   "readonly": "只读助手：不会替你访问任何网站，也不会提交任何东西。截图只用于这次回答，服务器不保存。",
   "placeholder": "输入问题，比如：我最近一次罚单过期了吗？",
   "send": "发送",
@@ -24,5 +24,16 @@
   "cat.APPEAL_PENDING": "申诉处理中",
   "cat.APPEAL_ACCEPTED": "申诉成功",
   "cat.APPEAL_DENIED": "申诉被驳回",
-  "cat.OTHER": "其他"
+  "cat.OTHER": "其他",
+  "photo.number": "罚单号",
+  "photo.when": "时间",
+  "photo.where": "地点",
+  "photo.violation": "违章",
+  "photo.plate": "车牌",
+  "photo.amount": "金额",
+  "photo.lateAmount": "逾期后应缴 {amount}",
+  "photo.printedDeadline": "截止日期取自罚单上印的 PAY BY。",
+  "photo.ruleDeadline": "罚单上没看到 PAY BY，按开单日起 21 天计算（boston.gov FAQ）。",
+  "photo.appeal": "用这张罚单申诉",
+  "photo.reupload": "要申诉的话，请到“罚单照片”重新上传这张照片。"
 }

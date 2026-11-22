@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 /**
- * Free-form assistant (not a case): answers questions about Boston parking tickets and reads screenshots of the
- * official ticket-lookup results page that the USER captured. AppealHero never queries the official site itself
+ * Free-form assistant (not a case): answers questions about Boston parking tickets, reads screenshots of the
+ * official ticket-lookup results page that the USER captured, and explains a photo of a paper ticket. AppealHero never queries the official site itself
  * (its robots.txt disallows automated access and its terms forbid programmatic data extraction).
  */
 export const OFFICIAL_TICKET_LOOKUP_URL = 'https://bostonma.rmcpay.com/';
@@ -43,10 +43,42 @@ export const TicketListAnalysisSchema = z.object({
 });
 export type TicketListAnalysis = z.infer<typeof TicketListAnalysisSchema>;
 
+/** A photo of a paper ticket, read as printed. Dates normalised to YYYY-MM-DD; amounts null when not printed. */
+export const PhotoTicketSchema = z.object({
+  ticketNumber: z.string(),
+  issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  issueTime: z.string().optional(),
+  plate: z.string(),
+  plateState: z.string(),
+  violation: z.string(),
+  location: z.string(),
+  amount: z.number().nullable(),
+  /** "PAY BY" date printed on the ticket, when there is one */
+  payBy: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable(),
+  /** amount printed for after the pay-by date ("THEREAFTER") */
+  lateAmount: z.number().nullable(),
+});
+export type PhotoTicket = z.infer<typeof PhotoTicketSchema>;
+
+/** Computed by code: the printed pay-by date when present, otherwise ticket date + 21 days (boston.gov FAQ). */
+export const AnalyzedPhotoTicketSchema = PhotoTicketSchema.extend({
+  today: z.string(),
+  deadline: z.string(),
+  deadlineSource: z.enum(['printed', 'rule']),
+  daysLeft: z.number(),
+  overdue: z.boolean(),
+});
+export type AnalyzedPhotoTicket = z.infer<typeof AnalyzedPhotoTicketSchema>;
+
 export const AssistantResponseSchema = z.object({
   reply: z.string(),
   analysis: TicketListAnalysisSchema.optional(),
-  /** the uploaded image was not a ticket-results page */
+  /** the uploaded image was a photo of a single paper ticket */
+  photoTicket: AnalyzedPhotoTicketSchema.optional(),
+  /** the uploaded image was neither a ticket-results page nor a ticket photo */
   notTicketList: z.boolean().optional(),
   sources: z.array(z.string()),
   aiMode: z.enum(['gemini', 'fake']),

@@ -40,5 +40,8 @@
   "photo.thumb": "Foto {n}",
   "photo.remove": "Quitar la foto {n}",
   "photo.count": "{count} de {max} fotos",
-  "logoAlt": "AppealHero"
+  "logoAlt": "AppealHero",
+  "demoKeyTitle": "Se necesita la clave de demostración.",
+  "demoKeyBody": "El servidor tiene DEMO_KEY activada. Abre la app una vez con la clave: http://localhost:4000/?key=TU_CLAVE (es DEMO_KEY en .env; el túnel también la muestra).",
+  "goHome": "Volver al inicio"
 }

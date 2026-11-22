@@ -1,6 +1,6 @@
 {
   "title": "AI assistant",
-  "intro": "Ask me anything about Boston parking tickets. To check your own tickets, search the official site and upload a screenshot of the results page.",
+  "intro": "Ask me anything about Boston parking tickets. Snap a paper ticket and I'll explain it; to check all your tickets, search the official site and upload a screenshot of the results page.",
   "readonly": "Read-only assistant: it never visits websites for you or submits anything. Screenshots are used for this answer only and are not kept on the server.",
   "placeholder": "Ask a question, e.g. Is my latest ticket overdue?",
   "send": "Send",
@@ -24,5 +24,16 @@
   "cat.APPEAL_PENDING": "Appeal pending",
   "cat.APPEAL_ACCEPTED": "Appeal accepted",
   "cat.APPEAL_DENIED": "Appeal denied",
-  "cat.OTHER": "Other"
+  "cat.OTHER": "Other",
+  "photo.number": "Ticket #",
+  "photo.when": "When",
+  "photo.where": "Where",
+  "photo.violation": "Violation",
+  "photo.plate": "Plate",
+  "photo.amount": "Amount",
+  "photo.lateAmount": "{amount} due after the deadline",
+  "photo.printedDeadline": "Deadline taken from the PAY BY date printed on the ticket.",
+  "photo.ruleDeadline": "No PAY BY date found, so 21 days from the ticket date (boston.gov FAQ).",
+  "photo.appeal": "Appeal with this ticket",
+  "photo.reupload": "To appeal, upload this photo again under “Ticket photo”."
 }

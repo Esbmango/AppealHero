@@ -2,7 +2,10 @@ import type { Content, Part } from '@google/genai';
 import {
   ListedTicketSchema,
   OFFICIAL_TICKET_LOOKUP_URL,
+  PhotoTicketSchema,
+  type AnalyzedPhotoTicket,
   type AnalyzedTicket,
+  type PhotoTicket,
   type AssistantResponse,
   type AssistantTurn,
   type ListedTicket,
@@ -55,10 +58,40 @@ export function analyzeTickets(rows: ListedTicket[], today = bostonToday()): Tic
   };
 }
 
+/** Deterministic: printed PAY BY date when the ticket has one, otherwise ticket date + 21 days. */
+export function analyzePhotoTicket(ticket: PhotoTicket, today = bostonToday()): AnalyzedPhotoTicket {
+  const deadline = ticket.payBy ?? addDays(ticket.issueDate, 21);
+  const daysLeft = daysBetween(today, deadline);
+  return { ...ticket, today, deadline, deadlineSource: ticket.payBy ? 'printed' : 'rule', daysLeft, overdue: daysLeft < 0 };
+}
+
+const DATE = { type: 'string', description: 'converted to YYYY-MM-DD; empty string if not printed' };
 const LIST_SCHEMA = {
   type: 'object',
   properties: {
+    imageKind: {
+      type: 'string',
+      enum: ['ticket_list', 'ticket_photo', 'other'],
+      description: 'ticket_list: a lookup results page listing tickets; ticket_photo: a photo of one paper parking ticket; other: anything else',
+    },
     isTicketList: { type: 'boolean', description: 'true only if the image shows a list or detail of parking tickets' },
+    photo: {
+      type: 'object',
+      description: 'only for ticket_photo: the values printed on the paper ticket',
+      properties: {
+        ticketNumber: { type: 'string', description: 'violation number, digits only' },
+        issueDate: DATE,
+        issueTime: { type: 'string', description: 'time as printed, e.g. 12:07 AM' },
+        plate: { type: 'string' },
+        plateState: { type: 'string', description: '2-letter state code' },
+        violation: { type: 'string', description: 'violation code and description as printed' },
+        location: { type: 'string' },
+        amount: { type: 'number', description: 'fine / amount due; -1 if not printed' },
+        payBy: DATE,
+        lateAmount: { type: 'number', description: 'amount printed for after the pay-by date (THEREAFTER); -1 if not printed' },
+      },
+      required: ['ticketNumber', 'issueDate', 'issueTime', 'plate', 'plateState', 'violation', 'location', 'amount', 'payBy', 'lateAmount'],
+    },
     tickets: {
       type: 'array',
       items: {
@@ -75,24 +108,44 @@ const LIST_SCHEMA = {
       },
     },
   },
-  required: ['isTicketList', 'tickets'],
+  required: ['imageKind', 'isTicketList', 'tickets'],
 };
 
 type Upload = { path: string; mime: string };
 
 /** Screenshot(s) of the official results page → validated rows. Fake mode reads only synthetic fixtures. */
-export async function readTicketList(images: Upload[]): Promise<{ rows: ListedTicket[]; isTicketList: boolean; tokens: number }> {
+type ImageReading = { rows: ListedTicket[]; isTicketList: boolean; photo?: PhotoTicket; tokens: number };
+export async function readTicketList(images: Upload[]): Promise<ImageReading> {
   if (!images.length) return { rows: [], isTicketList: false, tokens: 0 };
   if (config.aiMode === 'fake') {
-    const rows = images.flatMap((image) => {
-      const truth = readDemoTruth(image.path);
-      return truth?.kind === 'ticket_list' ? truth.tickets : [];
-    });
-    return { rows, isTicketList: rows.length > 0, tokens: 0 };
+    const truths = images.map((image) => readDemoTruth(image.path));
+    const rows = truths.flatMap((truth) => (truth?.kind === 'ticket_list' ? truth.tickets : []));
+    const ticket = truths.find((truth) => truth?.kind === 'ticket');
+    const photo: PhotoTicket | undefined =
+      !rows.length && ticket?.kind === 'ticket'
+        ? {
+            ticketNumber: ticket.ticketNumber,
+            issueDate: bostonToday(new Date(ticket.issuedAt)),
+            issueTime: new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }).format(new Date(ticket.issuedAt)),
+            plate: ticket.plateNumber,
+            plateState: ticket.plateState,
+            violation: ticket.violationDescription,
+            location: ticket.location,
+            amount: ticket.fineAmount,
+            payBy: null,
+            lateAmount: null,
+          }
+        : undefined;
+    return { rows, isTicketList: rows.length > 0, photo, tokens: 0 };
   }
   const parts: Part[] = images.map((image) => inlinePart(image.path, image.mime));
   parts.push({
-    text: 'These are screenshots the vehicle owner took of a parking-ticket lookup results page. List every ticket exactly as printed. Never invent a ticket or a status. If the images are not a ticket list, return isTicketList=false and an empty list.',
+    text: [
+      'The vehicle owner uploaded these images. Decide what they show (imageKind).',
+      'ticket_list: a screenshot of a parking-ticket lookup results page. List every ticket exactly as printed in tickets. Never invent a ticket or a status.',
+      'ticket_photo: a photo of ONE paper parking ticket. Fill photo with the printed values and leave tickets empty. Ticket printers often print the values slightly off, on top of the field labels: read the printed values (dates, plate, violation, amounts), not the label words. Never guess a ticket number; leave a field empty if it is unreadable.',
+      'other: anything else; return isTicketList=false and an empty list.',
+    ].join('\n'),
   });
   const res = await generate({
     model: config.geminiModel,
@@ -103,7 +156,7 @@ export async function readTicketList(images: Upload[]): Promise<{ rows: ListedTi
       responseJsonSchema: LIST_SCHEMA,
     },
   });
-  const raw = JSON.parse(res.text ?? '{}') as { isTicketList?: boolean; tickets?: unknown[] };
+  const raw = JSON.parse(res.text ?? '{}') as { imageKind?: string; isTicketList?: boolean; tickets?: unknown[]; photo?: Record<string, unknown> };
   const rows = (raw.tickets ?? []).flatMap((item) => {
     const row = item as Record<string, unknown>;
     const parsed = ListedTicketSchema.safeParse({
@@ -113,8 +166,32 @@ export async function readTicketList(images: Upload[]): Promise<{ rows: ListedTi
     });
     return parsed.success && parsed.data.ticketNumber ? [parsed.data] : [];
   });
+  let photo: PhotoTicket | undefined;
+  if (raw.imageKind === 'ticket_photo' && raw.photo) {
+    const p = raw.photo;
+    const date = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+    const amount = (v: unknown) => (typeof v === 'number' && v >= 0 ? v : null);
+    const parsed = PhotoTicketSchema.safeParse({
+      ticketNumber: String(p.ticketNumber ?? '').replace(/\D/g, ''),
+      issueDate: date(p.issueDate) ?? '',
+      issueTime: typeof p.issueTime === 'string' && p.issueTime ? p.issueTime : undefined,
+      plate: String(p.plate ?? ''),
+      plateState: String(p.plateState ?? ''),
+      violation: String(p.violation ?? ''),
+      location: String(p.location ?? ''),
+      amount: amount(p.amount),
+      payBy: date(p.payBy),
+      lateAmount: amount(p.lateAmount),
+    });
+    if (parsed.success) photo = parsed.data;
+  }
   const u = res.usageMetadata;
-  return { rows, isTicketList: Boolean(raw.isTicketList) && rows.length > 0, tokens: (u?.promptTokenCount ?? 0) + (u?.candidatesTokenCount ?? 0) };
+  return {
+    rows,
+    isTicketList: Boolean(raw.isTicketList) && rows.length > 0 && raw.imageKind !== 'ticket_photo',
+    photo,
+    tokens: (u?.promptTokenCount ?? 0) + (u?.candidatesTokenCount ?? 0),
+  };
 }
 
 const SOURCES = [RULE_SOURCES.deadline, RULE_SOURCES.plateLookup, 'https://www.boston.gov/departments/parking-clerk'];
@@ -128,6 +205,7 @@ const SYSTEM = (lang: Lang, today: string) =>
     'Facts you may state (checked on boston.gov on 2026-11-21): pay or appeal within 21 days of the ticket date; after that a late fee is added but an appeal is still possible; tickets can be appealed online, by mail or at a hearing; the Parking Clerk is at 617-635-4410 (Mon–Fri 9:00–16:30) and parking@boston.gov. Do not state other rules as facts.',
     `You cannot open or search any website. To see a driver's tickets, ask them to search the official site ${OFFICIAL_TICKET_LOOKUP_URL} themselves (by ticket number, or by plate and state) and upload a screenshot of the results here.`,
     'When a TICKET_ANALYSIS block is present, it was computed by code from the screenshot. Use its numbers, dates and categories exactly; do not recompute them. Start with the most recent ticket, then anything still open (deadline, days left or overdue, amount), then a one-line summary of the rest.',
+    'When a PHOTO_TICKET block is present, the user photographed one paper ticket; the block was read from the photo and its deadline computed by code. Explain the ticket in plain words: number, date and time, place, violation, amount; then the deadline exactly as given (if overdue: by how many days, the late amount if printed, and that an appeal is still possible). Then tell them they can start an appeal with this photo using the button below your answer. Use the block values exactly.',
     'For an open ticket, offer to prepare an appeal in AppealHero. Never promise an outcome, never say you are a lawyer, and never ask for passwords or card numbers.',
     'Be brief and concrete: at most 6 short sentences or a short list. Plain text, no markdown tables.',
   ].join('\n');
@@ -146,6 +224,14 @@ const T = {
         : `#${t.ticketNumber} 还没处理，请在 ${t.deadline} 前缴费或申诉（还剩 ${t.daysLeft} 天）。`,
     allClear: '其余罚单都已经缴清或处理完，没有需要你现在处理的。',
     offer: '需要的话，我可以帮你为还没处理的罚单准备申诉。',
+    photo: (p: AnalyzedPhotoTicket) =>
+      [
+        `这是一张停车罚单：#${p.ticketNumber || '（看不清）'}，${p.issueDate}${p.issueTime ? ' ' + p.issueTime : ''} 开在 ${p.location || '（看不清）'}，违章：${p.violation || '（看不清）'}，金额 ${money(p.amount)}。`,
+        p.overdue
+          ? `缴费或申诉的截止日期是 ${p.deadline}，已经过了 ${-p.daysLeft} 天${p.lateAmount !== null ? `，现在应缴 ${money(p.lateAmount)}` : '，会加收滞纳金'}，但仍然可以申诉。`
+          : `请在 ${p.deadline} 前缴费或申诉（还剩 ${p.daysLeft} 天）。`,
+        '想申诉的话，点下面的“用这张罚单申诉”。',
+      ].join('\n'),
   },
   es: {
     lookup: `No accedo al sitio oficial por ti (no permite programas automáticos). Haz esto:\n1. Abre el sitio oficial ${OFFICIAL_TICKET_LOOKUP_URL}\n2. Escribe el número de multa, o la matrícula y el estado, y pulsa Search\n3. Haz una captura de la página de resultados y súbela con «Elegir de la galería»\nLeeré el estado de cada multa y te diré cuál es la más reciente y si está vencida.`,
@@ -162,6 +248,14 @@ const T = {
         : `La #${t.ticketNumber} está pendiente: paga o apela antes del ${t.deadline} (quedan ${t.daysLeft} días).`,
     allClear: 'Las demás multas están pagadas o resueltas; no hay nada que hacer ahora.',
     offer: 'Si quieres, preparo una apelación para la multa pendiente.',
+    photo: (p: AnalyzedPhotoTicket) =>
+      [
+        `Es una multa de estacionamiento: #${p.ticketNumber || '(ilegible)'}, del ${p.issueDate}${p.issueTime ? ' ' + p.issueTime : ''} en ${p.location || '(ilegible)'}. Infracción: ${p.violation || '(ilegible)'}. Monto: ${money(p.amount)}.`,
+        p.overdue
+          ? `El plazo para pagar o apelar era el ${p.deadline} y venció hace ${-p.daysLeft} días${p.lateAmount !== null ? `; ahora se deben ${money(p.lateAmount)}` : '; se suma un recargo'}, pero aún puedes apelar.`
+          : `Paga o apela antes del ${p.deadline} (quedan ${p.daysLeft} días).`,
+        'Si quieres apelar, pulsa «Apelar con esta multa» abajo.',
+      ].join('\n'),
   },
   en: {
     lookup: `I don't access the official site for you (it doesn't allow automated programs). Here's how:\n1. Open the official lookup site ${OFFICIAL_TICKET_LOOKUP_URL}\n2. Enter the ticket number, or the plate and state, and press Search\n3. Take a screenshot of the results page and upload it with “Choose from library”\nI'll read each ticket's status and tell you the latest one and whether it's overdue.`,
@@ -178,13 +272,22 @@ const T = {
         : `#${t.ticketNumber} is still open: pay or appeal by ${t.deadline} (${t.daysLeft} days left).`,
     allClear: 'Everything else is paid or resolved; nothing needs your attention now.',
     offer: 'If you like, I can prepare an appeal for the open ticket.',
+    photo: (p: AnalyzedPhotoTicket) =>
+      [
+        `This is a parking ticket: #${p.ticketNumber || '(unreadable)'}, issued ${p.issueDate}${p.issueTime ? ' ' + p.issueTime : ''} at ${p.location || '(unreadable)'}. Violation: ${p.violation || '(unreadable)'}. Amount: ${money(p.amount)}.`,
+        p.overdue
+          ? `The pay-or-appeal deadline was ${p.deadline}, ${-p.daysLeft} days ago${p.lateAmount !== null ? `; ${money(p.lateAmount)} is due now` : '; a late fee is added'}, but you can still appeal.`
+          : `Pay or appeal by ${p.deadline} (${p.daysLeft} days left).`,
+        'To appeal, tap “Appeal with this ticket” below.',
+      ].join('\n'),
   },
 };
 const money = (amount: number | null) => (amount === null ? '—' : `$${amount.toFixed(2)}`);
 
 /** Offline replies: same facts, fixed wording. */
-export function fakeReply(lang: Lang, text: string, analysis?: TicketListAnalysis, notTicketList = false): string {
+export function fakeReply(lang: Lang, text: string, analysis?: TicketListAnalysis, notTicketList = false, photoTicket?: AnalyzedPhotoTicket): string {
   const t = T[lang];
+  if (photoTicket) return t.photo(photoTicket);
   if (notTicketList) return t.notList;
   if (analysis) {
     if (!analysis.latest) return t.none;
@@ -200,17 +303,26 @@ export async function assistantReply(input: { lang: string; history: AssistantTu
   const lang = asLang(input.lang);
   const today = bostonToday();
   const list = await readTicketList(input.images);
-  const notTicketList = input.images.length > 0 && !list.isTicketList;
   const analysis = list.isTicketList ? analyzeTickets(list.rows, today) : undefined;
+  const photoTicket = !analysis && list.photo ? analyzePhotoTicket(list.photo, today) : undefined;
+  const notTicketList = input.images.length > 0 && !analysis && !photoTicket;
   if (config.aiMode === 'fake')
-    return { reply: fakeReply(lang, input.text, analysis, notTicketList), analysis, notTicketList, sources: SOURCES, aiMode: 'fake' };
+    return {
+      reply: fakeReply(lang, input.text, analysis, notTicketList, photoTicket),
+      analysis,
+      photoTicket,
+      notTicketList,
+      sources: SOURCES,
+      aiMode: 'fake',
+    };
 
   const contents: Content[] = input.history.slice(-12).map((turn) => ({ role: turn.role === 'user' ? 'user' : 'model', parts: [{ text: turn.text }] }));
   const latest: Part[] = [{ text: input.text || (input.images.length ? '(screenshot uploaded)' : '') }];
-  if (notTicketList) latest.push({ text: 'NOTE: the uploaded image is not a ticket results page.' });
+  if (notTicketList) latest.push({ text: 'NOTE: the uploaded image is neither a ticket results page nor a parking ticket photo.' });
+  if (photoTicket) latest.push({ text: `PHOTO_TICKET (read from the photo; deadline computed by code, use exactly): ${JSON.stringify(photoTicket)}` });
   if (analysis) latest.push({ text: `TICKET_ANALYSIS (computed by code, use exactly): ${JSON.stringify(analysis)}` });
   contents.push({ role: 'user', parts: latest });
   const res = await generate({ model: config.geminiModel, contents, config: { systemInstruction: SYSTEM(lang, today) } });
-  const reply = (res.text ?? '').trim() || fakeReply(lang, input.text, analysis, notTicketList);
-  return { reply, analysis, notTicketList, sources: SOURCES, aiMode: 'gemini' };
+  const reply = (res.text ?? '').trim() || fakeReply(lang, input.text, analysis, notTicketList, photoTicket);
+  return { reply, analysis, photoTicket, notTicketList, sources: SOURCES, aiMode: 'gemini' };
 }

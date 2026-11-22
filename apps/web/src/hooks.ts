@@ -117,9 +117,17 @@ export function useVisibleViewportHeight() {
     const apply = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
+        // The app is a fixed box that follows the *visible* viewport. When the iOS keyboard opens, Safari shrinks the
+        // visual viewport and also pans it down (offsetTop) instead of resizing the page; without following that pan the
+        // box ends above the visible area and the input sits behind the keyboard (blank strip on screen).
         root.style.setProperty('--app-height', `${Math.round(vv.height)}px`);
-        // iOS scrolls the whole page to reveal a focused input; pin it so the composer sits right above the keyboard.
+        root.style.setProperty('--app-top', `${Math.max(0, Math.round(vv.offsetTop))}px`);
         if (window.scrollY !== 0 && vv.height < window.innerHeight) window.scrollTo(0, 0);
+        // keep the field being typed in visible inside its own scroll area after the resize
+        const focused = document.activeElement;
+        if (focused instanceof HTMLElement && focused.matches('input, textarea') && vv.height < window.innerHeight) {
+          focused.scrollIntoView({ block: 'nearest' });
+        }
       });
     };
     apply();
@@ -130,6 +138,7 @@ export function useVisibleViewportHeight() {
       vv.removeEventListener('resize', apply);
       vv.removeEventListener('scroll', apply);
       root.style.removeProperty('--app-height');
+      root.style.removeProperty('--app-top');
     };
   }, []);
 }

@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { EVIDENCE_LIMITS, type TicketQuery, type CircumstanceChoice, type AgentEvent, type CaseView, type ChatMessage } from '@appealhero/shared';
+import {
+  EVIDENCE_LIMITS,
+  TERMINAL_STATES,
+  type TicketQuery,
+  type CircumstanceChoice,
+  type AgentEvent,
+  type CaseView,
+  type ChatMessage,
+} from '@appealhero/shared';
 import { api } from '../api';
 import { t, useLang, formatDate, fieldLabel } from '../i18n';
 import { Onboarding } from '../features/onboarding/Onboarding';
@@ -49,7 +57,7 @@ export function PhoneFlow({
   return (
     <div className="phone-flow flex h-full min-w-0 flex-col" lang={lang === 'zh' ? 'zh-CN' : lang}>
       <header className="flow-header shrink-0 border-b bg-white">
-        <BrandBar />
+        <BrandBar home={!c || TERMINAL_STATES.includes(c.state) || c.state === 'CLOSED_NO_APPEAL'} />
         {c && (
           <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -79,7 +87,7 @@ export function PhoneFlow({
             <AgentActivity c={c} events={events} />
             <div ref={panel} className="space-y-3">
               {c.triage && (c.state === 'FACTS_REVIEW' || (c.state === 'INVESTIGATING' && c.triage.recommendation === 'PAY')) && <StrengthCard c={c} />}
-              <StatePanel c={c} events={events} refresh={refresh} />
+              <StatePanel c={c} events={events} refresh={refresh} onNew={onNew} />
             </div>
             <div ref={bottom} />
           </div>
@@ -167,7 +175,16 @@ function Intake({ profile, onCreated, onChangeProfile }: { profile: Profile; onC
           {t('intake.assistant')}
         </button>
       </div>
-      {mode === 'assistant' && <Assistant onAppeal={(ticketNumber) => void submit({ ticketNumber })} />}
+      {mode === 'assistant' && (
+        <Assistant
+          onAppeal={(ticketNumber) => void submit({ ticketNumber })}
+          onAppealPhoto={(file, sample) => {
+            setPhoto(file);
+            setSamplePhoto(sample);
+            setMode('photo');
+          }}
+        />
+      )}
       {mode === 'photo' && (
         <Card>
           <p className="mb-2 text-sm">{photo ? t('intake.photoSelected', { name: photo.name }) : t('intake.photo')}</p>
@@ -404,7 +421,7 @@ function Composer({ c }: { c: CaseView }) {
   );
 }
 
-function StatePanel({ c, events, refresh }: { c: CaseView; events: AgentEvent[]; refresh: () => void }) {
+function StatePanel({ c, events, refresh, onNew }: { c: CaseView; events: AgentEvent[]; refresh: () => void; onNew: () => void }) {
   useLang();
   const [info, setInfo] = useState('');
   const act = async (fn: () => Promise<unknown>) => {
@@ -532,15 +549,23 @@ function StatePanel({ c, events, refresh }: { c: CaseView; events: AgentEvent[];
             cost: c.metrics.costUsd.toFixed(4),
           })}
         </p>
-        <a className="choice-chip mt-3 inline-flex items-center" href={`/cases/${encodeURIComponent(c.id)}/proof`}>
-          {t('filing.proof')}
-        </a>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button data-testid="go-home" onClick={onNew}>
+            {t('common.goHome')}
+          </Button>
+          <a className="choice-chip inline-flex items-center" href={`/cases/${encodeURIComponent(c.id)}/proof`}>
+            {t('filing.proof')}
+          </a>
+        </div>
       </Card>
     );
   if (c.state === 'CLOSED_NO_APPEAL')
     return (
       <Card title={t('filing.closed')} tone="info">
         <p className="text-sm">{t('filing.closedHelp')}</p>
+        <Button className="mt-3" data-testid="go-home" onClick={onNew}>
+          {t('common.goHome')}
+        </Button>
       </Card>
     );
   if (c.state === 'IDENTIFYING' && c.lookupResults !== undefined) return <LookupResults c={c} />;

@@ -40,5 +40,8 @@
   "photo.thumb": "Photo {n}",
   "photo.remove": "Remove photo {n}",
   "photo.count": "{count} of {max} photos",
-  "logoAlt": "AppealHero"
+  "logoAlt": "AppealHero",
+  "demoKeyTitle": "Demo key required.",
+  "demoKeyBody": "The server has DEMO_KEY set. Open the app once with the key: http://localhost:4000/?key=YOUR_KEY (it is DEMO_KEY in .env, and the tunnel prints it too).",
+  "goHome": "Back to start"
 }

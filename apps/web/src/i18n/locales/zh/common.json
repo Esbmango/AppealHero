@@ -40,5 +40,8 @@
   "photo.thumb": "第 {n} 张照片",
   "photo.remove": "删除第 {n} 张照片",
   "photo.count": "已选 {count} / {max} 张",
-  "logoAlt": "AppealHero"
+  "logoAlt": "AppealHero",
+  "demoKeyTitle": "需要演示密钥。",
+  "demoKeyBody": "服务器开启了 DEMO_KEY，请用带密钥的链接打开一次：http://localhost:4000/?key=你的密钥（密钥在 .env 的 DEMO_KEY 里，启动 tunnel 时也会打印）。",
+  "goHome": "回到首页"
 }
