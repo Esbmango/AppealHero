@@ -10,7 +10,7 @@ import {
   type TicketListAnalysis,
 } from '@appealhero/shared';
 import { config } from '../core/config';
-import { gemini, inlinePart } from '../agent/llm';
+import { generate, inlinePart } from '../agent/llm';
 import { readDemoTruth } from '../agent/perception/demoTruth';
 import { RULE_SOURCES } from '../agent/rules/boston';
 
@@ -94,7 +94,7 @@ export async function readTicketList(images: Upload[]): Promise<{ rows: ListedTi
   parts.push({
     text: 'These are screenshots the vehicle owner took of a parking-ticket lookup results page. List every ticket exactly as printed. Never invent a ticket or a status. If the images are not a ticket list, return isTicketList=false and an empty list.',
   });
-  const res = await gemini().models.generateContent({
+  const res = await generate({
     model: config.geminiModel,
     contents: [{ role: 'user', parts }],
     config: {
@@ -210,7 +210,7 @@ export async function assistantReply(input: { lang: string; history: AssistantTu
   if (notTicketList) latest.push({ text: 'NOTE: the uploaded image is not a ticket results page.' });
   if (analysis) latest.push({ text: `TICKET_ANALYSIS (computed by code, use exactly): ${JSON.stringify(analysis)}` });
   contents.push({ role: 'user', parts: latest });
-  const res = await gemini().models.generateContent({ model: config.geminiModel, contents, config: { systemInstruction: SYSTEM(lang, today) } });
+  const res = await generate({ model: config.geminiModel, contents, config: { systemInstruction: SYSTEM(lang, today) } });
   const reply = (res.text ?? '').trim() || fakeReply(lang, input.text, analysis, notTicketList);
   return { reply, analysis, notTicketList, sources: SOURCES, aiMode: 'gemini' };
 }

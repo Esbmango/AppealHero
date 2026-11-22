@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { GoogleGenAI, type Part } from '@google/genai';
+import { GoogleGenAI, type GenerateContentParameters, type GenerateContentResponse, type Part } from '@google/genai';
 import { config } from '../../core/config';
 import { publishMetrics, type Ctx } from '../../core/ctx';
 
@@ -9,6 +9,40 @@ export function gemini(): GoogleGenAI {
   if (!config.geminiApiKey) throw new Error('GEMINI_API_KEY is not set (AI_MODE=gemini)');
   client ??= new GoogleGenAI({ apiKey: config.geminiApiKey });
   return client;
+}
+/** Tests only: swap the client. */
+export function setGeminiClientForTest(fake: unknown) {
+  client = fake as GoogleGenAI | null;
+}
+
+/** Overload, rate limit, server and network errors: worth retrying. Bad requests and auth errors are not. */
+export function isTransientGeminiError(err: unknown): boolean {
+  const status = (err as { status?: number; code?: number } | undefined)?.status ?? (err as { code?: number } | undefined)?.code;
+  if (typeof status === 'number' && [408, 429, 500, 502, 503, 504].includes(status)) return true;
+  const text = err instanceof Error ? err.message : String(err);
+  return /"code":\s*(408|429|500|502|503|504)\b|\b(UNAVAILABLE|RESOURCE_EXHAUSTED|DEADLINE_EXCEEDED|INTERNAL)\b|high demand|overloaded|ECONNRESET|ETIMEDOUT|fetch failed/i.test(
+    text,
+  );
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * generateContent with retries for transient errors (e.g. 503 "high demand"): waits 1.5 s, 4 s, 9 s.
+ * If GEMINI_FALLBACK_MODEL is set, the last attempt uses it. Non-transient errors are thrown at once.
+ */
+export async function generate(params: GenerateContentParameters): Promise<GenerateContentResponse> {
+  const delays = config.geminiRetryDelaysMs;
+  for (let attempt = 0; ; attempt++) {
+    const last = attempt >= delays.length;
+    const model = last && config.geminiFallbackModel ? config.geminiFallbackModel : params.model;
+    try {
+      return await gemini().models.generateContent({ ...params, model });
+    } catch (err) {
+      if (last || !isTransientGeminiError(err)) throw err;
+      await sleep(delays[attempt]);
+    }
+  }
 }
 
 /** Accumulate token usage and the cost meter shown in the console. */
@@ -25,7 +59,7 @@ export function recordUsage(ctx: Ctx, caseId: string, tokensIn: number, tokensOu
 
 /** One-shot structured call (extraction, photo analysis, drafting). */
 export async function generateJson<T>(ctx: Ctx, caseId: string, parts: Part[], schema: object, system: string): Promise<T> {
-  const res = await gemini().models.generateContent({
+  const res = await generate({
     model: config.geminiModel,
     contents: [{ role: 'user', parts }],
     config: { systemInstruction: system, responseMimeType: 'application/json', responseJsonSchema: schema },
