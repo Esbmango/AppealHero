@@ -14,6 +14,7 @@ import { StrengthCard } from './StrengthCard';
 import { BrandBar } from './BrandBar';
 import { compressImage } from '../lib/media';
 import { Recorder } from './Recorder';
+import { PhotoPicker } from './PhotoPicker';
 import { ReviewCard } from './ReviewCard';
 import { FactsReviewCard } from './FactsReviewCard';
 import { Button, Card, StateChip, cx, ms } from './ui';
@@ -75,6 +76,7 @@ export function PhoneFlow({
         <>
           <div className="flow-scroll space-y-3">
             <Chat messages={c.messages} />
+            <AgentActivity c={c} events={events} />
             <div ref={panel} className="space-y-3">
               {c.triage && (c.state === 'FACTS_REVIEW' || (c.state === 'INVESTIGATING' && c.triage.recommendation === 'PAY')) && <StrengthCard c={c} />}
               <StatePanel c={c} events={events} refresh={refresh} />
@@ -99,16 +101,6 @@ function Intake({ profile, onCreated, onChangeProfile }: { profile: Profile; onC
 
   const [mode, setMode] = useState<'photo' | 'lookup' | 'assistant'>('photo');
   const [sample, setSample] = useState('meter-weekday');
-  const [preview, setPreview] = useState('');
-  useEffect(() => {
-    if (!photo) {
-      setPreview('');
-      return;
-    }
-    const url = URL.createObjectURL(photo);
-    setPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [photo]);
   const [samplePhoto, setSamplePhoto] = useState(false);
   const [choices, setChoices] = useState<CircumstanceChoice[]>([]);
 
@@ -178,21 +170,16 @@ function Intake({ profile, onCreated, onChangeProfile }: { profile: Profile; onC
       {mode === 'assistant' && <Assistant onAppeal={(ticketNumber) => void submit({ ticketNumber })} />}
       {mode === 'photo' && (
         <Card>
-          <label className="relative block cursor-pointer rounded-xl border-2 border-dashed border-slate-300 p-4 text-center text-sm">
-            {preview && <img className="mx-auto mb-2 max-h-32 rounded border border-slate-200" src={preview} alt="" />}
-            {photo ? t('intake.photoSelected', { name: photo.name }) : t('intake.photo')}
-            <input
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              aria-label={t('intake.photo')}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(event) => {
-                setPhoto(event.target.files?.[0] ?? null);
-                setSamplePhoto(false);
-              }}
-            />
-          </label>
+          <p className="mb-2 text-sm">{photo ? t('intake.photoSelected', { name: photo.name }) : t('intake.photo')}</p>
+          <PhotoPicker
+            files={photo ? [photo] : []}
+            large
+            disabled={busy}
+            onChange={(files) => {
+              setPhoto(files[0] ?? null);
+              setSamplePhoto(false);
+            }}
+          />
           <label className="form-label mt-3">
             {t('intake.sampleType')}
             <select
@@ -232,7 +219,14 @@ function Intake({ profile, onCreated, onChangeProfile }: { profile: Profile; onC
             />
             <div className="mt-2">
               <Recorder onAudio={setAudio} value={text} onTranscript={setText} />
-              {audio && <p className="mt-1 text-xs text-violet-800">{t('intake.audioReady', { size: Math.round(audio.size / 1024) })}</p>}
+              {audio && (
+                <p className="mt-1 flex items-center gap-2 text-xs text-violet-800" data-testid="intake-audio">
+                  {t('intake.audioReady', { size: Math.round(audio.size / 1024) })}
+                  <button type="button" className="min-h-11 px-2 text-rose-700 underline" onClick={() => setAudio(null)}>
+                    {t('chat.deleteRecording')}
+                  </button>
+                </p>
+              )}
             </div>
           </Card>
           {mode === 'lookup' ? (
@@ -251,6 +245,58 @@ function Intake({ profile, onCreated, onChangeProfile }: { profile: Profile; onC
           {err}
         </p>
       )}
+    </div>
+  );
+}
+
+const TOOL_ACTIVITY: Record<string, string> = {
+  analyze_evidence: 'evidence',
+  check_rule: 'rules',
+  lookup_tickets: 'lookup',
+  select_ticket: 'lookup',
+  propose_outcome: 'assessing',
+};
+/** What the agent is doing right now, from the case state and this turn's real tool calls (not model narration). */
+export function agentActivity(c: CaseView, events: AgentEvent[]): string | null {
+  if (c.state === 'NEW' || c.state === 'IDENTIFYING') return 'identifying';
+  if (c.state === 'DRAFTING') return 'drafting';
+  if (c.state !== 'INVESTIGATING' || c.triage?.recommendation === 'PAY') return null;
+  const last = [...c.messages].reverse().find((m) => m.role !== 'system');
+  if (last && last.role !== 'user') return null;
+  let turnStart = -1;
+  events.forEach((e, i) => {
+    if (e.type === 'agent.message' && e.message.role === 'user') turnStart = i;
+  });
+  const tool = events
+    .slice(turnStart + 1)
+    .reverse()
+    .find((e): e is Extract<AgentEvent, { type: 'agent.tool' }> => e.type === 'agent.tool' && e.name in TOOL_ACTIVITY);
+  if (tool) return TOOL_ACTIVITY[tool.name];
+  return last?.evidenceIds?.length ? 'evidence' : 'investigating';
+}
+
+function AgentActivity({ c, events }: { c: CaseView; events: AgentEvent[] }) {
+  useLang();
+  const activity = agentActivity(c, events);
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    setSlow(false);
+    if (!activity) return;
+    const timer = setTimeout(() => setSlow(true), 20_000);
+    return () => clearTimeout(timer);
+  }, [activity, c.messages.length]);
+  if (!activity) return null;
+  return (
+    <div role="status" aria-live="polite" data-testid="agent-activity" data-activity={activity} className="flex items-start gap-2 px-1 text-sm text-slate-600">
+      <span className="typing-dots mt-1.5 text-emerald-700" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </span>
+      <span>
+        {t(`chat.activity.${activity}`)}
+        {slow && <span className="block text-xs text-slate-500">{t('chat.activity.slow')}</span>}
+      </span>
     </div>
   );
 }
@@ -326,19 +372,8 @@ function Composer({ c }: { c: CaseView }) {
           ))}
         </div>
       )}
+      <PhotoPicker files={photos} onChange={setPhotos} max={EVIDENCE_LIMITS.maxFiles} disabled={busy} highlight={q?.expects === 'photo'} />
       <div className="flex items-center gap-2">
-        <label className={cx('relative cursor-pointer rounded-xl px-3 py-2 text-lg', q?.expects === 'photo' ? 'animate-pulse bg-amber-200' : 'bg-slate-100')}>
-          📷
-          <input
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            aria-label={t('chat.photo')}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            multiple
-            onChange={(e) => setPhotos([...(e.target.files ?? [])])}
-          />
-        </label>
         <input
           className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm"
           aria-label={t('chat.answerPlaceholder')}
@@ -351,11 +386,11 @@ function Composer({ c }: { c: CaseView }) {
           {t('chat.send')}
         </Button>
       </div>
-      {photos.length > 0 && <p className="text-xs text-slate-500">{t('chat.photosSelected', { count: photos.length })}</p>}
       <Recorder
         disabled={busy}
         value={text}
         onTranscript={setText}
+        confirmLabel="chat.sendRecording"
         onAudio={(wav) => {
           void send('', wav);
         }}

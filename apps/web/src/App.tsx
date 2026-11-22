@@ -1,9 +1,10 @@
 import { ProofScreen } from './components/ProofScreen';
 import { PhoneFlow } from './components/PhoneFlow';
-import { useCase, useLocalStorage } from './hooks';
+import { useCase, useLocalStorage, useVisibleViewportHeight } from './hooks';
 
 /** One user flow and one local case across phones, tablets, and desktop windows. */
 export default function App() {
+  useVisibleViewportHeight();
   const proof = /^\/cases\/([\w-]+)\/proof\/?$/.exec(window.location.pathname);
   return proof ? (
     <main className="app-shell">

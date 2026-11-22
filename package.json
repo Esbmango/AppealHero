@@ -19,7 +19,8 @@
     "smoke:gemini": "node scripts/smoke-gemini.mjs",
     "docs:fsm": "tsx scripts/docs-fsm.ts",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "tunnel": "node scripts/tunnel.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

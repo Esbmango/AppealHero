@@ -1,3 +1,4 @@
+import { PhotoButtons } from './PhotoPicker';
 import { useState } from 'react';
 import type { CaseView } from '@appealhero/shared';
 import { t, formatDate } from '../i18n';
@@ -72,21 +73,7 @@ export function StrengthCard({ c }: { c: CaseView }) {
               <li key={what}>
                 <b className="text-sm">{what}</b>
                 <p className="text-xs">{why}</p>
-                <label className="choice-chip relative inline-flex cursor-pointer items-center">
-                  {t('review.addPhoto')}
-                  <input
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                    type="file"
-                    accept="image/*"
-                    aria-label={t('review.uploadFor', { what })}
-                    disabled={busy}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      e.target.value = '';
-                      if (file) void upload(file);
-                    }}
-                  />
-                </label>
+                <PhotoButtons disabled={busy} labelFor={t('review.uploadFor', { what })} onFiles={(files) => void upload(files[0])} />
               </li>
             ))}
           </ul>

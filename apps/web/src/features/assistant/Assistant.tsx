@@ -4,6 +4,7 @@ import { api } from '../../api';
 import { t, useLang, formatDate } from '../../i18n';
 import { Button, Card, cx } from '../../components/ui';
 import { Recorder } from '../../components/Recorder';
+import { PhotoPicker } from '../../components/PhotoPicker';
 import { useLocalStorage } from '../../hooks';
 import { compressImage } from '../../lib/media';
 import { loadSample } from '../intake/Samples';
@@ -109,6 +110,7 @@ export function Assistant({ onAppeal }: { onAppeal: (ticketNumber: string) => vo
       setText('');
       setShots([]);
     } catch {
+      setStored(turns); // drop the unanswered turn; the typed text and screenshots stay for a retry
       setError(t('assistant.error'));
     } finally {
       setBusy(false);
@@ -164,18 +166,10 @@ export function Assistant({ onAppeal }: { onAppeal: (ticketNumber: string) => vo
         </p>
       )}
       <Card>
+        <div className="mb-2">
+          <PhotoPicker files={shots} onChange={setShots} max={3} disabled={busy} />
+        </div>
         <div className="flex items-end gap-2">
-          <label className="relative cursor-pointer rounded-xl bg-slate-100 px-3 py-2 text-lg" title={t('assistant.upload')}>
-            📷
-            <input
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              aria-label={t('assistant.upload')}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(event) => setShots([...(event.target.files ?? [])].slice(0, 3))}
-            />
-          </label>
           <textarea
             className="min-h-11 min-w-0 flex-1 rounded-xl border px-3 py-2 text-base"
             rows={2}
@@ -194,7 +188,6 @@ export function Assistant({ onAppeal }: { onAppeal: (ticketNumber: string) => vo
             {t('assistant.send')}
           </Button>
         </div>
-        {shots.length > 0 && <p className="mt-1 text-xs text-slate-500">{t('assistant.shotsSelected', { count: shots.length })}</p>}
         <div className="mt-2">
           <Recorder disabled={busy} value={text} onTranscript={setText} onAudio={() => undefined} liveOnly />
         </div>
