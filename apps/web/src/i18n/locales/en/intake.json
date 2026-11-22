@@ -35,5 +35,6 @@
   "sample.meter-weekday": "Weekday meter · payment receipt",
   "sample.meter": "Sunday meter · free hours",
   "sample.permit": "Resident parking permit",
-  "sample.hydrant": "Fire hydrant"
+  "sample.hydrant": "Fire hydrant",
+  "assistant": "Ask the AI assistant"
 }

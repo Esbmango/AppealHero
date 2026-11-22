@@ -13,7 +13,7 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 3. **Only the user can set a fact to `CONFIRMED`** (via `POST /api/cases/:id/facts/confirm`). Agent-recorded facts are `USER_STATEMENT`; OCR / photo / lookup facts start as `NEEDS_CONFIRMATION`.
 4. **Approval = HMAC-signed hash of the exact form payload.** Any change to what will be typed invalidates it. Never skip `verifyToken()` or the read-back gate before submitting.
 5. **Keep the network guard** (`apps/server/src/portal/browser/guard.ts`): hard-block real government hosts, allow one portal origin, one-shot submit interlock.
-6. **Never send requests to boston.gov, rmcpay.com, or any real government system. Never bypass a CAPTCHA.**
+6. **Never send requests to boston.gov, rmcpay.com, or any real government system — not even read-only lookups. Never bypass a CAPTCHA.** bostonma.rmcpay.com's robots.txt disallows all automated access and its operator's terms (Passport Inc., §2(4)) forbid programmatic data extraction. To see a driver's real tickets, the assistant asks the driver to search the official site themselves and upload a screenshot (`apps/server/src/assistant/`).
 7. **Unknown submit result → read-only reconcile via the portal status page.** Not found → pause (NEEDS_USER); never resubmit automatically. Every state change is flushed to disk before anyone acts on it.
 8. **Fake mode must keep working.** `AI_MODE=fake` runs the whole flow with no key and no network; all tests run in fake mode.
 9. **Gate 1 is never bypassed.** New or changed facts after confirmation (including chat revisions) go back to FACTS_REVIEW; only CONFIRMED / RULE_VERIFIED facts can ground the statement.
@@ -41,6 +41,7 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 | Audit + proof | `apps/server/src/audit/` |
 | Accounts | `apps/server/src/users/` |
 | Simulated portal | `apps/mock-portal/` |
+| Assistant chat (read-only, no tools) | `apps/server/src/assistant/`, `apps/web/src/features/assistant/` |
 | Web app features / i18n | `apps/web/src/features/*`, `apps/web/src/i18n/locales/{zh,es,en}/` |
 
 ## Workflow

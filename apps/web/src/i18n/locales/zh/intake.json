@@ -35,5 +35,6 @@
   "sample.meter-weekday": "工作日计时器 · 有付款收据",
   "sample.meter": "周日计时器 · 免费时段",
   "sample.permit": "居民停车许可",
-  "sample.hydrant": "消防栓"
+  "sample.hydrant": "消防栓",
+  "assistant": "问 AI 助手"
 }

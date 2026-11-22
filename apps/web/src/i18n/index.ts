@@ -6,18 +6,21 @@ import zhIntake from './locales/zh/intake.json';
 import zhChat from './locales/zh/chat.json';
 import zhReview from './locales/zh/review.json';
 import zhFiling from './locales/zh/filing.json';
+import zhAssistant from './locales/zh/assistant.json';
 import esCommon from './locales/es/common.json';
 import esOnboarding from './locales/es/onboarding.json';
 import esIntake from './locales/es/intake.json';
 import esChat from './locales/es/chat.json';
 import esReview from './locales/es/review.json';
 import esFiling from './locales/es/filing.json';
+import esAssistant from './locales/es/assistant.json';
 import enCommon from './locales/en/common.json';
 import enOnboarding from './locales/en/onboarding.json';
 import enIntake from './locales/en/intake.json';
 import enChat from './locales/en/chat.json';
 import enReview from './locales/en/review.json';
 import enFiling from './locales/en/filing.json';
+import enAssistant from './locales/en/assistant.json';
 
 export const LANGUAGES = ['zh', 'es', 'en'] as const;
 export type Lang = (typeof LANGUAGES)[number];
@@ -25,9 +28,9 @@ export const isLang = (value: unknown): value is Lang => LANGUAGES.includes(valu
 const flatten = (namespaces: Record<string, Record<string, string>>) =>
   Object.fromEntries(Object.entries(namespaces).flatMap(([namespace, values]) => Object.entries(values).map(([key, value]) => [`${namespace}.${key}`, value])));
 export const dictionaries: Record<Lang, Record<string, string>> = {
-  zh: flatten({ common: zhCommon, onboarding: zhOnboarding, intake: zhIntake, chat: zhChat, review: zhReview, filing: zhFiling }),
-  es: flatten({ common: esCommon, onboarding: esOnboarding, intake: esIntake, chat: esChat, review: esReview, filing: esFiling }),
-  en: flatten({ common: enCommon, onboarding: enOnboarding, intake: enIntake, chat: enChat, review: enReview, filing: enFiling }),
+  zh: flatten({ common: zhCommon, onboarding: zhOnboarding, intake: zhIntake, chat: zhChat, review: zhReview, filing: zhFiling, assistant: zhAssistant }),
+  es: flatten({ common: esCommon, onboarding: esOnboarding, intake: esIntake, chat: esChat, review: esReview, filing: esFiling, assistant: esAssistant }),
+  en: flatten({ common: enCommon, onboarding: enOnboarding, intake: enIntake, chat: enChat, review: enReview, filing: enFiling, assistant: enAssistant }),
 };
 const STORAGE_KEY = 'cp.lang';
 const readLang = (): Lang => {

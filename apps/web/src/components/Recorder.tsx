@@ -31,11 +31,14 @@ export function Recorder({
   onTranscript,
   value = '',
   disabled,
+  liveOnly = false,
 }: {
   onAudio: (wav: Blob) => void;
   onTranscript?: (text: string) => void;
   value?: string;
   disabled?: boolean;
+  /** hide the button where live transcription is unavailable (no audio upload path on this screen) */
+  liveOnly?: boolean;
 }) {
   const lang = useLang();
   const [rec, setRec] = useState<MediaRecorder | null>(null);
@@ -106,6 +109,7 @@ export function Recorder({
   }
 
   const active = Boolean(rec || listening);
+  if (liveOnly && !live) return err ? <p className="mt-1 text-xs text-rose-700">{err}</p> : null;
   const toggle = () => {
     if (listening) return listening.stop();
     if (rec) {

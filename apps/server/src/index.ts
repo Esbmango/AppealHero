@@ -21,6 +21,7 @@ import { registerDemoRoutes } from './routes/demo';
 import { registerUserRoutes } from './routes/users';
 import { recordProofEvents } from './audit/proof';
 import { registerProofRoutes } from './routes/proof';
+import { registerAssistantRoutes } from './routes/assistant';
 
 export async function buildServer() {
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' } });
@@ -73,6 +74,7 @@ export async function buildServer() {
   registerCaseRoutes(app, ctx);
   registerJobRoutes(app, ctx);
   registerDemoRoutes(app, ctx);
+  registerAssistantRoutes(app);
   registerUserRoutes(app, ctx);
   registerProofRoutes(app, ctx);
 

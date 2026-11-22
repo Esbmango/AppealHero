@@ -19,3 +19,4 @@ export const LANGS = {
   vi: 'Tiếng Việt',
 } as const;
 export type Lang = keyof typeof LANGS;
+export * from './assistant';

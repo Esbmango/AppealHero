@@ -8,6 +8,7 @@ import { LanguagePicker } from '../features/onboarding/LanguagePicker';
 import { useLocalStorage } from '../hooks';
 import { LookupForm, LookupResults } from '../features/intake/Lookup';
 import { Circumstances } from '../features/intake/Circumstances';
+import { Assistant } from '../features/assistant/Assistant';
 import { loadSample } from '../features/intake/Samples';
 import { StrengthCard } from './StrengthCard';
 import { BrandBar } from './BrandBar';
@@ -96,7 +97,7 @@ function Intake({ profile, onCreated, onChangeProfile }: { profile: Profile; onC
   const [err, setErr] = useState('');
   const startedAt = useRef(Date.now());
 
-  const [mode, setMode] = useState<'photo' | 'lookup'>('photo');
+  const [mode, setMode] = useState<'photo' | 'lookup' | 'assistant'>('photo');
   const [sample, setSample] = useState('meter-weekday');
   const [preview, setPreview] = useState('');
   useEffect(() => {
@@ -170,7 +171,11 @@ function Intake({ profile, onCreated, onChangeProfile }: { profile: Profile; onC
         <button className="choice-chip" aria-pressed={mode === 'lookup'} onClick={() => setMode('lookup')}>
           {t('intake.lookup')}
         </button>
+        <button className="choice-chip" data-testid="mode-assistant" aria-pressed={mode === 'assistant'} onClick={() => setMode('assistant')}>
+          {t('intake.assistant')}
+        </button>
       </div>
+      {mode === 'assistant' && <Assistant onAppeal={(ticketNumber) => void submit({ ticketNumber })} />}
       {mode === 'photo' && (
         <Card>
           <label className="relative block cursor-pointer rounded-xl border-2 border-dashed border-slate-300 p-4 text-center text-sm">
@@ -213,29 +218,33 @@ function Intake({ profile, onCreated, onChangeProfile }: { profile: Profile; onC
           </button>
         </Card>
       )}
-      <Circumstances value={choices} onChange={setChoices} />
-      <Card title={t('intake.accountTitle')}>
-        <textarea
-          className="w-full rounded-lg border p-2 text-base"
-          rows={3}
-          aria-label={t('intake.accountTitle')}
-          placeholder={t('intake.accountPlaceholder')}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-        />
-        <div className="mt-2">
-          <Recorder onAudio={setAudio} value={text} onTranscript={setText} />
-          {audio && <p className="mt-1 text-xs text-violet-800">{t('intake.audioReady', { size: Math.round(audio.size / 1024) })}</p>}
-        </div>
-      </Card>
-      {mode === 'lookup' ? (
-        <Card title={t('intake.lookup')}>
-          <LookupForm initialPlate={profile.vehicles[0]?.plate} initialState={profile.vehicles[0]?.state} onSearch={submit} />
-        </Card>
-      ) : (
-        <Button className="w-full py-3" disabled={!photo || busy} onClick={() => submit()}>
-          {t(busy ? 'intake.uploading' : 'intake.start')}
-        </Button>
+      {mode !== 'assistant' && (
+        <>
+          <Circumstances value={choices} onChange={setChoices} />
+          <Card title={t('intake.accountTitle')}>
+            <textarea
+              className="w-full rounded-lg border p-2 text-base"
+              rows={3}
+              aria-label={t('intake.accountTitle')}
+              placeholder={t('intake.accountPlaceholder')}
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+            />
+            <div className="mt-2">
+              <Recorder onAudio={setAudio} value={text} onTranscript={setText} />
+              {audio && <p className="mt-1 text-xs text-violet-800">{t('intake.audioReady', { size: Math.round(audio.size / 1024) })}</p>}
+            </div>
+          </Card>
+          {mode === 'lookup' ? (
+            <Card title={t('intake.lookup')}>
+              <LookupForm initialPlate={profile.vehicles[0]?.plate} initialState={profile.vehicles[0]?.state} onSearch={submit} />
+            </Card>
+          ) : (
+            <Button className="w-full py-3" disabled={!photo || busy} onClick={() => submit()}>
+              {t(busy ? 'intake.uploading' : 'intake.start')}
+            </Button>
+          )}
+        </>
       )}
       {err && (
         <p role="alert" className="text-sm text-rose-700">

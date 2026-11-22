@@ -11,7 +11,7 @@ const dictionaries = Object.fromEntries(
   ['zh', 'es', 'en'].map((language) => [
     language,
     Object.fromEntries(
-      ['common', 'onboarding', 'intake', 'chat', 'review', 'filing'].flatMap((namespace) =>
+      ['common', 'onboarding', 'intake', 'chat', 'review', 'filing', 'assistant'].flatMap((namespace) =>
         Object.entries(JSON.parse(fs.readFileSync(new URL(`../apps/web/src/i18n/locales/${language}/${namespace}.json`, import.meta.url), 'utf8'))).map(
           ([key, value]) => [`${namespace}.${key}`, value],
         ),
@@ -229,9 +229,44 @@ async function customProfile() {
     await context.close();
   }
 }
+async function assistantFlow() {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  try {
+    const page = await context.newPage();
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto(BASE + '/');
+    await page.getByTestId(`choose-lang-${lang}`).click();
+    await page.getByTestId(lang === 'es' ? 'persona-maria' : 'persona-lin').click();
+    await page.getByRole('button', { name: T('onboarding.continue'), exact: true }).click();
+    await page.getByTestId('mode-assistant').click();
+    // A lookup question gets the official site link (the assistant never browses itself).
+    await page.getByRole('button', { name: T('assistant.suggest1'), exact: true }).click();
+    await page.locator('[data-testid="assistant"] a[href="https://bostonma.rmcpay.com/"]').first().waitFor({ timeout: 20000 });
+    // A screenshot of a results page becomes a ticket list with code-computed deadlines.
+    await page.getByRole('button', { name: T('assistant.sample'), exact: true }).click();
+    const list = page.getByTestId('assistant-tickets').last();
+    await list.waitFor({ timeout: 20000 });
+    assert.equal(await list.locator('li').count(), 4);
+    assert.equal(await list.locator('li').first().getAttribute('data-category'), 'OPEN');
+    await checkPhone(page);
+    await page.screenshot({ path: `${out}/assistant.png`, fullPage: true });
+    // "Appeal this ticket" on the open synthetic ticket starts a normal case through the simulated lookup.
+    const created = page.waitForResponse((response) => response.url() === BASE + '/api/cases' && response.request().method() === 'POST');
+    await list
+      .locator('li')
+      .first()
+      .getByRole('button', { name: T('assistant.appeal'), exact: true })
+      .click();
+    assert.equal((await created).status(), 202);
+    log('assistant chat: official-site guidance, screenshot reading and appeal hand-off OK');
+  } finally {
+    await context.close();
+  }
+}
 try {
   await post(BASE + '/api/demo/reset');
   await customProfile();
+  await assistantFlow();
   await phoneFlow('normal');
   await post(PORTAL + '/admin/reset');
   await post(BASE + '/api/demo/scenario', { scenario: 'redesign' });

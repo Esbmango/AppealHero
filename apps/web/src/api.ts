@@ -1,4 +1,4 @@
-import { ProofResponseSchema, StatusCheckResponseSchema, type CaseView, type Scenario } from '@appealhero/shared';
+import { AssistantResponseSchema, ProofResponseSchema, StatusCheckResponseSchema, type CaseView, type Scenario } from '@appealhero/shared';
 
 export class ApiError extends Error {
   constructor(
@@ -30,6 +30,7 @@ export const api = {
   resume: (id: string, body: { action: 'retry' | 'reconcile' | 'back_to_review' | 'provide_info'; field?: string; value?: string }) =>
     j<unknown>(`/api/jobs/${id}/resume`, json(body)),
   // helpers
+  assistant: async (fd: FormData) => AssistantResponseSchema.parse(await j('/api/assistant', { method: 'POST', body: fd })),
   getCase: (id: string) => j<CaseView>(`/api/cases/${id}`),
   listCases: () => j<CaseView[]>('/api/cases'),
   /** gate 1: done=true asks the server to move FACTS_REVIEW → DRAFTING (422 if anything is still unconfirmed) */

@@ -35,5 +35,6 @@
   "sample.meter-weekday": "Parquímetro entre semana · recibo de pago",
   "sample.meter": "Parquímetro en domingo · horario gratuito",
   "sample.permit": "Permiso de estacionamiento residencial",
-  "sample.hydrant": "Hidrante"
+  "sample.hydrant": "Hidrante",
+  "assistant": "Preguntar a la IA"
 }

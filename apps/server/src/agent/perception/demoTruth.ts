@@ -15,6 +15,22 @@ const truthSchema = z.discriminatedUnion('kind', [
   }),
   z.object({ kind: z.literal('sign'), text: z.string().min(1), visibility: z.enum(['clear', 'partially_obscured', 'not_visible']) }),
   z.object({ kind: z.literal('receipt'), plate: z.string().min(1), paidFrom: timestamp, paidUntil: timestamp }),
+  /** a synthetic screenshot of a ticket-lookup results page (assistant demo) */
+  z.object({
+    kind: z.literal('ticket_list'),
+    tickets: z
+      .array(
+        z.object({
+          ticketNumber: z.string().regex(/^9\d{8}$/),
+          amountDue: z.number().nonnegative(),
+          violation: z.string().min(1),
+          issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          plate: z.string().min(1),
+          status: z.string().min(1),
+        }),
+      )
+      .min(1),
+  }),
 ]);
 
 const signature = Buffer.from('89504e470d0a1a0a', 'hex');
