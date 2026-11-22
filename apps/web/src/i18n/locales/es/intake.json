@@ -1,0 +1,14 @@
+{
+  "intro": "Fotografía la multa y cuenta lo ocurrido en tu idioma. Revisaremos las normas y los datos que faltan; solo enviaremos con tu aprobación.",
+  "simulated": "Esta demo usa un portal simulado. No envía nada al gobierno.",
+  "photoTitle": "Foto de la multa",
+  "photo": "Tomar o elegir foto",
+  "photoSelected": "✓ Seleccionada: {name}",
+  "sample": "Usar multa de ejemplo (datos ficticios)",
+  "accountTitle": "Qué ocurrió (opcional)",
+  "accountPlaceholder": "Ejemplo: recibí una multa de parquímetro en Comm Ave un domingo por la tarde",
+  "audioReady": "✓ Audio grabado ({size} KB)",
+  "uploading": "Subiendo…",
+  "start": "Empezar con esta multa",
+  "profile": "Mis datos (solo en este navegador)"
+}

@@ -1,0 +1,13 @@
+{
+  "photoPlaceholder": "Upload a photo or add details…",
+  "answerPlaceholder": "Type your answer or use keyboard dictation",
+  "photo": "Add evidence photo",
+  "send": "Send",
+  "photosSelected": "Photos selected: {count}",
+  "micHttps": "Open the page over HTTPS to use the microphone, or use keyboard dictation.",
+  "audioError": "Could not process the recording. Please try again.",
+  "micError": "Could not use the microphone. Check your browser permissions.",
+  "converting": "Processing audio…",
+  "stop": "■ Stop recording",
+  "record": "🎙 Record a voice note"
+}

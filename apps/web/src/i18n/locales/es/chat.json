@@ -1,0 +1,13 @@
+{
+  "photoPlaceholder": "Sube una foto o añade detalles…",
+  "answerPlaceholder": "Escribe tu respuesta o usa el dictado",
+  "photo": "Añadir foto de prueba",
+  "send": "Enviar",
+  "photosSelected": "Fotos seleccionadas: {count}",
+  "micHttps": "Abre la página con HTTPS para usar el micrófono, o usa el dictado del teclado.",
+  "audioError": "No se pudo procesar el audio. Inténtalo de nuevo.",
+  "micError": "No se pudo usar el micrófono. Revisa los permisos del navegador.",
+  "converting": "Procesando audio…",
+  "stop": "■ Terminar grabación",
+  "record": "🎙 Grabar nota de voz"
+}

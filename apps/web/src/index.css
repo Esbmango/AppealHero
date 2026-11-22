@@ -21,3 +21,17 @@ body {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* Phone controls retain accessible hit areas in all three languages. */
+.phone-flow :is(button, select, textarea, input:not([type='checkbox']), summary, label:has(input[type='file']), label:has(input[type='checkbox'])) {
+  min-height: 44px;
+  min-width: 44px;
+}
+.phone-flow :is(button, select, input, textarea, summary):focus-visible {
+  outline: 2px solid #0369a1;
+  outline-offset: 3px;
+}
+.phone-flow label:has(input[type='file']:focus-visible) {
+  outline: 2px solid #0369a1;
+  outline-offset: 3px;
+}

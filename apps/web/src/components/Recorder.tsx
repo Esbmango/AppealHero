@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react';
 import { toWav16k } from '../lib/media';
 import { cx } from './ui';
+import { t, useLang } from '../i18n';
 
 /** Tap to start / tap to stop (more reliable on iOS than press-and-hold). Emits a 16 kHz mono WAV. */
 export function Recorder({ onAudio, disabled }: { onAudio: (wav: Blob) => void; disabled?: boolean }) {
+  useLang();
   const [rec, setRec] = useState<MediaRecorder | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -12,7 +14,7 @@ export function Recorder({ onAudio, disabled }: { onAudio: (wav: Blob) => void; 
   async function start() {
     setErr('');
     if (!navigator.mediaDevices?.getUserMedia) {
-      setErr('麦克风需要 HTTPS：请用 cloudflared / ngrok 的 https 地址打开。也可以直接用键盘的语音输入。');
+      setErr(t('chat.micHttps'));
       return;
     }
     try {
@@ -27,7 +29,7 @@ export function Recorder({ onAudio, disabled }: { onAudio: (wav: Blob) => void; 
         try {
           onAudio(await toWav16k(new Blob(chunks.current, { type: r.mimeType })));
         } catch (e) {
-          setErr(`音频转换失败：${(e as Error).message}`);
+          setErr(t('chat.audioError'));
         } finally {
           setBusy(false);
         }
@@ -35,7 +37,7 @@ export function Recorder({ onAudio, disabled }: { onAudio: (wav: Blob) => void; 
       r.start();
       setRec(r);
     } catch (e) {
-      setErr(`无法使用麦克风：${(e as Error).message}`);
+      setErr(t('chat.micError'));
     }
   }
 
@@ -46,12 +48,12 @@ export function Recorder({ onAudio, disabled }: { onAudio: (wav: Blob) => void; 
         disabled={disabled || busy}
         onClick={rec ? () => (rec.stop(), setRec(null)) : start}
         className={cx(
-          'no-callout w-full rounded-xl px-3 py-2 text-sm font-semibold',
+          'no-callout min-h-11 min-w-11 w-full rounded-xl px-3 py-2 text-sm font-semibold',
           rec ? 'animate-pulse bg-rose-600 text-white' : 'bg-violet-100 text-violet-900',
           (disabled || busy) && 'opacity-50',
         )}
       >
-        {busy ? '转换中…' : rec ? '■ 点一下结束录音' : '🎙 点一下开始说话'}
+        {t(busy ? 'chat.converting' : rec ? 'chat.stop' : 'chat.record')}
       </button>
       {err && <p className="mt-1 text-xs text-rose-700">{err}</p>}
     </div>

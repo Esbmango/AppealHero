@@ -1,0 +1,13 @@
+{
+  "photoPlaceholder": "拍照上传，或补充说明…",
+  "answerPlaceholder": "输入回答（可用键盘语音输入）",
+  "photo": "添加证据照片",
+  "send": "发送",
+  "photosSelected": "已选 {count} 张照片",
+  "micHttps": "请通过 HTTPS 打开页面使用麦克风，也可以使用键盘语音输入。",
+  "audioError": "无法处理录音，请重试。",
+  "micError": "无法使用麦克风，请检查浏览器权限。",
+  "converting": "处理录音中…",
+  "stop": "■ 结束录音",
+  "record": "🎙 开始录音"
+}

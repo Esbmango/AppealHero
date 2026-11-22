@@ -1,0 +1,14 @@
+{
+  "intro": "Photograph your ticket and tell us what happened in your language. We will check the rules, ask for missing details and file after you approve.",
+  "simulated": "This demo uses a simulated portal. Nothing is sent to the government.",
+  "photoTitle": "Ticket photo",
+  "photo": "Take or choose a photo",
+  "photoSelected": "✓ Selected: {name}",
+  "sample": "Use a sample ticket (synthetic data)",
+  "accountTitle": "What happened (optional)",
+  "accountPlaceholder": "For example: I got a meter ticket on Comm Ave on Sunday afternoon",
+  "audioReady": "✓ Audio recorded ({size} KB)",
+  "uploading": "Uploading…",
+  "start": "Start this ticket",
+  "profile": "My details (saved in this browser)"
+}
