@@ -52,10 +52,6 @@ export interface SessionHooks {
   cuStep: () => void;
 }
 
-export function createCuModel(field: PortalField, value: string): CuModel {
-  return config.aiMode === 'gemini' ? new GeminiCuModel(gemini(), config.cuModel) : new FakeCuModel(field, value);
-}
-
 export class PortalSession {
   constructor(
     private page: Page,
@@ -234,7 +230,10 @@ export class PortalSession {
   }
 
   private async t3Fill(f: PortalField, value: string): Promise<boolean> {
-    const model = createCuModel(f, value);
+    const model: CuModel =
+      config.aiMode === 'gemini'
+        ? new GeminiCuModel(gemini(), config.cuModel, (tokensIn, tokensOut) => recordUsage(this.h.ctx, this.h.caseId, tokensIn, tokensOut))
+        : new FakeCuModel(f, value);
     this.h.step(`fill:${f.id}`, 'start', 'T3', `Computer Use fallback (${model.kind === 'gemini' ? config.cuModel : 'FAKE model — DOM-derived coordinates'})`);
     await this.snap(`cu-${f.id}-before`);
     const ok = await runCuFill(this.page, model, f, value, {
@@ -245,8 +244,6 @@ export class PortalSession {
         this.h.step(`cu:${a.name}`, blocked ? 'blocked' : 'info', 'T3', blocked ?? JSON.stringify({ ...a.args, text: a.args.text ? '…' : undefined }));
       },
     });
-    const u = model.usage();
-    if (u.tokensIn || u.tokensOut) recordUsage(this.h.ctx, this.h.caseId, u.tokensIn, u.tokensOut);
     await this.snap(`cu-${f.id}-after`);
     return ok;
   }

@@ -154,6 +154,7 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
       expect(c.state).toBe('SUBMITTED');
       expect(c.metrics.tiers.T2).toBeGreaterThan(0);
       expect(c.metrics.cuSteps).toBe(0);
+      expect(await appeals()).toHaveLength(1);
     } finally {
       config.execTiers = previous;
     }

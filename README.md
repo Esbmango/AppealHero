@@ -33,7 +33,7 @@ For residents who are more at home in Chinese or Spanish, that friction can be e
 | Targeted questions + deterministic Boston rules with official sources | Meter, resident permit and hydrant playbooks implemented and tested offline |
 | Honest "pay instead" recommendation | ✅ v0.2 |
 | Approval bound to the exact form payload (HMAC-signed) | ✅ v0.2 |
-| Browser filing with Playwright | Default T1/T2 verified on the redesigned portal. Optional T3 Computer Use tested with the fake model. |
+| Browser filing with Playwright | Default T1/T2 verified on the redesigned portal. Live T3 Computer Use did not complete the redesign trial. |
 | Read-back gate, one-shot submit interlock, check-status-before-retry | ✅ v0.2 |
 | Judge console: state machine, live screenshots, tool trace, time and cost | ✅ v0.2 |
 | Plate or ticket-number lookup | Optional C5, pending |
@@ -92,13 +92,14 @@ npm run smoke             # with the app running: clicks through the phone flow 
 
 - For the weekday meter demo, post the original ticket PNG as multipart `ticket` and the receipt PNG as `images` on the case’s messages endpoint. The fake driver reads the `appealhero:truth` chunk. The B2 sample buttons must preserve the original bytes because canvas-to-JPEG compression removes the chunk. Bundled photo assets and buttons belong to B2.
 - For B4, `GET /api/cases/:id/proof` returns the shared `ProofResponseSchema`. A completed recording has a `traceUrl` for a ZIP download. Before read-back, or when an appeal was already on file, the comparison fields can be absent. The proof timeline includes screenshot URLs. `POST /api/cases/:id/status-check` performs a read-only lookup and returns HTTP 409 during a conflicting browser job.
-- With a local Gemini key, `npm run smoke:gemini -- --models` lists the models the key can access. With the app running in `AI_MODE=gemini`, `npm run smoke:gemini -- meter` uploads a synthetic ticket and reports the state path, questions, time and estimated cost at the first user decision. The command also accepts `permit` or `hydrant`. For a separate Computer Use trial, restart with `EXEC_TIERS=T1,T3` and select the redesigned simulated portal.
+- With a local Gemini key, `npm run smoke:gemini -- --models` lists the available models. With the app running in Gemini mode, `npm run smoke:gemini -- meter` uploads a synthetic ticket and reports the state path, questions, elapsed time and estimated cost when a question or decision is ready. The command also accepts `permit` or `hydrant`. A slow run can take several minutes. To resume polling without uploading or paying for the same ticket again, pass the case ID printed by the command. For a Computer Use trial, restart with `EXEC_TIERS=T1,T3` and select the redesigned simulated portal.
 
 ## Verified so far
 
-- Local run on November 21, 2026: 70 tests passed, 42 acceptance items remain marked `todo`, and formatting, type checks and the state-machine documentation check passed. The offline suite exercises both approval gates, receipt times and plates, playbook evidence checks, read-back hashes, the proof timeline, trace downloads, and read-only status lookup. The browser smoke test passed the normal and redesigned phone flows and the desktop console.
+- On November 21, 2026, 72 tests passed, 42 acceptance items remained marked `todo`, and formatting, type checks and the state-machine documentation check passed. The offline suite exercises both approval gates, receipt times and plates, playbook evidence checks, read-back hashes, the proof timeline, trace downloads and read-only status lookup. The browser smoke test passed the normal and redesigned phone flows and the desktop console.
 - ✅ v0.2: 21 automated tests and the UI smoke test pass in fake mode. The tests cover a normal filing, the portal-redesign fallback, both timeout reconciliations, CAPTCHA stop, missing-field re-approval, honest triage and the network interlock.
-- Google documents the configured model, `gemini-3.8-flash`, with image and audio inputs, function calling, structured output and Computer Use. Account access, live chat, vision, audio and the redesigned-portal Computer Use run still need a real key. [Google model specifications](https://aistudio.google.com/docs/models/gemini-3.8-flash)
+- A live key listed `gemini-3.8-flash`. The model read the three demo ticket photos, transcribed the hydrant voice note and called the Boston rule tools. The Sunday-meter case produced a grounded draft. After both reviews, the simulated portal recorded one appeal, the read-back matched the approved payload and the Playwright trace downloaded. The resident-permit and hydrant cases both closed after the simulated drivers accepted the recommendation to pay. The portal recorded no appeals for those tickets.
+- On the redesigned portal, live `gemini-3.8-flash` Computer Use proposed a click and then returned a safety block. A separate field trial with the redesign notice dismissed did not verify the ticket number within three minutes. Both trials stopped before submission. Use the default `EXEC_TIERS=T1,T2` for the demo. The offline end-to-end test verifies that these Playwright tiers fill the redesigned form and submit exactly once.
 - ⚠️ Not yet tested on real iPhone or Android devices.
 - 🔲 Real Boston portal: not connected, by design.
 

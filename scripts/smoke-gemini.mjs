@@ -16,7 +16,8 @@ async function main() {
     for await (const m of await ai.models.list()) console.log(m.name, (m.supportedActions ?? []).join(', '));
     return;
   }
-  if (!['meter', 'permit', 'hydrant'].includes(arg)) throw new Error('Choose meter, permit, hydrant or --models.');
+  const existing = /^case_[0-9a-f]{10}$/.test(arg);
+  if (!existing && !['meter', 'permit', 'hydrant'].includes(arg)) throw new Error('Choose meter, permit, hydrant, an existing case ID or --models.');
   const base = 'http://127.0.0.1:' + (process.env.PORT || '4000');
   async function json(path, init = {}) {
     const res = await fetch(base + path, {
@@ -29,16 +30,25 @@ async function main() {
   }
   const health = await json('/api/health');
   if (health.aiMode !== 'gemini') throw new Error('Start the local API in AI_MODE=gemini first.');
-  const fd = new FormData();
-  const bytes = await readFile(new URL('../apps/web/public/sample-ticket-' + arg + '.png', import.meta.url));
-  fd.append('ticket', new Blob([bytes], { type: 'image/png' }), 'synthetic-ticket.png');
-  for (const [k, v] of Object.entries({ lang: 'en', profileName: 'Sam Demo', profileEmail: 'sam@example.com', profileAddress: '1 Example St, Boston, MA' }))
-    fd.append(k, v);
-  const start = Date.now();
-  const { caseId } = await json('/api/cases', { method: 'POST', body: fd });
-  console.log('Local synthetic case', caseId, 'using', health.model);
+  let caseId = arg;
+  if (!existing) {
+    const fd = new FormData();
+    const bytes = await readFile(new URL('../apps/web/public/sample-ticket-' + arg + '.png', import.meta.url));
+    fd.append('ticket', new Blob([bytes], { type: 'image/png' }), 'synthetic-ticket.png');
+    for (const [k, v] of Object.entries({ lang: 'en', profileName: 'Sam Demo', profileEmail: 'sam@example.com', profileAddress: '1 Example St, Boston, MA' }))
+      fd.append(k, v);
+    caseId = (await json('/api/cases', { method: 'POST', body: fd })).caseId;
+  }
+  console.log('Watching local case', caseId, 'using', health.model);
+  const deadline = Date.now() + 15 * 60_000;
+  let progress;
   for (;;) {
     const c = await json('/api/cases/' + caseId);
+    const checkpoint = c.state + '/' + c.metrics.llmCalls;
+    if (checkpoint !== progress) {
+      progress = checkpoint;
+      console.log(c.state, '— completed model calls:', c.metrics.llmCalls);
+    }
     const errors = c.messages.filter((m) => m.role === 'system' && m.text.startsWith('⚠'));
     if (errors.length || c.state === 'FAILED') throw new Error('Live processing failed. Inspect the local case ' + caseId + ' for details.');
     if (c.pendingQuestion || c.triage || c.state === 'FACTS_REVIEW') {
@@ -51,7 +61,7 @@ async function main() {
             model: health.model,
             states: ['NEW', ...c.stateHistory.map((h) => h.to)],
             questions,
-            elapsedMs: Date.now() - start,
+            elapsedMs: Date.now() - Date.parse(c.createdAt),
             modelCalls: c.metrics.llmCalls,
             estimatedUsd: c.metrics.costUsd,
           },
@@ -61,8 +71,8 @@ async function main() {
       );
       return;
     }
-    if (Date.now() - start > 120000) throw new Error('Timed out waiting for a question or a review; last state ' + c.state);
-    await delay(500);
+    if (Date.now() >= deadline) throw new Error(`Still in ${c.state}. Resume this check with npm run smoke:gemini -- ${caseId}`);
+    await delay(1000);
   }
 }
 main().catch((e) => {
