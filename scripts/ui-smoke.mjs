@@ -207,7 +207,7 @@ async function customProfile() {
     const page = await context.newPage();
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto(BASE + '/');
-    await page.getByRole('heading', { name: T('onboarding.chooseLanguage', 'es'), exact: true }).waitFor();
+    await page.getByTestId('hero-start').waitFor();
     await page.getByTestId('choose-lang-en').click();
     await page.getByTestId('persona-custom').click();
     await page.locator('input[name="name"]').fill('Alex Demo');

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toWav16k } from '../lib/media';
 import { recognitionCtor, startDictation, type DictationError } from '../lib/speech';
 import { cx } from './ui';
+import { MicIcon, StopIcon } from './icons';
 import { t, useLang } from '../i18n';
 
 /** Longest recording or dictation. Tests may shorten it with window.__ahMaxRecordMs. */
@@ -148,19 +149,28 @@ export function Recorder({
 
   if (phase.kind === 'review')
     return (
-      <div className="space-y-2 rounded-xl border border-violet-200 bg-violet-50 p-2" data-testid="recording-review">
-        <p className="text-xs font-medium text-violet-900">{t('chat.recordingReady', { time: clock(phase.ms) })}</p>
+      <div className="space-y-2 rounded-lg border border-slate-300 bg-white p-2" data-testid="recording-review">
+        <p className="text-xs font-medium text-navy">{t('chat.recordingReady', { time: clock(phase.ms) })}</p>
         <audio controls src={phase.url} className="w-full" preload="metadata" />
         <div className="grid grid-cols-3 gap-2">
-          <button type="button" className="min-h-11 rounded-xl bg-white px-2 text-sm" onClick={() => void startRecording()} disabled={disabled}>
+          <button
+            type="button"
+            className="min-h-11 rounded-lg border border-slate-300 bg-white px-2 text-sm text-navy"
+            onClick={() => void startRecording()}
+            disabled={disabled}
+          >
             {t('chat.reRecord')}
           </button>
-          <button type="button" className="min-h-11 rounded-xl bg-white px-2 text-sm text-rose-700" onClick={() => setPhase({ kind: 'idle' })}>
+          <button
+            type="button"
+            className="min-h-11 rounded-lg border border-slate-300 bg-white px-2 text-sm text-rose-700"
+            onClick={() => setPhase({ kind: 'idle' })}
+          >
             {t('chat.deleteRecording')}
           </button>
           <button
             type="button"
-            className="min-h-11 rounded-xl bg-violet-700 px-2 text-sm font-semibold text-white"
+            className="min-h-11 rounded-lg bg-navy px-2 text-sm font-semibold text-white"
             disabled={disabled}
             onClick={() => void confirm(phase.blob)}
           >
@@ -193,12 +203,12 @@ export function Recorder({
         aria-pressed={active}
         onClick={toggle}
         className={cx(
-          'no-callout min-h-11 min-w-11 w-full rounded-xl px-3 py-2 text-sm font-semibold',
-          active ? 'bg-rose-600 text-white' : 'bg-violet-100 text-violet-900',
+          'no-callout inline-flex min-h-11 min-w-11 w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold',
+          active ? 'border-rose-600 bg-rose-600 text-white' : 'border-slate-300 bg-white text-navy hover:border-navy',
           (disabled || phase.kind === 'converting') && 'opacity-50',
         )}
       >
-        {active && <span aria-hidden="true" className="mr-1 inline-block h-2 w-2 animate-pulse rounded-full bg-white align-middle" />}
+        {active ? <StopIcon /> : phase.kind === 'idle' ? <MicIcon /> : null}
         {label}
       </button>
       {live && phase.kind !== 'live' && <p className="mt-1 text-xs text-slate-500">{t('chat.liveHint')}</p>}

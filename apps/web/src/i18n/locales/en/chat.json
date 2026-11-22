@@ -8,10 +8,10 @@
   "audioError": "Could not process the recording. Please try again.",
   "micError": "Could not use the microphone. Check your browser permissions.",
   "converting": "Processing audio…",
-  "stop": "■ Stop recording {time} / {max}",
-  "record": "🎙 Record a voice note",
+  "stop": "Stop recording {time} / {max}",
+  "record": "Record a voice note",
   "sampleReceipt": "Use sample payment receipt",
-  "liveListening": "■ Stop · live transcription {time} / {max}",
+  "liveListening": "Stop · live transcription {time} / {max}",
   "liveHint": "Your words appear in the box as you speak, and you can edit them before sending. Speech is recognized by your browser’s service (Google or Apple).",
   "liveFallback": "Live transcription is unavailable. Recording will be transcribed afterwards; tap the button again.",
   "micDenied": "Microphone access was denied. iPhone: Settings › Safari › Microphone › Allow. Android: tap the icon left of the address › Permissions › Microphone. Then reload the page.",
@@ -28,5 +28,6 @@
   "activity.lookup": "Searching the simulated portal…",
   "activity.assessing": "Assessing how strong the case is…",
   "activity.drafting": "Writing your appeal letter…",
-  "activity.slow": "Still working; complex cases take a little longer."
+  "activity.slow": "Still working; complex cases take a little longer.",
+  "photosSent": "{count} photo(s) sent"
 }

@@ -8,10 +8,10 @@
   "audioError": "No se pudo procesar el audio. Inténtalo de nuevo.",
   "micError": "No se pudo usar el micrófono. Revisa los permisos del navegador.",
   "converting": "Procesando audio…",
-  "stop": "■ Terminar grabación {time} / {max}",
-  "record": "🎙 Grabar nota de voz",
+  "stop": "Terminar grabación {time} / {max}",
+  "record": "Grabar nota de voz",
   "sampleReceipt": "Usar recibo de pago de ejemplo",
-  "liveListening": "■ Terminar · transcribiendo en vivo {time} / {max}",
+  "liveListening": "Terminar · transcribiendo en vivo {time} / {max}",
   "liveHint": "El texto aparece en el cuadro mientras hablas y puedes corregirlo antes de enviarlo. El reconocimiento de voz lo hace el navegador (Google o Apple).",
   "liveFallback": "La transcripción en vivo no está disponible. Se grabará el audio y se transcribirá después; vuelve a tocar el botón.",
   "micDenied": "Permiso de micrófono denegado. iPhone: Ajustes › Safari › Micrófono › Permitir. Android: toca el icono a la izquierda de la dirección › Permisos › Micrófono. Luego recarga la página.",
@@ -28,5 +28,6 @@
   "activity.lookup": "Consultando el portal simulado…",
   "activity.assessing": "Evaluando la solidez del caso…",
   "activity.drafting": "Redactando la carta de apelación…",
-  "activity.slow": "Sigue trabajando; los casos complejos tardan un poco más."
+  "activity.slow": "Sigue trabajando; los casos complejos tardan un poco más.",
+  "photosSent": "{count} foto(s) enviada(s)"
 }

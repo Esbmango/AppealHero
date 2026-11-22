@@ -134,7 +134,7 @@ const SYSTEM = (lang: Lang, today: string) =>
 
 const T = {
   zh: {
-    lookup: `我不会替你访问官网（官网不允许自动程序访问）。请这样做：\n1. 打开官方查询网站 ${OFFICIAL_TICKET_LOOKUP_URL}\n2. 输入罚单号，或者车牌和州，点 Search\n3. 把结果页截图，点下面的 📷 上传\n我会读出每张罚单的状态，告诉你最近一次是什么时候、有没有过期。`,
+    lookup: `我不会替你访问官网（官网不允许自动程序访问）。请这样做：\n1. 打开官方查询网站 ${OFFICIAL_TICKET_LOOKUP_URL}\n2. 输入罚单号，或者车牌和州，点 Search\n3. 把结果页截图，点下面的“从相册选”上传\n我会读出每张罚单的状态，告诉你最近一次是什么时候、有没有过期。`,
     deadline: '规则是：开罚单后 21 天内缴费或申诉；超过 21 天会加收滞纳金，但仍然可以申诉。（来源：boston.gov 停车罚单 FAQ）',
     help: `我可以帮你：\n· 看看你最近的罚单：在官网 ${OFFICIAL_TICKET_LOOKUP_URL} 查询后上传截图，我来读\n· 解释期限、罚款和申诉方式\n· 为还没处理的罚单准备申诉`,
     notList: '这张图看起来不是罚单查询结果页。请在官网查询后，截取列出罚单的那一页再上传。',
@@ -148,7 +148,7 @@ const T = {
     offer: '需要的话，我可以帮你为还没处理的罚单准备申诉。',
   },
   es: {
-    lookup: `No accedo al sitio oficial por ti (no permite programas automáticos). Haz esto:\n1. Abre el sitio oficial ${OFFICIAL_TICKET_LOOKUP_URL}\n2. Escribe el número de multa, o la matrícula y el estado, y pulsa Search\n3. Haz una captura de la página de resultados y súbela con 📷\nLeeré el estado de cada multa y te diré cuál es la más reciente y si está vencida.`,
+    lookup: `No accedo al sitio oficial por ti (no permite programas automáticos). Haz esto:\n1. Abre el sitio oficial ${OFFICIAL_TICKET_LOOKUP_URL}\n2. Escribe el número de multa, o la matrícula y el estado, y pulsa Search\n3. Haz una captura de la página de resultados y súbela con «Elegir de la galería»\nLeeré el estado de cada multa y te diré cuál es la más reciente y si está vencida.`,
     deadline:
       'La regla: paga o apela dentro de 21 días desde la fecha de la multa; después se suma un recargo, pero todavía puedes apelar. (Fuente: preguntas frecuentes de boston.gov)',
     help: `Puedo ayudarte a:\n· Revisar tus multas recientes: búscalas en ${OFFICIAL_TICKET_LOOKUP_URL} y sube una captura\n· Explicar plazos, montos y formas de apelar\n· Preparar una apelación para una multa pendiente`,
@@ -164,7 +164,7 @@ const T = {
     offer: 'Si quieres, preparo una apelación para la multa pendiente.',
   },
   en: {
-    lookup: `I don't access the official site for you (it doesn't allow automated programs). Here's how:\n1. Open the official lookup site ${OFFICIAL_TICKET_LOOKUP_URL}\n2. Enter the ticket number, or the plate and state, and press Search\n3. Take a screenshot of the results page and upload it with 📷\nI'll read each ticket's status and tell you the latest one and whether it's overdue.`,
+    lookup: `I don't access the official site for you (it doesn't allow automated programs). Here's how:\n1. Open the official lookup site ${OFFICIAL_TICKET_LOOKUP_URL}\n2. Enter the ticket number, or the plate and state, and press Search\n3. Take a screenshot of the results page and upload it with “Choose from library”\nI'll read each ticket's status and tell you the latest one and whether it's overdue.`,
     deadline:
       'The rule: pay or appeal within 21 days of the ticket date; after that a late fee is added, but you can still appeal. (Source: boston.gov parking ticket FAQs)',
     help: `I can help you:\n· Check your recent tickets: search ${OFFICIAL_TICKET_LOOKUP_URL} and upload a screenshot\n· Explain deadlines, fines and how to appeal\n· Prepare an appeal for an open ticket`,

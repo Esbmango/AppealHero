@@ -70,7 +70,7 @@ export function ReviewCard({ c, onChanged }: { c: CaseView; onChanged: () => voi
       </dl>
 
       {unconfirmed.length > 0 && (
-        <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-2 text-xs">
+        <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs">
           <p className="mb-1 font-semibold">{t('review.pendingCount', { count: unconfirmed.length })}</p>
           <ul className="mb-2 space-y-1">
             {unconfirmed.map((f) => (
@@ -108,7 +108,7 @@ export function ReviewCard({ c, onChanged }: { c: CaseView; onChanged: () => voi
           )}
         </div>
         {c.draft?.paragraphs.map((paragraph, index) => (
-          <div key={index} className="my-2 rounded-xl border border-slate-200 bg-white p-3 text-sm">
+          <div key={index} className="my-2 rounded-lg border border-slate-200 bg-white p-3 text-sm">
             {editing === index ? (
               <>
                 <label className="form-label">
@@ -174,7 +174,7 @@ export function ReviewCard({ c, onChanged }: { c: CaseView; onChanged: () => voi
         ))}
         <p className="text-xs text-slate-600">{t('review.revisionHelp')}</p>
         {showTranslation && hasTranslation && (
-          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-violet-50 p-2 text-[11px] leading-relaxed text-violet-900">
+          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-violet-50 p-2 text-[11px] leading-relaxed text-violet-900">
             {p.statementUserLang}
           </pre>
         )}

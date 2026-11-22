@@ -19,5 +19,12 @@
   "using": "Profile: {name}",
   "vehicle": "Vehicle: {plate} · {state}",
   "chooseLanguage": "Choose your language",
-  "chooseLanguageHint": "You can switch anytime in the top-right corner."
+  "chooseLanguageHint": "You can switch anytime in the top-right corner.",
+  "heroEyebrow": "AppealHero · Boston",
+  "heroTitle": "A fairer way to navigate parking tickets.",
+  "heroBody": "Understand your ticket, prepare your case and file an appeal in your own language. You approve every step.",
+  "heroStart": "Start an appeal",
+  "heroOr": "Continue in",
+  "heroFoot": "Designed for Boston. Built for everyone.",
+  "heroIndependent": "Independent service, not affiliated with the City of Boston. This demo files on a simulated portal with synthetic data."
 }

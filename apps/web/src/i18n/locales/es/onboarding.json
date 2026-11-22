@@ -19,5 +19,12 @@
   "using": "Perfil: {name}",
   "vehicle": "Vehículo: {plate} · {state}",
   "chooseLanguage": "Elige tu idioma",
-  "chooseLanguageHint": "Puedes cambiarlo en cualquier momento arriba a la derecha."
+  "chooseLanguageHint": "Puedes cambiarlo en cualquier momento arriba a la derecha.",
+  "heroEyebrow": "AppealHero · Boston",
+  "heroTitle": "Una forma más justa de resolver multas de estacionamiento.",
+  "heroBody": "Entiende tu multa, prepara tu caso y presenta una apelación en tu idioma. Tú apruebas cada paso.",
+  "heroStart": "Empezar una apelación",
+  "heroOr": "Continuar en",
+  "heroFoot": "Diseñado para Boston. Hecho para todos.",
+  "heroIndependent": "Servicio independiente, sin relación con la Ciudad de Boston. La demostración usa un portal simulado con datos ficticios."
 }

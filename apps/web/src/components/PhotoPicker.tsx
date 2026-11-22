@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { t, useLang } from '../i18n';
 import { cx } from './ui';
+import { CameraIcon, ImageIcon } from './icons';
 
 /**
  * Two native entry points instead of one: `capture` opens the camera directly on iOS and Android but hides the photo
@@ -27,11 +28,11 @@ export function PhotoButtons({
     event.target.value = ''; // choosing the same file again must still fire
     if (files.length) onFiles(files);
   };
-  const chip = 'choice-chip relative inline-flex min-h-11 cursor-pointer items-center gap-1';
+  const chip = 'choice-chip relative inline-flex min-h-11 cursor-pointer items-center gap-1.5';
   return (
     <div className="flex flex-wrap gap-2">
       <label className={cx(chip, highlight && 'animate-pulse bg-amber-100', disabled && 'opacity-50')}>
-        <span aria-hidden="true">📷</span>
+        <CameraIcon />
         {t('common.photo.camera')}
         <input
           className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
@@ -45,7 +46,7 @@ export function PhotoButtons({
         />
       </label>
       <label className={cx(chip, disabled && 'opacity-50')}>
-        <span aria-hidden="true">🖼</span>
+        <ImageIcon />
         {t('common.photo.gallery')}
         <input
           className="absolute inset-0 h-full w-full cursor-pointer opacity-0"

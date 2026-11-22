@@ -1,19 +1,91 @@
 @import 'tailwindcss';
 
+/*
+ * Boston Civic Modern — brand tokens.
+ * Harbor Navy #1D3443 (text, primary actions) · Boston Brick #A54B3E (brand accent, 5.4:1 on ivory) ·
+ * Warm Ivory #FAF8F3 (page) · Antique Brass #B28B57 (decoration only: 2.9:1, never for text) · Mist #DCE2DE (lines).
+ * The default Tailwind palettes used across the app are re-tuned to these tones so every screen follows the brand
+ * without rewriting components; semantic success / warning / error colours stay distinct and AA-readable.
+ */
+@theme {
+  --color-navy: #1d3443;
+  --color-brick: #a54b3e;
+  --color-brick-dark: #8e3f34;
+  --color-ivory: #faf8f3;
+  --color-brass: #b28b57;
+  --color-mist: #dce2de;
+
+  /* neutrals: warm ivory → harbor navy */
+  --color-slate-50: #faf8f3;
+  --color-slate-100: #f2efe7;
+  --color-slate-200: #e3e1d9;
+  --color-slate-300: #cdcac0;
+  --color-slate-400: #98a1a6;
+  --color-slate-500: #5b6770;
+  --color-slate-600: #475560;
+  --color-slate-700: #35454f;
+  --color-slate-800: #263b49;
+  --color-slate-900: #1d3443;
+  --color-slate-950: #142633;
+  /* accent / links / selection: harbor blue */
+  --color-sky-50: #eef2f4;
+  --color-sky-100: #dfe7ec;
+  --color-sky-200: #c5d3db;
+  --color-sky-600: #335d73;
+  --color-sky-700: #2b5266;
+  --color-sky-800: #234456;
+  /* "you said" / recorder: muted slate blue instead of AI violet */
+  --color-violet-50: #f0f3f5;
+  --color-violet-100: #e2e8ec;
+  --color-violet-200: #c9d4db;
+  --color-violet-700: #2b4a5c;
+  --color-violet-800: #263f4e;
+  --color-violet-900: #1f3442;
+  /* success: Common green */
+  --color-emerald-50: #eef5f0;
+  --color-emerald-100: #dcebe1;
+  --color-emerald-300: #a9cdb5;
+  --color-emerald-600: #2f6b4f;
+  --color-emerald-700: #285c44;
+  --color-emerald-800: #214b38;
+  --color-teal-50: #eef4f3;
+  --color-teal-100: #dceae7;
+  --color-teal-800: #24534c;
+  --color-teal-950: #12302b;
+  /* warning: ochre */
+  --color-amber-50: #fbf5e8;
+  --color-amber-100: #f5e8cb;
+  --color-amber-200: #ecd8aa;
+  --color-amber-300: #dfc28a;
+  --color-amber-500: #b07d2a;
+  --color-amber-600: #946620;
+  --color-amber-700: #7e5719;
+  --color-amber-800: #6a4914;
+  --color-amber-900: #573c10;
+  /* error / danger: deeper than the brand brick so it never reads as decoration */
+  --color-rose-50: #fbefec;
+  --color-rose-100: #f5dcd6;
+  --color-rose-200: #ebc1b8;
+  --color-rose-300: #dda395;
+  --color-rose-500: #b8463a;
+  --color-rose-600: #a3362b;
+  --color-rose-700: #8b2c23;
+  --color-rose-800: #72241d;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+}
+
 html,
 body,
 #root {
   height: 100%;
 }
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    'PingFang SC',
-    'Microsoft YaHei',
-    sans-serif;
+  @apply text-slate-900 antialiased;
+  background: #f1eee6;
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01';
 }
 
 /* A single reading column grows with the window, without a simulated phone frame. */
@@ -25,8 +97,8 @@ body {
   height: var(--app-height, 100dvh);
   margin-inline: auto;
   overflow: hidden;
-  background: #f8fafc;
-  box-shadow: 0 0 0 1px #e2e8f0;
+  background: var(--color-ivory);
+  box-shadow: 0 0 0 1px var(--color-mist);
 }
 .phone-flow {
   min-height: 0;
@@ -83,11 +155,11 @@ body {
   min-width: 44px;
 }
 .phone-flow :is(button, select, input, textarea, summary):focus-visible {
-  outline: 2px solid #0369a1;
+  outline: 2px solid var(--color-navy);
   outline-offset: 3px;
 }
 .phone-flow label:has(input[type='file']:focus-visible) {
-  outline: 2px solid #0369a1;
+  outline: 2px solid var(--color-navy);
   outline-offset: 3px;
 }
 
@@ -96,29 +168,33 @@ body {
   gap: 0.3rem;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #334155;
+  color: var(--color-slate-700);
 }
 .form-label :is(input, select, textarea) {
   width: 100%;
   min-width: 0;
-  border: 1px solid #adbdb9;
-  border-radius: 0.6rem;
+  border: 1px solid var(--color-slate-300);
+  border-radius: 0.5rem;
   background: white;
   padding: 0.45rem 0.6rem;
-  color: #142f2a;
+  color: var(--color-navy);
   font-weight: 400;
 }
 .choice-chip {
-  border: 1px solid #acbdb7;
-  border-radius: 0.7rem;
+  border: 1px solid var(--color-slate-300);
+  border-radius: 0.5rem;
   padding: 0.45rem 0.75rem;
   background: white;
-  color: #17473c;
+  color: var(--color-navy);
   font-size: 0.85rem;
+  font-weight: 500;
+}
+.choice-chip:hover {
+  border-color: var(--color-navy);
 }
 .choice-chip[aria-pressed='true'] {
-  background: #17473c;
-  border-color: #17473c;
+  background: var(--color-navy);
+  border-color: var(--color-navy);
   color: white;
 }
 .phone-flow summary {
@@ -128,11 +204,22 @@ body {
   font-weight: 600;
 }
 .flow-header {
-  border-top: 3px solid #226958;
+  border-top: 3px solid var(--color-brick);
+  border-bottom-color: var(--color-mist);
 }
-.flow-header .font-bold {
-  letter-spacing: -0.035em;
-  color: #164a3e;
+/* Editorial serif for English headlines only; Chinese keeps the system sans. */
+.serif-title:lang(en),
+.serif-title:lang(es) {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.012em;
+}
+.eyebrow {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-brick);
 }
 
 /* "AI is working" dots */
@@ -170,5 +257,28 @@ body {
   .typing-dots i {
     animation: none;
     opacity: 0.7;
+  }
+}
+
+/* Press feedback: a short, subtle "give" on every tappable control (respecting reduced motion). */
+.phone-flow :is(button, a, summary, .choice-chip, label:has(input[type='file'])) {
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1.4),
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    filter 150ms ease;
+}
+.phone-flow :is(button, summary, .choice-chip, label:has(input[type='file'])):not(:disabled):active {
+  transform: scale(0.965);
+  filter: brightness(0.96);
+}
+.phone-flow a:active {
+  opacity: 0.75;
+}
+@media (prefers-reduced-motion: reduce) {
+  .phone-flow :is(button, summary, .choice-chip, label:has(input[type='file'])):not(:disabled):active {
+    transform: none;
   }
 }

@@ -13,8 +13,8 @@ export function Card({ title, children, tone = 'default' }: { title?: ReactNode;
     info: 'bg-sky-50 border-sky-200',
   }[tone];
   return (
-    <section className={cx('min-w-0 rounded-2xl border p-3 shadow-sm sm:p-4', toneCls)}>
-      {title && <h3 className="mb-2 text-sm font-semibold">{title}</h3>}
+    <section className={cx('min-w-0 rounded-[10px] border p-3 sm:p-4', toneCls)}>
+      {title && <h3 className="mb-2 text-sm font-semibold text-navy">{title}</h3>}
       {children}
     </section>
   );
@@ -36,8 +36,8 @@ export function Button({
   type?: 'button' | 'submit';
 }) {
   const v = {
-    primary: 'bg-slate-900 text-white hover:bg-slate-700 disabled:bg-slate-300',
-    ghost: 'bg-white text-slate-800 border border-slate-300 hover:bg-slate-100 disabled:text-slate-300',
+    primary: 'bg-navy text-white hover:bg-slate-700 disabled:bg-slate-300 disabled:text-slate-500',
+    ghost: 'bg-white text-navy border border-slate-300 hover:border-navy disabled:text-slate-400',
     danger: 'bg-rose-600 text-white hover:bg-rose-500 disabled:bg-rose-200',
   }[variant];
   return (
@@ -45,7 +45,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={cx('min-h-11 min-w-11 rounded-xl px-3 py-2 text-sm font-medium transition', v, className)}
+      className={cx('min-h-11 min-w-11 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors', v, className)}
     >
       {children}
     </button>
