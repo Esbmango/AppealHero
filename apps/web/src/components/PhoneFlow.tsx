@@ -296,8 +296,17 @@ function StatePanel({ c, events, refresh }: { c: CaseView; events: AgentEvent[];
             </Button>
           </div>
         )}
-        <div className="mt-2 flex gap-2">
-          {nu?.code !== 'MISSING_FIELD' && <Button onClick={() => act(() => api.resume(c.id, { action: 'retry' }))}>重试</Button>}
+        <div className="mt-2 flex flex-wrap gap-2">
+          {nu?.code === 'NOT_FOUND_AFTER_UNKNOWN' && (
+            <Button variant="ghost" onClick={() => act(() => api.resume(c.id, { action: 'reconcile' }))}>
+              再查一次状态
+            </Button>
+          )}
+          {nu?.code !== 'MISSING_FIELD' && (
+            <Button onClick={() => act(() => api.resume(c.id, { action: 'retry' }))}>
+              {nu?.code === 'NOT_FOUND_AFTER_UNKNOWN' ? '确认重试（门户不会重复受理）' : '重试'}
+            </Button>
+          )}
           <Button variant="ghost" onClick={() => act(() => api.resume(c.id, { action: 'back_to_review' }))}>
             回到核对页
           </Button>

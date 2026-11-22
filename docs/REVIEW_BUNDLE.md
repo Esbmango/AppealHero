@@ -22,13 +22,12 @@
 你是 AppealHero 申诉英雄（BostonHacks 2026，Track 3 Boundless Boston）的产品与架构评审。附件是完整文档包：PRODUCT_SPEC、ARCHITECTURE、PLAYBOOKS、TASKS、AGENTS、README、DEMO。
 
 **仓库**：https://github.com/Esbmango/AppealHero（公开）
-- `main` 分支：v0.2 可运行代码 + v2 设计文档（本轮评审对象）。
-- `wp0-foundation` 分支：WP0 地基（已完成，交付说明见该分支的 `WP0_STATUS.md`），可选评审。
+- `main` 分支：v2 地基（WP0）+ 第一轮 GPT / Gemini 评审的修订，可运行（fake 模式 + 模拟门户）。第一轮评审针对的旧版本在 tag `v0.3-reviewed`。
 - 只想读一个文件：`docs/REVIEW_BUNDLE.md` 是全部文档的合并版（自动生成，内容以各单独文件为准）。
 
 **背景**
 - 3 人团队，用 Codex、Cursor 等多个 AI 编码代理并行开发；提交截止是 2026-11-22 09:00 EST。
-- v0.2 骨架已经能跑通（21 个自动化测试 + UI 冒烟测试，fake 模式）。本轮文档描述 v2 目标设计，用 ✅（已实现）/ 🔧（需重构）/ 🆕（新增）区分。
+- v2 地基和第一轮评审修订已合并（自动化测试 + UI 冒烟测试通过，fake 模式）。文档用 ✅（已实现）/ 🔧（需重构）/ 🆕（新增）区分。
 - 演示只连仓库自带的模拟门户，不操作真实政府网站。
 - 真实 Gemini 调用（对话、看图、Computer Use）按 SDK 类型定义编写，尚未用真 key 验证。
 
@@ -63,6 +62,7 @@
 > All filing happens on a **simulated** portal included in this repo and labeled SIMULATED on every page.
 > AppealHero is not affiliated with or endorsed by the City of Boston, and it is not legal advice.
 > All demo people, plates and tickets are synthetic.
+> **Demo Mode:** single-user demo without accounts. Set `DEMO_KEY` before exposing it through a public tunnel. It is not hardened for multi-user deployment.
 
 ## Why
 
@@ -126,7 +126,8 @@ flowchart LR
 3. **Approval is a signature:** an HMAC over the exact form payload, the adapter version and an expiry. Any change to what will be typed invalidates it.
 4. **Read-back gate.** Before submitting, the executor reads the portal's review page back; its values must hash to the approved payload.
 5. **Network guard.** Real government hosts are hard-blocked, a single portal origin is allowed, and the submit request can pass exactly once.
-6. **An unknown result is never blindly retried.** The executor checks the portal's status page first; a second attempt happens only after it proves nothing was filed.
+6. **An unknown result is never blindly retried.** State changes are written to disk before the click; after a timeout the executor only reads the portal's status page. If the appeal is not there, it pauses and the user decides whether to retry (the portal accepts one appeal per ticket).
+7. **Gate 1 cannot be bypassed.** Any new or changed fact after confirmation, including a chat revision, sends the case back to fact confirmation before anything is rewritten.
 
 ## Quick start
 
@@ -181,7 +182,7 @@ _TBD_
 
 > 状态：2026-11-21 晚，供团队、Gemini、GPT 共同评审。
 > 本文件只写“要做成什么样”。实现见 [ARCHITECTURE.md](ARCHITECTURE.md)，罚单类型知识见 [PLAYBOOKS.md](PLAYBOOKS.md)，并行分工见 [TASKS.md](TASKS.md)。
-> 标“默认（待确认）”的条目是尚未拍板的决定，见 §8。
+> §8 的 5 个决定已于 2026-11-21 19:34 拍板（参考了 GPT / Gemini 评审）。
 
 ## 1. 一句话
 
@@ -199,7 +200,7 @@ AppealHero（申诉英雄）是一个专门处理 Boston 停车罚单的 AI Agen
 |---|---|
 | Boston 市政府开具的停车罚单（Office of the Parking Clerk） | RMV 交通违章罚单（超速等）：机构和流程不同，申诉需付 $25 立案费 |
 | 拍照识别、代查、追问、证据、诚实建议、写申诉信、自动提交、凭证 | 代缴罚款、法律意见、承诺申诉结果 |
-| 中文 / 西语 / 英文界面（默认，待确认） | 其他城市（框架留适配器接口） |
+| 中文 / 西语 / 英文界面（已确认，简单词典） | 其他城市（框架留适配器接口） |
 
 **演示约束**：所有“提交”只发生在仓库自带的模拟门户（页面醒目标注 SIMULATED，不使用市政府视觉元素）。执行器在网络层硬拦 `*.boston.gov`、`*.rmcpay.com`。真实门户未接入、未验证。
 
@@ -234,7 +235,8 @@ AppealHero（申诉英雄）是一个专门处理 Boston 停车罚单的 AI Agen
 
 每条格式：描述 → **验收**。
 
-**F1 轻账户（默认，待确认）**
+**F1 演示身份（比赛版本已确认：演示模式，不做真实账户）**
+- 比赛版本：手机端提供演示身份选择（林同学 / María / Sam），选择后自动填好姓名、邮寄地址、邮箱、语言和车辆；服务器不区分用户，仅限合成数据演示。下面的轻账户设计留到赛后：
 - 首次打开自动创建账户（无密码，设备会话）。保存姓名、邮寄地址、邮箱、首选语言、车辆（车牌、州、品牌、颜色；可多辆，可设默认）。
 - 演示可切换预设身份（§3 三个人物）。
 - **验收**：已保存的信息 Agent 不再询问；这些字段在核对页显示为 [个人资料]，视为已确认；切换身份后界面语言和车辆随之切换。
@@ -246,7 +248,7 @@ AppealHero（申诉英雄）是一个专门处理 Boston 停车罚单的 AI Agen
 
 **F3 罚单类型识别与手册匹配**
 - 按违规描述匹配手册；匹配不到使用通用手册。
-- **验收**：首批 5 种手册（默认，待确认）各有测试用例能被正确匹配。
+- **验收**：首批 3 种手册（计时器、居民许可、消防栓，已确认）各有测试用例能被正确匹配；街道清扫和禁停留到赛后。
 
 **F4 针对性追问**
 - 先跑确定性规则（例如周日计时器免费），能直接得出结论就不问。
@@ -276,22 +278,23 @@ AppealHero（申诉英雄）是一个专门处理 Boston 停车罚单的 AI Agen
 **F9 申诉信与第二次确认**
 - 英文正式陈述，不超过门户字段上限（模拟门户为 2000 字符），附用户语言对照（只供核对，不提交）。
 - 每段都标注依据的事实，可以点开查看。
-- 用户可以直接编辑，也可以用聊天让 Agent 修改（“更简短”“加上我在买药”）。修改指令里出现的新事实会先记为 [用户陈述]。
+- 用户可以直接编辑段落（作者记为“你写的”，批准时逐字确认）。也可以用聊天让 Agent 修改（“更简短”“加上我在买药”）：这条消息会先记为未确认的“修改要求”，案件**回到事实确认**，用户确认后才重写；任何事实被修改也同样回到事实确认。
 - **验收**：每次修改后重新校验；批准按钮绑定当前内容的指纹，内容一变就必须重新批准。
 
 **F10 自动提交**
 - 批准 → 浏览器打开门户 → 填写 → 上传证据 → 读回比对 → 只提交一次 → 读取确认号。
 - 遇到验证码、缺字段、页面改版时：暂停交还用户，或自动兜底（见 ARCHITECTURE §5）。绝不绕过验证码。
+- 结果不明（超时）时：只读查询门户状态页；查到就记为已提交，查不到就暂停，由用户选择“再查一次”或“确认重试”，**不自动重新提交**。门户对同一张罚单只受理一次。
 - **验收**：模拟门户的全部故障场景结果符合预期，重复提交为 0（见 TASKS WP6、WP10）。
 
 **F11 可验证**
 - 实时：步骤时间线和浏览器截图（手机和桌面控制台同步）。
 - 事后：凭证页，包括批准指纹、读回比对结果、每步截图、确认号、邮件回执核对、“再查一次状态”按钮、可下载回放的 Playwright trace。
-- 审计日志用哈希链串起来，事后被改动能被发现。
+- 审计日志用哈希链串起来：用户拿到链头哈希后，服务器上的记录再被改动可以被发现（它不是防伪系统）。
 - **验收**：用户不看提交过程，也能事后在凭证页核对每一步。
 
 **F12 多语言与易用**
-- 界面：中文、西语、英文（默认，待确认）；Agent 对话交给 Gemini，可支持更多语言。
+- 界面：中文、西语、英文（已确认），用简单词典实现；Agent 对话交给 Gemini，可支持更多语言。
 - 大按钮（点击区域 ≥ 44px）、语音输入、可选朗读、简单用语、不用法律术语。
 - **验收**：中文和西语用户不看英文也能走完全流程（申诉信为英文正文 + 母语对照）。
 
@@ -302,7 +305,8 @@ AppealHero（申诉英雄）是一个专门处理 Boston 停车罚单的 AI Agen
 - **离线可运行**：没有 Gemini key 时用 fake 模式跑完全流程；演示可一键重置。
 - **隐私**：演示只用合成数据；截图可以遮挡敏感字段；处理真实数据时必须用 Gemini 付费层（免费层的数据会被用于改进 Google 产品）；提交完成后可以删除证据。
 - **成本**：每个案件记录 token 用量和费用；确定性脚本优先，AI 只做兜底。
-- **可靠性**：同一张罚单最多一条申诉；结果不明时先核对状态，不盲目重试；服务重启后自动把中断的任务转到安全状态。
+- **可靠性**：同一张罚单最多一条申诉（门户层面也只受理一次）；状态转移同步写盘，提交前落盘；结果不明时先只读核对，查不到由用户决定，不自动重提交；同一案件的 Agent 回合排队，执行器与对账互斥；服务重启后自动把中断的任务转到安全状态。
+- **演示模式**：单用户演示、合成数据；开公网隧道前设置 `DEMO_KEY`。不宣称具备真实多用户部署的安全性。
 - **身份**：申诉人始终是用户本人，使用用户自己的联系方式；AppealHero 从不以自己的名义提交。
 
 ## 7. 成功指标（全部是目标，待实测，不得写成已实现）
@@ -314,13 +318,13 @@ AppealHero（申诉英雄）是一个专门处理 Boston 停车罚单的 AI Agen
 | 故障场景通过率 | 100%，重复提交 0 |
 | 每案 AI 成本 | 确定性路径接近 $0；需要 CU 兜底时在几美分量级 |
 
-## 8. 待拍板的决定（括号内为默认）
+## 8. 已拍板的决定（2026-11-21 19:34，参考 GPT / Gemini 评审）
 
-1. 账户：轻账户，不做密码登录（默认）。
-2. 范围：只做 Boston 停车罚单，RMV 留接口不实现（默认）。
-3. 首批手册：计时器、居民许可、街道清扫、消防栓、禁停（默认）。
-4. Agent 框架：自研轻量编排，不用 Mastra（默认；除非决定冲 Mastra 赞助奖）。
-5. 界面语言：中文、西语、英文三语（默认）。
+1. 账户：比赛版本为**演示模式**，只有演示身份选择，不做真实账户、登录和 CSRF；文档中明确不具备多用户部署的安全性。
+2. 范围：只做 Boston 停车罚单；RMV 不做。
+3. 首批手册：**计时器、居民许可、消防栓**；街道清扫和禁停保留设计，赛后实现。
+4. Agent 框架：自研轻量编排，不引入 Mastra 等框架。
+5. 界面语言：**中文、西语、英文**，用简单词典实现。
 
 ## 9. 明确不做的事
 
@@ -335,7 +339,8 @@ AppealHero（申诉英雄）是一个专门处理 Boston 停车罚单的 AI Agen
 
 > 本文是团队和所有 AI 编码代理共用的设计说明。字段级定义以 `packages/shared` 的代码为准，本文只描述结构、流程和规则。
 > 状态标记：✅ v0.2 已实现并有测试 · 🔧 v0.2 已有、需按 v2 重构 · 🆕 v2 新增
-> **WP0 已完成（分支 `wp0-foundation`）**：§1 状态机 v2、§2 数据模型契约、§3 接口契约、§4.2/§4.6 工具注册表、§8 存储、§10 目录迁移已经实现并有测试。其余 🆕 项由 WP1–WP9 完成。
+> **评审修订（2026-11-21 19:34 确认，已实现并有测试）**：确认事实之后的新信息一律回到事实确认；提交前同步写盘；结果未知只做只读对账，查不到就暂停由用户决定；同一案件的 Agent 回合排队、执行器与对账互斥；演示模式加 `DEMO_KEY`。
+> **WP0 已完成**：§1 状态机 v2、§2 数据模型契约、§3 接口契约、§4.2/§4.6 工具注册表、§8 存储、§10 目录迁移已经实现并有测试。其余 🆕 项由 WP1–WP9 完成。
 > 需求见 [PRODUCT_SPEC.md](PRODUCT_SPEC.md)，罚单知识见 [PLAYBOOKS.md](PLAYBOOKS.md)，分工见 [TASKS.md](TASKS.md)，AI 编码规则见 [../AGENTS.md](../AGENTS.md)。
 
 ## 0. 总览
@@ -382,7 +387,7 @@ flowchart TD
 | AI | `@google/genai`：`gemini-3.8-flash` 负责对话、工具调用、看图、听音；Computer Use 走 Interactions API | 一个 SDK 覆盖全部 |
 | 浏览器 | Playwright | 确定性脚本优先，CU 兜底 |
 | 前端 | React 19 + Vite + Tailwind 4 + React Router 7 | 手机网页打开即用；有账户页、凭证页，需要路由 |
-| 多语言 | i18next + react-i18next；文案按功能拆成 JSON | AI 工具熟悉；分文件避免冲突 |
+| 多语言 | 极简 `t()` + 按功能拆分的 JSON 词典（中 / 西 / 英），不引入 i18next | 够用、无依赖；分文件避免冲突 |
 | 测试 | Vitest + Playwright + fake AI + 黄金对话测试 | 不用 key 也能验证每份手册和每个故障场景 |
 | 规范 | Prettier + TS strict + AGENTS.md | 多个 AI 同时写代码时保持一致 |
 
@@ -400,8 +405,7 @@ stateDiagram-v2
   FACTS_REVIEW --> DRAFTING: 用户确认全部事实
   FACTS_REVIEW --> INVESTIGATING: 用户补充信息
   DRAFTING --> STATEMENT_REVIEW
-  STATEMENT_REVIEW --> DRAFTING: 用户要求修改
-  STATEMENT_REVIEW --> FACTS_REVIEW: 用户修改事实
+  STATEMENT_REVIEW --> FACTS_REVIEW: 用户修改事实或要求改信
   STATEMENT_REVIEW --> APPROVED: 用户批准（签名）
   APPROVED --> FILLING
   FILLING --> SUBMITTING: 读回比对通过
@@ -412,7 +416,8 @@ stateDiagram-v2
   SUBMITTING --> UNKNOWN_RESULT: 超时
   VERIFYING --> SUBMITTED
   UNKNOWN_RESULT --> SUBMITTED: 状态页查到
-  UNKNOWN_RESULT --> FILLING: 证明未提交，重试一次
+  UNKNOWN_RESULT --> NEEDS_USER: 状态页查不到，暂停
+  NEEDS_USER --> FILLING: 用户确认重试
   SUBMITTED --> [*]
 ```
 
@@ -436,7 +441,6 @@ stateDiagram-v2
   FACTS_REVIEW --> CLOSED_NO_APPEAL: user
   DRAFTING --> STATEMENT_REVIEW: system
   DRAFTING --> FACTS_REVIEW: system
-  STATEMENT_REVIEW --> DRAFTING: user
   STATEMENT_REVIEW --> FACTS_REVIEW: user
   STATEMENT_REVIEW --> APPROVED: approval
   STATEMENT_REVIEW --> CLOSED_NO_APPEAL: user
@@ -456,6 +460,7 @@ stateDiagram-v2
   UNKNOWN_RESULT --> FILLING: executor
   UNKNOWN_RESULT --> NEEDS_USER: executor / system
   NEEDS_USER --> FILLING: executor
+  NEEDS_USER --> SUBMITTED: executor
   NEEDS_USER --> STATEMENT_REVIEW: user / system
   NEEDS_USER --> FACTS_REVIEW: user
   NEEDS_USER --> INVESTIGATING: user
@@ -482,8 +487,7 @@ stateDiagram-v2
 | FACTS_REVIEW | CLOSED_NO_APPEAL | user |  |
 | DRAFTING | STATEMENT_REVIEW | system | writer finished |
 | DRAFTING | FACTS_REVIEW | system | writer failed |
-| STATEMENT_REVIEW | DRAFTING | user | user asks for a revision |
-| STATEMENT_REVIEW | FACTS_REVIEW | user | user changes facts |
+| STATEMENT_REVIEW | FACTS_REVIEW | user | user changes a fact or asks for a revision: back through gate 1 |
 | STATEMENT_REVIEW | APPROVED | approval | gate 2: signed approval of the exact payload |
 | STATEMENT_REVIEW | CLOSED_NO_APPEAL | user |  |
 | APPROVED | FILLING | executor |  |
@@ -502,6 +506,7 @@ stateDiagram-v2
 | UNKNOWN_RESULT | FILLING | executor | status page proves nothing was filed; one retry |
 | UNKNOWN_RESULT | NEEDS_USER | executor / system |  |
 | NEEDS_USER | FILLING | executor |  |
+| NEEDS_USER | SUBMITTED | executor | status page shows the appeal after a pause |
 | NEEDS_USER | STATEMENT_REVIEW | user / system |  |
 | NEEDS_USER | FACTS_REVIEW | user |  |
 | NEEDS_USER | INVESTIGATING | user |  |
@@ -529,6 +534,9 @@ stateDiagram-v2
 | SUBMITTING / VERIFYING | UNKNOWN_RESULT | 点击可能已发出，必须先核对 |
 | APPROVED | STATEMENT_REVIEW | 任务没启动；密钥可能已轮换，需要重新批准 |
 | DRAFTING | FACTS_REVIEW | 写作中断；用户再确认一次后重写 |
+| NEW / IDENTIFYING | FAILED | 读罚单的任务中断（等待用户回答的除外）；请新建案件 |
+
+每次状态转移都**同步写盘**（原子写入）后才继续执行。所以“提交中”在点击之前已经落盘，崩溃后一定恢复成 UNKNOWN_RESULT 并先对账，不会被误判为“可以安全重跑”。
 
 ## 2. 数据模型 🔧
 
@@ -548,7 +556,7 @@ stateDiagram-v2
 **来源（provenance）**：TICKET_OCR、PORTAL_LOOKUP 🆕、USER_VOICE、USER_TEXT、PHOTO_EVIDENCE、RULE、PROFILE。
 **状态（status）**：NEEDS_CONFIRMATION、CONFIRMED、USER_STATEMENT、RULE_VERIFIED、UNVERIFIABLE。
 - 能进入提交内容的：CONFIRMED、RULE_VERIFIED。
-- 能作为申诉理由依据的：CONFIRMED、RULE_VERIFIED、USER_STATEMENT。
+- 能作为申诉理由依据的：CONFIRMED、RULE_VERIFIED。未确认的用户陈述（USER_STATEMENT）必须先经过事实确认，批准时也不允许任何未确认事实存在。
 
 **申诉理由**：METER_NOT_IN_EFFECT、PAID、SIGNAGE、VEHICLE_INFO、PERMIT_DISPLAYED 🆕、OTHER。
 
@@ -707,7 +715,7 @@ export const askUser = defineTool({
 
 ### 4.9 写作
 - `draft`：按理由和事实生成 3–5 段英文；每段引用事实 id；不超过门户字段上限；同时生成用户语言对照。✅
-- `revise`：按用户指令修改；指令里出现的新事实先记为 USER_STATEMENT；保留用户亲自写的段落；revision 加一。🆕
+- 修改：在申诉信核对阶段发聊天消息，会把消息记为未确认的“修改要求”，案件回到事实确认；用户确认后才重写，写作只能使用已确认的修改要求（✅ 已实现）。修改任何事实同样回到事实确认。用户直接编辑段落属于用户自己的文字，留在申诉信核对阶段，作者记为 user，批准时逐字确认。WP5 负责把修改要求真正落实到文字里。
 - `validate`：引用的事实必须存在且可作为依据；长度不超限；不出现承诺或威胁性措辞；校验失败退回模板。✅
 - 申诉信任何变化都会改变批准指纹，旧批准自动失效。
 
@@ -764,7 +772,7 @@ v0.2 的 `PortalSession` 已实现 fillToReview / submit / checkStatus / checkIn
 ### 5.4 四道闸门 + 签名
 1. **工具不可见**：模型在任何阶段都拿不到提交、批准、确认类工具。✅
 2. **只有用户能确认事实**；有未确认事实时不能写作，也不能批准。✅
-3. **读回门禁**：提交前读取门户审核页的值，组成同样结构的载荷并计算哈希，必须等于批准时的哈希。✅
+3. **读回门禁**：提交前读取门户审核页的值，组成同样结构的载荷并计算哈希，必须等于批准时的哈希。✅ 边界：字段值是逐个读回的；附件只读回文件名和大小，内容哈希沿用服务器端计算的值，并没有从门户重新取回文件做校验。
 4. **网络层一次性闸门**：硬拦真实政府域名；只放行一个来源；提交请求只有在门禁放行后才能通过一次。✅
 
 **签名令牌**：`HMAC(secret, caseId | payloadHash | adapterVersion | exp)`。执行前用当前数据重算哈希再验签。同一批准最多两次提交尝试，第二次必须在状态页证明第一次没有被记录之后。✅
@@ -793,15 +801,16 @@ sequenceDiagram
   else 超时
     E->>P: 查状态页
     P-->>E: 已记录 / 未记录
-    E-->>U: SUBMITTED，或在同一批准下安全重试一次
+    E-->>U: 查到 → SUBMITTED；查不到 → 暂停，由用户决定是否重试
   end
 ```
 
 ### 5.6 结果不明时的对账 ✅
 超时 → UNKNOWN_RESULT → 打开新的浏览器上下文（闸门不放行任何提交）查状态页：
 - 查到申诉 → SUBMITTED（回执来源 status_page）。
-- 证明没有提交，且尝试次数 < 2 → 回到 FILLING 重试一次。
-- 否则 → NEEDS_USER，并给出手动提交包。
+- 查不到 → NEEDS_USER（`NOT_FOUND_AFTER_UNKNOWN`），**不自动重新提交**。状态页查不到不等于一定没提交（门户可能有延迟），所以由用户选择“再查一次”或“确认重试”。重试是安全的，因为门户对同一张罚单只受理一次，第二次提交会显示“已在案”，执行器把它记为 SUBMITTED（alreadyOnFile）。
+- 同一批准最多两次提交尝试；之后只能用手动提交包。
+- 执行器和对账共用一把锁：同一案件不会有两个浏览器同时操作；执行器忙时，恢复类请求返回 409。
 
 ### 5.7 模拟门户与故障场景
 
@@ -810,7 +819,8 @@ sequenceDiagram
 | normal | SUBMITTED，确认页回执，邮件已核对 | ✅ |
 | redesign（标签消失 + 弹窗） | 弹窗被确定性关闭；文本字段由 T3 填写；SUBMITTED | ✅（fake CU） |
 | submit_timeout_after_record | UNKNOWN_RESULT → 状态页查到 → SUBMITTED，无重复 | ✅ |
-| submit_timeout_before_record | UNKNOWN_RESULT → 未记录 → 重试一次 → SUBMITTED，仅一条申诉 | ✅ |
+| submit_timeout_before_record | UNKNOWN_RESULT → 状态页查不到 → 暂停（NEEDS_USER）→ 用户确认重试 → SUBMITTED，仅一条申诉 | ✅ |
+| 同一张罚单第二次申诉 | 门户只受理一次 → 已在案（alreadyOnFile），仍然只有一条申诉 | ✅ |
 | captcha | BLOCKED，零提交，给出手动提交包 | ✅ |
 | missing_field | NEEDS_USER → 用户补充 → 旧批准被拒 → 重新批准 → SUBMITTED | ✅ |
 | 查询：MA 车牌 / 外州车牌 / 查不到 / 多张 | 列出罚单 / 要求罚单号 / 如实告知 / 让用户选 | 🆕 |
@@ -833,19 +843,29 @@ sequenceDiagram
 - 下载 Playwright trace（可在 trace.playwright.dev 完整回放）。
 - 审计哈希链的最新哈希。
 
-### 6.3 哈希链审计日志 🆕
-每个事件（状态转移、工具调用、执行步骤、批准、回执）追加一条：`hash_n = sha256(hash_{n-1} + canonical(event_n))`。导出 JSON 后可以用 `scripts/verify-audit.mjs` 重算，任何改动都会导致校验失败。
+### 6.3 哈希链审计日志 🆕（状态转移已写入 ✅）
+每个事件（状态转移、工具调用、执行步骤、批准、回执）追加一条：`hash_n = sha256(hash_{n-1} + canonical(event_n))`。目前已写入状态转移，其余事件由 WP8 补上。
+
+**它能证明什么、不能证明什么**：用户在凭证页拿到链头哈希之后，服务器上的记录再被改动，可以用 `verifyChain` 发现。但它不是防伪系统：能控制服务器的人可以从头重写整条链。如果要更强的保证，需要把链头哈希放进回执邮件，或交给第三方保存（赛后）。
+
+**隐私**：截图和 Playwright trace 会包含姓名、地址、邮箱和车牌。规则如下：
+- 只保存在本机 `data/` 目录下。
+- `MASK_PII=true` 时遮挡截图里的敏感字段。
+- 日志里不写完整车牌和邮箱。
+- 演示重置时清空。
+- 演示只用合成数据。
 
 ## 7. 账户与多语言
 
-### 7.1 轻账户 🆕（默认，待确认）
+### 7.1 演示模式（比赛版本，已确认）
+比赛版本不做真实账户：手机端用演示身份选择器填好资料和语言（WP1 只做网页端），服务器不区分用户。这是**单用户演示，使用合成数据**，不具备真实多用户部署所需的安全性。开公网隧道前必须设置 `DEMO_KEY`：所有 `/api` 请求都要带这个密钥，首次用 `?key=…` 打开后由 cookie 携带。下面的轻账户设计留到赛后：
 - 首次访问 `GET /api/me` 自动建号，下发 httpOnly 会话 cookie。
 - 资料与车辆存服务器；新建案件时自动作为 PROFILE 事实（已确认）带入。
 - 演示身份：`lin`（zh，NY `KDT4821`）、`maria`（es，MA `8KDW21`）、`sam`（en，MA `5NB302`），分别对应三张合成罚单。
 - 不做密码、OAuth、找回账户。
 
 ### 7.2 多语言 🆕
-- 界面：`apps/web/src/i18n/locales/{zh,es,en}/{common,onboarding,intake,chat,review,filing,proof,account}.json`；评委控制台只用英文。
+- 界面：`apps/web/src/i18n/locales/{zh,es,en}/{common,onboarding,intake,chat,review,filing,proof,account}.json`，由极简的 `t()` 读取，不引入 i18next；评委控制台只用英文。
 - 语言选择：首次打开选择，保存到账户；可随时切换。
 - Agent：以用户语言对话；每个问题同时保存英文版（`question_en`），用于审计。
 - 申诉信：英文正文（提交用）+ 用户语言对照（只供核对）。
@@ -853,7 +873,7 @@ sequenceDiagram
 - 可选：用浏览器的 `speechSynthesis` 朗读 Agent 消息。
 
 ## 8. 存储
-- 仓储接口：`UserRepo`、`CaseRepo`、`AuditRepo`；v2 使用 JSON 文件实现（防抖 + 先写临时文件再 rename），需要时可换 SQLite，调用方不用改。
+- 仓储接口：`UserRepo`、`CaseRepo`、`AuditRepo`；v2 使用 JSON 文件实现（先写临时文件再 rename；普通修改防抖写入，**状态转移同步写入**），需要时可换 SQLite，调用方不用改。
 - 上传文件：`data/uploads/<caseId>/`；截图：`data/shots/<caseId>/`；trace：`data/traces/<caseId>/`。
 - 启动时执行 §1.3 的崩溃恢复。
 
@@ -941,6 +961,8 @@ scripts/                  ui-smoke · make_ticket · verify-audit
 > 手册是 AppealHero 的“专业知识层”：每种罚单该问什么、要什么证据、哪些申诉理由站得住、什么时候应该劝用户缴费。
 > 官方资料核对日期：2026-11-21。标记：✅ 已对照官方来源 · ⚠️ 待核实 · 🆕 v2 新增。
 > 交通规则条款（Traffic Rules and Regulations，2025-03-01 版 PDF）是通过网页摘要工具读取的，条款号在实现前要对照原文再核一次。
+> **比赛版本先实现 §4.1 计时器、§4.2 居民许可、§4.4 消防栓（已确认）**；§4.3 街道清扫、§4.5 禁停保留设计，赛后实现。
+> 罚款永远以罚单上印的金额为准，其次按具体违规描述查官方罚款表（同一大类的罚款可能不同，例如计时器故障类为 $25），绝不让模型猜。
 > 本文不是法律意见。手册只帮用户整理事实和证据，从不承诺结果。
 
 ## 0. 三条原则
@@ -1036,6 +1058,8 @@ export interface RuleDef<I> {
   - 规则型理由必须 `verified: true`。
 - 校验失败时把原因回给模型，案件不推进。
 
+- OTHER（用户自己的理由）只有在用户明确选择“仍要申诉”后，或在通用手册（没有专门手册的罚单类型）下才允许，而且必须引用用户自己的陈述。代码会拒绝模型自行提议的 OTHER。（✅ 已实现）
+
 **所以模型可以帮忙问，但不能编造理由。**
 
 ## 3. 通用检查（所有手册先运行）
@@ -1124,6 +1148,8 @@ export interface RuleDef<I> {
    - 有许可：拍一张贴纸照片（提取街区、车牌、是否可见）。
    - 租车：上传租车合同和居住证明。
    - 没有：从停车位置拍一张路牌（提取街区、时段、是否清晰）。
+3. `photoContext`（text）：只在提交了路牌照片时问：照片是什么时候拍的？是在你停车的那个位置、朝向你的车位的那块路牌吗？
+   - 照片只能证明**拍照那一刻**的状况。拍照时间离开票时间越近、位置越对得上，证明力越强；对不上时要标为“不确定”，申诉信里写明拍摄时间和位置，不夸大。
 
 **申诉理由**
 | 理由 | 门户类型 | 成立条件 | 依据 |
@@ -1131,7 +1157,7 @@ export interface RuleDef<I> {
 | 已展示有效许可 | PERMIT_DISPLAYED 🆕 | 许可街区与路牌一致，车牌一致，贴纸可见 | 规则 ✅ Art. IV §1(21)、§15(6) |
 | 租车 + 下班后开票 | OTHER | 租车合同和居住证明都有，开票时间在办公时间以外 | 规则 ✅（适用条件 ⚠️） |
 | 不在路牌时段内 | SIGNAGE | 开票时间不在路牌时段内 | 证据 + 计算 |
-| 路牌缺失或看不清 | SIGNAGE | 照片显示路牌被遮挡或不存在，用户已确认 | 事实型，只陈述事实 |
+| 路牌缺失或看不清 | SIGNAGE | 照片显示路牌被遮挡或不存在，用户已确认，且拍摄时间和位置与开票情况对得上（对不上时标为不确定） | 事实型，只陈述事实，写明拍摄时间和位置 |
 
 **建议缴费**：没有许可、路牌清晰、开票时间在时段内 → 建议缴 $60（逾期加 $13）。
 
@@ -1356,11 +1382,44 @@ golden({
 4. **完成标准**：本卡验收测试全部通过；`npm run format && npm run typecheck && npm test` 全绿；`AI_MODE=fake` 仍能跑完全流程。CI 还会检查格式（`npm run format:check`）和文档中的状态机（`npm run docs:fsm -- --check`）。
 5. **分支与提交**：仓库在 https://github.com/Esbmango/AppealHero 。分支名用 `wp3-perception` 这种格式，从合并了 WP0 的 main 拉出，小步提交，合并前 rebase 到 main。
 
+## 0.5 比赛范围（2026-11-21 19:34 确认，参考 GPT / Gemini 评审）
+
+- **必须交付**：
+  - 手机界面
+  - 拍照或选择合成案件
+  - 针对性提问
+  - 事实确认
+  - 申诉信生成与批准
+  - 自动操作模拟门户、提交前读回、防重复提交
+  - 可验证的回执
+- **有时间再做**：
+  - 3 份手册（计时器、居民许可、消防栓）配 Gemini 提示词
+  - 三语界面
+  - 真实 Gemini Computer Use 测试
+  - “帮我查”
+  - 简单凭证页
+  - 基本错误恢复
+- **放弃（赛后）**：
+  - 真实账户、登录和 CSRF（改为演示模式 + `DEMO_KEY`）
+  - 街道清扫、禁停手册
+  - 通用手册引擎（fake 驱动沿用现有逻辑）
+  - 会话过期、上传失败、注入、校准等新场景
+  - verify-audit 脚本
+  - 申诉后跟踪
+- 验收项后面标“（赛后）”的，本次不做，也不会被 CI 检查。
+- 各卡调整：
+  - **WP1** 只做网页端的演示身份选择器，服务器账户接口保持 501。
+  - **WP3** 增加一张工作日的计时器罚单和 ParkBoston 付款截图，供主演示线使用。
+  - **WP4** 只做 3 份手册。
+  - **WP6、WP7** 只做查询和 trace。
+  - **WP8** 只做简单凭证页。
+  - **WP9** 用极简三语词典，不引入 i18next。
+
 ## 1. 时间线（2026-11-21 晚 → 11-22 09:00 截止）
 
 | 里程碑 | 目标时间（EST） | 完成标志 |
 |---|---|---|
-| M0 | 20:00 | WP0 合并，契约冻结 |
+| M0 | 20:00 | ✅ WP0 和评审修订合并到 main，契约冻结 |
 | M1 | 01:00 | WP1–WP9 核心功能在 fake 模式跑通；林同学中文主路径端到端可用 |
 | M2 | 04:00 | 真 Gemini 冒烟通过；真机（iPhone / Android）测试完成；故障场景矩阵全绿 |
 | M3 | 07:00 | 代码冻结；录制视频；Devpost 文案定稿 |
@@ -1413,7 +1472,7 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 
 ### WP0 地基与契约（阻塞全部）
 
-**状态：✅ 已完成**，在分支 `wp0-foundation`，等设计评审结束后合并到 main，然后打 tag `contracts-v2`。交付说明见该分支的 `WP0_STATUS.md`。
+**状态：✅ 已完成**，连同评审修订一起合并到 main，并打了 tag `contracts-v2`。交付说明见 `WP0_STATUS.md`。
 
 **目标**：把 v0.2 平滑迁移到 v2 骨架，功能不倒退；冻结契约；为每张卡准备好桩代码和待办测试。
 
@@ -1466,17 +1525,16 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 
 **依赖**：WP0
 
-**交付物**
-- 设备会话 cookie（httpOnly、签名）
-- `GET/PUT /api/me`、`POST/DELETE /api/me/vehicles`、`POST /api/session/persona`
-- 新建案件时，把资料作为 PROFILE 事实带入（已确认）
-- 引导页：选语言 → 选演示身份或填写资料
-- 账户页：资料与车辆
+**交付物（比赛版本：演示模式）**
+- 引导页：选语言 → 选演示身份（来自 `DEMO_PERSONAS`）或手动填写资料，保存在本机
+- 新建案件时把资料随表单字段带上（v0.2 已支持），服务器记为 PROFILE + CONFIRMED
+- 切换演示身份时同步切换界面语言
+- 赛后：设备会话 cookie、`GET/PUT /api/me`、车辆管理、账户页
 
 **验收**
-- `wp1: GET /api/me creates a user and sets a session cookie`
-- `wp1: PUT /api/me validates and persists the profile`
-- `wp1: plates are uppercased, delete works, exactly one default vehicle`
+- `wp1: GET /api/me creates a user and sets a session cookie`（赛后）
+- `wp1: PUT /api/me validates and persists the profile`（赛后）
+- `wp1: plates are uppercased, delete works, exactly one default vehicle`（赛后）
 - `wp1: persona switch sets language, profile and vehicles`
 - `wp1: a new case imports profile fields as PROFILE + CONFIRMED facts`
 
@@ -1528,9 +1586,9 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 
 **验收**
 - `wp3: fake perception reads ground truth from the PNG text chunk`
-- `wp3: two ticket photos merge into one ticket and low confidence asks for a retake`
+- `wp3: two ticket photos merge into one ticket and low confidence asks for a retake`（赛后）
 - `wp3: a receipt yields paid_until as NEEDS_CONFIRMATION`
-- `wp3: a sign photo yields posted hours, months and visibility`
+- `wp3: a sign photo yields posted hours, months and visibility`（赛后）
 - `wp3: audio yields the original text plus English`
 - `wp3: make_ticket.py generates every fixture the golden tests use`
 
@@ -1609,10 +1667,10 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 - `wp6: every v0.2 portal scenario still passes on the v2 flow`
 - `wp6: lookup handles MA plates, out-of-state plates, not found and multiple tickets`
 - `wp6: every job records a Playwright trace`
-- `wp6: session_expired re-runs safely and still files exactly one appeal`
-- `wp6: upload_rejected ends in NEEDS_USER with a clear reason`
-- `wp6: injected page text never changes executor actions`
-- `wp6: fake CU hits every /calibrate target within 1% of the viewport`
+- `wp6: session_expired re-runs safely and still files exactly one appeal`（赛后）
+- `wp6: upload_rejected ends in NEEDS_USER with a clear reason`（赛后）
+- `wp6: injected page text never changes executor actions`（赛后）
+- `wp6: fake CU hits every /calibrate target within 1% of the viewport`（赛后）
 
 **不做**：模拟门户页面（WP7）。
 
@@ -1638,7 +1696,7 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 - `wp7: every page shows the SIMULATED banner and noindex`
 - `wp7: /lookup follows the markup contract`
 - `wp7: seeds include all 5 synthetic tickets and one plate with two tickets`
-- `wp7: the new scenarios behave as specified`
+- `wp7: the new scenarios behave as specified`（赛后）
 - `wp7: /admin/state reports submissions for the test oracle`
 
 **不做**：执行器逻辑（WP6）。
@@ -1658,7 +1716,7 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 **验收**
 - `wp8: the audit chain verifies and detects any tampering`
 - `wp8: proof returns the approval hash, read-back hash, steps, receipt and chain head`
-- `wp8: verify-audit.mjs exits 0 on a good export and 1 on a tampered one`
+- `wp8: verify-audit.mjs exits 0 on a good export and 1 on a tampered one`（赛后）
 - `wp8: status-check is read-only and never submits`
 
 **不做**：执行器（WP6）。
@@ -1671,7 +1729,7 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 
 **交付物**
 - React Router 路由：`/`、`/onboarding`（WP1）、`/cases/:id`、`/cases/:id/facts`、`/cases/:id/statement`、`/cases/:id/filing`、`/cases/:id/proof`（WP8）、`/account`（WP1）、`/console`
-- i18next 配置：中文、西语、英文；界面语言跟随账户设置
+- 极简三语词典（`t()` + 按功能拆分的 JSON，不引入 i18next）：中文、西语、英文；界面语言跟随演示身份的设置
 - 入口页：多张拍照、用车辆代查、聊天
 - 对话页：选择按钮、拍照请求、语音
 - 事实核对页：
@@ -1797,7 +1855,9 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 4. **Approval = HMAC-signed hash of the exact form payload.** Any change to what will be typed invalidates it. Never skip `verifyToken()` or the read-back gate before submitting.
 5. **Keep the network guard** (`apps/server/src/portal/browser/guard.ts`): hard-block real government hosts, allow one portal origin, one-shot submit interlock.
 6. **Never send requests to boston.gov, rmcpay.com, or any real government system. Never bypass a CAPTCHA.**
-7. **Unknown submit result → reconcile via the portal status page.** Never blind-retry a submit.
+7. **Unknown submit result → read-only reconcile via the portal status page.** Not found → pause (NEEDS_USER); never resubmit automatically. Every state change is flushed to disk before anyone acts on it.
+9. **Gate 1 is never bypassed.** New or changed facts after confirmation (including chat revisions) go back to FACTS_REVIEW; only CONFIRMED / RULE_VERIFIED facts can ground the statement.
+10. **One actor per case at a time.** Agent turns are queued per case (`core/locks.ts`); the executor job and reconcile are mutually exclusive.
 8. **Fake mode must keep working.** `AI_MODE=fake` runs the whole flow with no key and no network; all tests run in fake mode.
 
 ## Contracts
@@ -1869,23 +1929,28 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 - [ ] 用 `npm start` 启动，不要用 `npm run dev`（dev 一保存文件就重启服务，会打断正在运行的浏览器任务）。
 - [ ] `.env` 里设 `HEADLESS=false`（默认是 true），让评委看到浏览器真的在填写。
 - [ ] 打开评委控制台：v2 是 `/console`；v0.2 是浏览器宽度 ≥ 1100px 时的右侧分屏。
-- [ ] 手机走 HTTPS：运行 `cloudflared tunnel --url http://localhost:4000`，打开地址，授权相机和麦克风。
+- [ ] 手机走 HTTPS：先在 `.env` 设 `DEMO_KEY`，再运行 `cloudflared tunnel --url http://localhost:4000`；手机打开 `https://…/?key=<DEMO_KEY>`，授权相机和麦克风。
 - [ ] 看控制台顶部的 AI 标识：显示模型名，还是 “FAKE (no Gemini key)”。**是 FAKE 就如实说。**
 - [ ] 重置数据：控制台点 “Reset demo”，或 `POST /api/demo/reset`。
 - [ ] 把场景设为 `redesign`，用来展示自愈。
 - [ ] 手机：亮度调到最高、开勿扰、关闭自动锁屏；准备备用热点。
 
-## 2. 三分钟脚本
+## 2. 三分钟脚本（按评审建议简化：一条主线，两段补充）
+
+主线只讲一件事：用户把罚单交给 AppealHero，Agent 主动问、核对证据，用户确认两次，Agent 自动在模拟门户提交，拿到可以核验的回执。主线用工作日的计时器罚单加 ParkBoston 付款截图（WP3 准备素材）。这个理由靠可核对的时间对比，比“路牌被遮挡”的照片证明力强。
 
 | 时间 | 画面 | 要说的重点 | 对应评分项 |
 |---|---|---|---|
-| 0:00–0:15 | 林同学的罚单照片 | 留学生开纽约车牌，收到 $60 居民许可罚单。规则是英文的，申诉信要用英文写，21 天内要交。很多人会选择直接缴费。 | Impact、Relevance |
-| 0:15–0:45 | 手机：拍照 → 中文对话 | Agent 用中文解释罚单，只问了两个问题：“有没有许可？”“请拍路牌”。照片显示路牌被树枝遮挡。外州车牌不能在线按车牌查，所以先拍照识别票号。 | Nuance、Novelty |
-| 0:45–1:10 | 事实核对 → 申诉信 | 每条事实都标了来源。用户确认后，Agent 才开始写申诉信：英文正文 + 中文对照，每段都能点开看依据。说一句“写短一点”，申诉信重写后，批准按钮的指纹也跟着变。 | Polish、Nuance |
-| 1:10–1:50 | 控制台 + 浏览器 | 批准后自动提交。门户“改版”了：标签消失、弹出窗口，固定脚本失败，Computer Use 只修失败的那几个字段。提交前读回比对一致，闸门只放行一次，拿到确认号并核对邮件回执。凭证页可以下载完整回放。 | Novelty、Polish |
-| 1:50–2:20 | Sam 的消防栓罚单 | 车辆信息一致，离消防栓不到 10 英尺。Agent 诚实建议缴费，给出 $100 和截止日，不帮他编理由。 | Nuance、General Impact |
-| 2:20–2:45 | María 的西语界面 | 点“帮我查”，找到周日的计时器罚单。规则直接给出理由（Boston 计时器周日免费，附 boston.gov 来源），一个问题都不用问。 | Impact、Relevance |
-| 2:45–3:00 | 安全设计一页 | 模型没有提交按钮；只有用户能确认、能批准；提交前读回比对；结果不明先查状态；全程可以核验。门户是模拟的，规则来自官方。 | Presentation |
+| 0:00–0:15 | 罚单照片 | 一位中文用户收到 $40 计时器罚单。规则是英文的，申诉信也要用英文写，21 天内要交。很多人会选择直接缴费。 | Impact、Relevance |
+| 0:15–0:50 | 手机：拍照 → 中文对话 | Agent 用中文解释罚单，只问一个问题：“你付停车费了吗？”用户上传 ParkBoston 截图，Agent 读出“付到 10:30”，和罚单时间 10:05 比对。 | Nuance、Novelty |
+| 0:50–1:20 | 事实确认 → 申诉信 | 每条事实都标了来源，用户确认后 Agent 才开始写。申诉信是英文正文加中文对照，每段都能看到依据。说一句“写短一点”，案件会先回到事实确认，确认后才重写。 | Polish、Nuance |
+| 1:20–2:10 | 控制台 + 浏览器 | 批准后自动提交：读回比对一致，闸门只放行一次，拿到确认号并核对邮件回执。控制台上显示用户实际操作时间和 AI 成本。可选：切到“改版”场景展示逐字段兜底。 | Novelty、Polish |
+| 2:10–2:40 | 补充：Sam 或 María | 二选一。Sam：消防栓罚单，Agent 诚实建议缴费，不编造理由。María：西语，周日计时器罚单，一个问题都不用问。 | Nuance、Impact |
+| 2:40–3:00 | 安全设计一页 | 模型没有提交按钮；只有用户能确认和批准；新信息一定回到事实确认；结果不明先查状态、不自动重提交；门户是模拟的，规则来自官方。 | Presentation |
+
+**必须如实说明**：
+- 控制台显示 FAKE 时，就说现在是离线 fake 模式。
+- Computer Use 只在用真 key 测通后才能说是“真实 Gemini Computer Use”，fake CU 不能这样宣传。
 
 ## 3. 场景顺序与开关
 
@@ -1971,7 +2036,7 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 
 # WP0 交付说明（v2 地基）
 
-状态：✅ 已完成，在分支 `wp0-foundation`。设计评审结束后合并到 `main`，然后打 tag `contracts-v2`，WP1–WP9 从合并后的 main 拉分支并行开发。
+状态：✅ 已完成，连同评审修订一起合并到 `main`，并打了 tag `contracts-v2`。WP1–WP9 从 main 拉分支并行开发。
 
 ## 交付内容
 
@@ -2010,6 +2075,17 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 - `npm run docs:fsm`：ARCHITECTURE §1.1 的完整转移表由代码生成，CI 会检查文档与代码一致。
 - Prettier 已对全部代码格式化一次；`npm run format` / `format:check`。
 - CI：`.github/workflows/ci.yml`。
+
+## 评审修订（GPT / Gemini，2026-11-21 19:34 确认）
+
+| 问题 | 修改 | 测试 |
+|---|---|---|
+| 确认事实后，新事实能绕过确认 | 申诉信依据只认 CONFIRMED / RULE_VERIFIED；聊天修改和事实修改都回到事实确认；批准时不允许任何未确认事实 | e2e 2 个 + 单元 1 个 |
+| 崩溃时可能重复提交 | 状态转移同步写盘，提交记录在点击前落盘；结果不明只读对账，查不到就暂停由用户决定；门户“已在案”页面被识别为已提交 | e2e 2 个 + 单元 3 个 |
+| 并发 | 同一案件的 Agent 回合排队；执行器与对账互斥，忙时返回 409 | 单元 3 个 |
+| 罚款按大类 | 以罚单金额为准，其次查具体违规描述 | 单元 3 个 |
+| 模型自行提议 OTHER | 只在用户选择“仍要申诉”或通用手册下允许，且必须引用用户陈述 | 单元 3 个 |
+| 小修 | 重置后手机回到首页；附件最多 5 个；已结案不能改事实；SSE 重启后回放；`DEMO_KEY` | 单元 2 个 |
 
 ## 刻意留给其他任务卡的
 

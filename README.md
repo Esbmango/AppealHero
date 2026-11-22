@@ -6,6 +6,7 @@
 > All filing happens on a **simulated** portal included in this repo and labeled SIMULATED on every page.
 > AppealHero is not affiliated with or endorsed by the City of Boston, and it is not legal advice.
 > All demo people, plates and tickets are synthetic.
+> **Demo Mode:** single-user demo without accounts. Set `DEMO_KEY` before exposing it through a public tunnel. It is not hardened for multi-user deployment.
 
 ## Why
 
@@ -69,7 +70,8 @@ flowchart LR
 3. **Approval is a signature:** an HMAC over the exact form payload, the adapter version and an expiry. Any change to what will be typed invalidates it.
 4. **Read-back gate.** Before submitting, the executor reads the portal's review page back; its values must hash to the approved payload.
 5. **Network guard.** Real government hosts are hard-blocked, a single portal origin is allowed, and the submit request can pass exactly once.
-6. **An unknown result is never blindly retried.** The executor checks the portal's status page first; a second attempt happens only after it proves nothing was filed.
+6. **An unknown result is never blindly retried.** State changes are written to disk before the click; after a timeout the executor only reads the portal's status page. If the appeal is not there, it pauses and the user decides whether to retry (the portal accepts one appeal per ticket).
+7. **Gate 1 cannot be bypassed.** Any new or changed fact after confirmation, including a chat revision, sends the case back to fact confirmation before anything is rewritten.
 
 ## Quick start
 

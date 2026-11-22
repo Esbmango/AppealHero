@@ -3,8 +3,9 @@ import { newId, now } from '../../core/util';
 
 /** Only these may be typed into the portal. USER_STATEMENT / OCR facts must be confirmed by the user first. */
 export const SUBMITTABLE: readonly FactStatus[] = ['CONFIRMED', 'RULE_VERIFIED'];
-/** Facts an appeal paragraph may rely on (the user's own statements are allowed — they are approving them). */
-export const GROUNDABLE: readonly FactStatus[] = ['CONFIRMED', 'RULE_VERIFIED', 'USER_STATEMENT'];
+/** Facts an appeal paragraph may rely on: only what the user confirmed (gate 1) or deterministic rule results.
+ *  An unconfirmed USER_STATEMENT can never ground the statement — it must go through FACTS_REVIEW first. */
+export const GROUNDABLE: readonly FactStatus[] = ['CONFIRMED', 'RULE_VERIFIED'];
 
 export const latestFact = (c: { facts: Fact[] }, key: string) => c.facts.find((f) => f.key === key);
 

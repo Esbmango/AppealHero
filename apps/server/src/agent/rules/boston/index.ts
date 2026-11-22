@@ -43,6 +43,32 @@ export const BOSTON_HOLIDAYS: Record<string, string> = {
   '2027-12-24': 'Christmas Day (Observed)',
 };
 
+/** Exact descriptions from the official fines table (checked 2026-11-21). Same category ≠ same fine (e.g. out-of-order meter is $25). */
+export const FINE_TABLE: Record<string, { fine: number; late: number }> = {
+  'METER FEE UNPAID': { fine: 40, late: 8 },
+  'OVER METER LIMIT': { fine: 40, late: 8 },
+  'METER VIOLATION (OUT OF ORDER)': { fine: 25, late: 8 },
+  'NOT IN METERED SPACE': { fine: 25, late: 8 },
+  'RESIDENT PERMIT ONLY': { fine: 60, late: 13 },
+  'NO VALID RESIDENT PARKING PERMIT/STICKER': { fine: 100, late: 33 },
+  'STREET CLEANING': { fine: 40, late: 13 },
+  'OVERNIGHT STREET CLEANING (NO TOW)': { fine: 90, late: 30 },
+  HYDRANT: { fine: 100, late: 33 },
+  'NO STOPPING OR STANDING': { fine: 90, late: 25 },
+  'NO PARKING (ZONE A)': { fine: 90, late: 18 },
+  'NO PARKING (ZONE B)': { fine: 55, late: 8 },
+};
+const normDesc = (d: string) => d.toUpperCase().replace(/["“”]/g, '').replace(/\s+/g, ' ').trim();
+
+/** Never guess: the printed amount wins; then the exact official description; the category is only a labelled estimate. */
+export function fineFor(description?: string, printed?: number, category?: string): { fine?: number; late?: number; basis?: 'ticket' | 'table' | 'category' } {
+  const row = description ? FINE_TABLE[normDesc(description)] : undefined;
+  if (printed !== undefined && Number.isFinite(printed) && printed > 0) return { fine: printed, late: row?.late, basis: 'ticket' };
+  if (row) return { ...row, basis: 'table' };
+  const cat = category ? FINES[category as ViolationType] : undefined;
+  return cat ? { ...cat, basis: 'category' } : {};
+}
+
 export function classifyViolation(desc: string): ViolationType {
   const d = desc.toLowerCase();
   if (/meter/.test(d)) return 'METER';
@@ -102,6 +128,10 @@ export const RULE_LABELS: Record<RuleName, string> = {
 
 export interface RuleInput {
   issuedAt?: string;
+  /** the violation text printed on the ticket */
+  violationDescription?: string;
+  /** the fine printed on the ticket (authoritative when present) */
+  printedFine?: number;
   paidUntil?: string;
   paidFrom?: string;
   violationType?: string;
@@ -175,12 +205,14 @@ export function runRule(name: RuleName, input: RuleInput): RuleResult {
       };
     }
     case 'fine_amount': {
-      const t = (input.violationType ?? 'OTHER') as ViolationType;
-      const f = FINES[t];
+      const f = fineFor(input.violationDescription, input.printedFine, input.violationType);
       return {
         rule: name,
-        result: f?.fine ?? null,
-        detail: f ? `${t}: fine $${f.fine}, late penalty $${f.late}` : 'Unknown violation type — check the ticket',
+        result: f.fine ?? null,
+        detail:
+          f.fine === undefined
+            ? 'Unknown fine — check the amount printed on the ticket'
+            : `fine $${f.fine}${f.late !== undefined ? `, late penalty $${f.late}` : ''} (${f.basis === 'ticket' ? 'as printed on the ticket' : f.basis === 'table' ? 'official fines table' : 'category estimate — check the ticket'})`,
         source: RULE_SOURCES.fines,
       };
     }

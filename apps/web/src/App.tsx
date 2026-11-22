@@ -14,12 +14,11 @@ export default function App() {
   const [since, setSince] = useState('1970-01-01T00:00:00.000Z');
   const latest = useLatestCaseId(wide, since);
   const caseId = wide ? (latest ?? (localId && since === '1970-01-01T00:00:00.000Z' ? localId : null)) : localId;
-  const { c, events, refresh } = useCase(caseId);
-
   const onNew = () => {
     setLocalId(null);
     if (wide) setSince(new Date().toISOString());
   };
+  const { c, events, refresh } = useCase(caseId, onNew);
   const phone = <PhoneFlow c={c} events={events} onCreated={setLocalId} onNew={onNew} refresh={refresh} />;
 
   if (!wide) return <div className="h-dvh">{phone}</div>;

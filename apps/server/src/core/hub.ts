@@ -43,7 +43,8 @@ export class EventHub {
   /** Serve an SSE stream for one case, or '*' for all cases. */
   serve(req: FastifyRequest, reply: FastifyReply, key: string) {
     const q = req.query as { lastEventId?: string };
-    const lastId = Number(req.headers['last-event-id'] ?? q.lastEventId ?? 0) || 0;
+    let lastId = Number(req.headers['last-event-id'] ?? q.lastEventId ?? 0) || 0;
+    if (lastId > this.seq) lastId = 0; // the server restarted (ids start over): replay everything we have
     reply.hijack();
     const res = reply.raw;
     res.writeHead(200, {

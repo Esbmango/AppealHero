@@ -178,7 +178,7 @@ export const confirmationPage = (scenario: Scenario, a: Appeal) =>
 export const alreadyOnFilePage = (scenario: Scenario, a: Appeal) =>
   layout(
     'Already on file',
-    `<h1>An appeal for this ticket is already on file</h1><p data-already-on-file>Confirmation number: ${esc(a.confirmationNumber)}</p>`,
+    `<h1>An appeal for this ticket is already on file</h1><p data-already-on-file data-confirmation="${esc(a.confirmationNumber)}">Confirmation number: ${esc(a.confirmationNumber)}</p>`,
     scenario,
   );
 

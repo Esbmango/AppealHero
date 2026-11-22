@@ -6,13 +6,18 @@ import { buildApprovalPayload, hashPayload, verifyToken } from '../../approval';
 import { publishMetrics, reportError, type Ctx } from '../../core/ctx';
 import { transition } from '../../core/fsm';
 import type { CaseRecord } from '../../core/types';
-import { now } from '../../core/util';
+import { newId, now } from '../../core/util';
+import { exclusive, isHeld } from '../../core/locks';
 import { BlockedError, NeedsUserError, PortalSession, SUBMIT_PATH, type ReviewReadback, type SessionHooks } from '../adapters/mockBoston';
 import { VIEWPORT, getBrowser } from '../browser/browser';
 import { Interlock, installNetworkGuard } from '../browser/guard';
 
-const running = new Set<string>();
+const execKey = (caseId: string) => `exec:${caseId}`;
+/** A job or reconcile currently holds this case's browser lock. */
+export const isExecBusy = (caseId: string) => isHeld(execKey(caseId));
 const MAX_ATTEMPTS = 2;
+/** Status page did not show the appeal after an unknown result: pause for the user (no automatic resubmission). */
+export const NOT_FOUND_CODE = 'NOT_FOUND_AFTER_UNKNOWN';
 
 function hooks(ctx: Ctx, caseId: string): SessionHooks {
   return {
@@ -92,8 +97,15 @@ function toNeedsUser(ctx: Ctx, caseId: string, code: string, reason: string, fie
  * Timeouts after the click never retry blindly: UNKNOWN_RESULT → reconcile via the status page.
  */
 export async function runJob(ctx: Ctx, caseId: string): Promise<void> {
-  if (running.has(caseId)) return; // per-case single flight
-  running.add(caseId);
+  let goReconcile = false;
+  const ran = await exclusive(execKey(caseId), async () => {
+    goReconcile = await runJobNow(ctx, caseId);
+  });
+  if (ran && goReconcile) await reconcile(ctx, caseId);
+}
+
+/** Returns true when the result is unknown and the status page must be checked. */
+async function runJobNow(ctx: Ctx, caseId: string): Promise<boolean> {
   const t0 = Date.now();
   let context: BrowserContext | null = null;
   let goReconcile = false;
@@ -113,7 +125,7 @@ export async function runJob(ctx: Ctx, caseId: string): Promise<void> {
         transition(ctx, caseId, 'STATEMENT_REVIEW', 'system', reason, (r) => {
           r.approval = undefined;
         });
-      return;
+      return false;
     }
     const attempts = c0.approval!.attempts;
     if (attempts >= MAX_ATTEMPTS || (attempts >= 1 && c0.approval!.lastReconcile !== 'NOT_FOUND')) {
@@ -123,7 +135,7 @@ export async function runJob(ctx: Ctx, caseId: string): Promise<void> {
           r.needsUser = { code: 'ATTEMPTS_EXHAUSTED', reason };
         });
       else reportError(ctx, caseId, new Error(reason));
-      return;
+      return false;
     }
     transition(ctx, caseId, 'FILLING', 'executor', c0.state === 'APPROVED' ? 'executor started' : `retry from ${c0.state}`);
 
@@ -136,7 +148,7 @@ export async function runJob(ctx: Ctx, caseId: string): Promise<void> {
     const pre = await portal.checkStatus(payload.fields.ticketNumber);
     if (pre.found && pre.confirmationNumber) {
       await finishSubmitted(ctx, caseId, { confirmationNumber: pre.confirmationNumber, source: 'status_page', alreadyOnFile: true });
-      return;
+      return false;
     }
 
     await portal.stepStart(payload);
@@ -170,18 +182,32 @@ export async function runJob(ctx: Ctx, caseId: string): Promise<void> {
     });
 
     // 2) Submit exactly once.
+    // Write-ahead: the attempt is on disk (transition() flushes synchronously) BEFORE the interlock is armed and the
+    // button is clicked, so a crash at any point after this line recovers to UNKNOWN_RESULT → reconcile, never "safe to retry".
     transition(ctx, caseId, 'SUBMITTING', 'executor', `read-back verified (${rbHash.slice(0, 12)}…) — submitting once`, (r) => {
       r.approval!.attempts += 1;
       r.approval!.lastReconcile = undefined;
+      r.submission = { attemptId: newId('sub'), payloadHash: ph, startedAt: now() };
     });
     interlock.armOnce();
     const outcome = await portal.submit(config.submitTimeoutMs);
     interlock.disarm();
 
     if (outcome.kind === 'confirmed') {
-      transition(ctx, caseId, 'VERIFYING', 'executor', `confirmation page shows ${outcome.confirmationNumber}`);
+      transition(
+        ctx,
+        caseId,
+        'VERIFYING',
+        'executor',
+        `confirmation page shows ${outcome.confirmationNumber}${outcome.alreadyOnFile ? ' (already on file)' : ''}`,
+      );
       const emailVerified = await portal.checkInbox(payload.fields.email, outcome.confirmationNumber).catch(() => false);
-      await finishSubmitted(ctx, caseId, { confirmationNumber: outcome.confirmationNumber, source: 'confirmation_page', emailVerified });
+      await finishSubmitted(ctx, caseId, {
+        confirmationNumber: outcome.confirmationNumber,
+        source: 'confirmation_page',
+        emailVerified,
+        alreadyOnFile: outcome.alreadyOnFile,
+      });
     } else {
       transition(ctx, caseId, 'UNKNOWN_RESULT', 'executor', 'no confirmation before timeout — checking the status page before doing anything else');
       goReconcile = true;
@@ -190,14 +216,13 @@ export async function runJob(ctx: Ctx, caseId: string): Promise<void> {
     handleError(ctx, caseId, err);
     if (ctx.store.get(caseId)?.state === 'UNKNOWN_RESULT') goReconcile = true;
   } finally {
-    running.delete(caseId);
     if (context) await context.close().catch(() => {});
     ctx.store.mutate(caseId, (c) => {
       c.metrics.execMs += Date.now() - t0;
     });
     publishMetrics(ctx, caseId);
   }
-  if (goReconcile) await reconcile(ctx, caseId);
+  return goReconcile;
 }
 
 function handleError(ctx: Ctx, caseId: string, err: unknown) {
@@ -218,12 +243,16 @@ function handleError(ctx: Ctx, caseId: string, err: unknown) {
   }
 }
 
-/** UNKNOWN_RESULT → look at the portal's own status page. Found → SUBMITTED. Proven absent → one safe retry. */
+/** UNKNOWN_RESULT (or a paused NOT_FOUND) → read-only look at the portal's status page. Found → SUBMITTED. Not found → NEEDS_USER. */
 export async function reconcile(ctx: Ctx, caseId: string): Promise<void> {
+  // Shares the executor key: a job and a reconcile (or two reconciles) never drive browsers on the same case at once.
+  await exclusive(execKey(caseId), () => reconcileNow(ctx, caseId));
+}
+
+async function reconcileNow(ctx: Ctx, caseId: string): Promise<void> {
   const c = ctx.store.must(caseId);
-  if (c.state !== 'UNKNOWN_RESULT') return;
+  if (c.state !== 'UNKNOWN_RESULT' && !(c.state === 'NEEDS_USER' && c.needsUser?.code === NOT_FOUND_CODE)) return;
   let context: BrowserContext | null = null;
-  let retry = false;
   try {
     const g = await newGuardedPage(ctx, caseId, new Interlock()); // interlock never armed: no submit possible here
     context = g.context;
@@ -240,27 +269,34 @@ export async function reconcile(ctx: Ctx, caseId: string): Promise<void> {
     ctx.store.mutate(caseId, (r) => {
       if (r.approval) r.approval.lastReconcile = 'NOT_FOUND';
     });
-    if ((ctx.store.must(caseId).approval?.attempts ?? MAX_ATTEMPTS) < MAX_ATTEMPTS) {
-      ctx.hub.emit({
-        type: 'exec.step',
-        caseId,
-        step: 'reconcile',
-        status: 'info',
-        detail: 'status page proves nothing was filed → one safe retry under the same approval',
+    // Conservative by design: "not on the status page" does not prove "never submitted" (portals can lag).
+    // We pause and let the user decide; a retry is safe because the portal accepts one appeal per ticket.
+    const canRetry = (ctx.store.must(caseId).approval?.attempts ?? MAX_ATTEMPTS) < MAX_ATTEMPTS;
+    const code = canRetry ? NOT_FOUND_CODE : 'STILL_UNKNOWN';
+    const reason = canRetry
+      ? 'The portal does not show this appeal yet. It may not have gone through, or the portal may be slow. Check again, or retry (the portal accepts only one appeal per ticket, so a retry cannot create a duplicate).'
+      : 'Still no appeal on file after the retry. Check your email for a receipt, or file manually with the pack below.';
+    ctx.hub.emit({
+      type: 'exec.step',
+      caseId,
+      step: 'reconcile',
+      status: 'info',
+      detail: 'status page: not found → paused for the user (no automatic resubmission)',
+    });
+    const needsUser = { code, reason, resumeTo: canRetry ? ('FILLING' as const) : undefined };
+    if (ctx.store.must(caseId).state === 'UNKNOWN_RESULT')
+      transition(ctx, caseId, 'NEEDS_USER', 'system', reason, (r) => {
+        r.needsUser = needsUser;
       });
-      retry = true;
-    } else {
-      transition(ctx, caseId, 'NEEDS_USER', 'system', 'Still no appeal on file after the retry. Please check your email or file manually.', (r) => {
-        r.needsUser = {
-          code: 'STILL_UNKNOWN',
-          reason: 'Still no appeal on file after the retry. Check your email for a receipt, or file manually with the pack below.',
-        };
+    else {
+      ctx.store.mutate(caseId, (r) => {
+        r.needsUser = needsUser;
       });
+      ctx.hub.emit({ type: 'needs_user', caseId, needsUser });
     }
   } catch (err) {
-    reportError(ctx, caseId, err); // stay in UNKNOWN_RESULT; the user can resume → reconcile again
+    reportError(ctx, caseId, err); // state unchanged; the user can resume → reconcile again
   } finally {
     if (context) await context.close().catch(() => {});
   }
-  if (retry) await runJob(ctx, caseId);
 }

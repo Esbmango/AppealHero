@@ -14,7 +14,9 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 4. **Approval = HMAC-signed hash of the exact form payload.** Any change to what will be typed invalidates it. Never skip `verifyToken()` or the read-back gate before submitting.
 5. **Keep the network guard** (`apps/server/src/portal/browser/guard.ts`): hard-block real government hosts, allow one portal origin, one-shot submit interlock.
 6. **Never send requests to boston.gov, rmcpay.com, or any real government system. Never bypass a CAPTCHA.**
-7. **Unknown submit result → reconcile via the portal status page.** Never blind-retry a submit.
+7. **Unknown submit result → read-only reconcile via the portal status page.** Not found → pause (NEEDS_USER); never resubmit automatically. Every state change is flushed to disk before anyone acts on it.
+9. **Gate 1 is never bypassed.** New or changed facts after confirmation (including chat revisions) go back to FACTS_REVIEW; only CONFIRMED / RULE_VERIFIED facts can ground the statement.
+10. **One actor per case at a time.** Agent turns are queued per case (`core/locks.ts`); the executor job and reconcile are mutually exclusive.
 8. **Fake mode must keep working.** `AI_MODE=fake` runs the whole flow with no key and no network; all tests run in fake mode.
 
 ## Contracts

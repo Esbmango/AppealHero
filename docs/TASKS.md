@@ -11,11 +11,44 @@
 4. **完成标准**：本卡验收测试全部通过；`npm run format && npm run typecheck && npm test` 全绿；`AI_MODE=fake` 仍能跑完全流程。CI 还会检查格式（`npm run format:check`）和文档中的状态机（`npm run docs:fsm -- --check`）。
 5. **分支与提交**：仓库在 https://github.com/Esbmango/AppealHero 。分支名用 `wp3-perception` 这种格式，从合并了 WP0 的 main 拉出，小步提交，合并前 rebase 到 main。
 
+## 0.5 比赛范围（2026-11-21 19:34 确认，参考 GPT / Gemini 评审）
+
+- **必须交付**：
+  - 手机界面
+  - 拍照或选择合成案件
+  - 针对性提问
+  - 事实确认
+  - 申诉信生成与批准
+  - 自动操作模拟门户、提交前读回、防重复提交
+  - 可验证的回执
+- **有时间再做**：
+  - 3 份手册（计时器、居民许可、消防栓）配 Gemini 提示词
+  - 三语界面
+  - 真实 Gemini Computer Use 测试
+  - “帮我查”
+  - 简单凭证页
+  - 基本错误恢复
+- **放弃（赛后）**：
+  - 真实账户、登录和 CSRF（改为演示模式 + `DEMO_KEY`）
+  - 街道清扫、禁停手册
+  - 通用手册引擎（fake 驱动沿用现有逻辑）
+  - 会话过期、上传失败、注入、校准等新场景
+  - verify-audit 脚本
+  - 申诉后跟踪
+- 验收项后面标“（赛后）”的，本次不做，也不会被 CI 检查。
+- 各卡调整：
+  - **WP1** 只做网页端的演示身份选择器，服务器账户接口保持 501。
+  - **WP3** 增加一张工作日的计时器罚单和 ParkBoston 付款截图，供主演示线使用。
+  - **WP4** 只做 3 份手册。
+  - **WP6、WP7** 只做查询和 trace。
+  - **WP8** 只做简单凭证页。
+  - **WP9** 用极简三语词典，不引入 i18next。
+
 ## 1. 时间线（2026-11-21 晚 → 11-22 09:00 截止）
 
 | 里程碑 | 目标时间（EST） | 完成标志 |
 |---|---|---|
-| M0 | 20:00 | WP0 合并，契约冻结 |
+| M0 | 20:00 | ✅ WP0 和评审修订合并到 main，契约冻结 |
 | M1 | 01:00 | WP1–WP9 核心功能在 fake 模式跑通；林同学中文主路径端到端可用 |
 | M2 | 04:00 | 真 Gemini 冒烟通过；真机（iPhone / Android）测试完成；故障场景矩阵全绿 |
 | M3 | 07:00 | 代码冻结；录制视频；Devpost 文案定稿 |
@@ -68,7 +101,7 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 
 ### WP0 地基与契约（阻塞全部）
 
-**状态：✅ 已完成**，在分支 `wp0-foundation`，等设计评审结束后合并到 main，然后打 tag `contracts-v2`。交付说明见该分支的 `WP0_STATUS.md`。
+**状态：✅ 已完成**，连同评审修订一起合并到 main，并打了 tag `contracts-v2`。交付说明见 `WP0_STATUS.md`。
 
 **目标**：把 v0.2 平滑迁移到 v2 骨架，功能不倒退；冻结契约；为每张卡准备好桩代码和待办测试。
 
@@ -121,17 +154,16 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 
 **依赖**：WP0
 
-**交付物**
-- 设备会话 cookie（httpOnly、签名）
-- `GET/PUT /api/me`、`POST/DELETE /api/me/vehicles`、`POST /api/session/persona`
-- 新建案件时，把资料作为 PROFILE 事实带入（已确认）
-- 引导页：选语言 → 选演示身份或填写资料
-- 账户页：资料与车辆
+**交付物（比赛版本：演示模式）**
+- 引导页：选语言 → 选演示身份（来自 `DEMO_PERSONAS`）或手动填写资料，保存在本机
+- 新建案件时把资料随表单字段带上（v0.2 已支持），服务器记为 PROFILE + CONFIRMED
+- 切换演示身份时同步切换界面语言
+- 赛后：设备会话 cookie、`GET/PUT /api/me`、车辆管理、账户页
 
 **验收**
-- `wp1: GET /api/me creates a user and sets a session cookie`
-- `wp1: PUT /api/me validates and persists the profile`
-- `wp1: plates are uppercased, delete works, exactly one default vehicle`
+- `wp1: GET /api/me creates a user and sets a session cookie`（赛后）
+- `wp1: PUT /api/me validates and persists the profile`（赛后）
+- `wp1: plates are uppercased, delete works, exactly one default vehicle`（赛后）
 - `wp1: persona switch sets language, profile and vehicles`
 - `wp1: a new case imports profile fields as PROFILE + CONFIRMED facts`
 
@@ -183,9 +215,9 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 
 **验收**
 - `wp3: fake perception reads ground truth from the PNG text chunk`
-- `wp3: two ticket photos merge into one ticket and low confidence asks for a retake`
+- `wp3: two ticket photos merge into one ticket and low confidence asks for a retake`（赛后）
 - `wp3: a receipt yields paid_until as NEEDS_CONFIRMATION`
-- `wp3: a sign photo yields posted hours, months and visibility`
+- `wp3: a sign photo yields posted hours, months and visibility`（赛后）
 - `wp3: audio yields the original text plus English`
 - `wp3: make_ticket.py generates every fixture the golden tests use`
 
@@ -264,10 +296,10 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 - `wp6: every v0.2 portal scenario still passes on the v2 flow`
 - `wp6: lookup handles MA plates, out-of-state plates, not found and multiple tickets`
 - `wp6: every job records a Playwright trace`
-- `wp6: session_expired re-runs safely and still files exactly one appeal`
-- `wp6: upload_rejected ends in NEEDS_USER with a clear reason`
-- `wp6: injected page text never changes executor actions`
-- `wp6: fake CU hits every /calibrate target within 1% of the viewport`
+- `wp6: session_expired re-runs safely and still files exactly one appeal`（赛后）
+- `wp6: upload_rejected ends in NEEDS_USER with a clear reason`（赛后）
+- `wp6: injected page text never changes executor actions`（赛后）
+- `wp6: fake CU hits every /calibrate target within 1% of the viewport`（赛后）
 
 **不做**：模拟门户页面（WP7）。
 
@@ -293,7 +325,7 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 - `wp7: every page shows the SIMULATED banner and noindex`
 - `wp7: /lookup follows the markup contract`
 - `wp7: seeds include all 5 synthetic tickets and one plate with two tickets`
-- `wp7: the new scenarios behave as specified`
+- `wp7: the new scenarios behave as specified`（赛后）
 - `wp7: /admin/state reports submissions for the test oracle`
 
 **不做**：执行器逻辑（WP6）。
@@ -313,7 +345,7 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 **验收**
 - `wp8: the audit chain verifies and detects any tampering`
 - `wp8: proof returns the approval hash, read-back hash, steps, receipt and chain head`
-- `wp8: verify-audit.mjs exits 0 on a good export and 1 on a tampered one`
+- `wp8: verify-audit.mjs exits 0 on a good export and 1 on a tampered one`（赛后）
 - `wp8: status-check is read-only and never submits`
 
 **不做**：执行器（WP6）。
@@ -326,7 +358,7 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 
 **交付物**
 - React Router 路由：`/`、`/onboarding`（WP1）、`/cases/:id`、`/cases/:id/facts`、`/cases/:id/statement`、`/cases/:id/filing`、`/cases/:id/proof`（WP8）、`/account`（WP1）、`/console`
-- i18next 配置：中文、西语、英文；界面语言跟随账户设置
+- 极简三语词典（`t()` + 按功能拆分的 JSON，不引入 i18next）：中文、西语、英文；界面语言跟随演示身份的设置
 - 入口页：多张拍照、用车辆代查、聊天
 - 对话页：选择按钮、拍照请求、语音
 - 事实核对页：

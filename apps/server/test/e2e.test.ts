@@ -154,13 +154,44 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
     expect(await appeals()).toHaveLength(1);
   });
 
-  it('timeout before anything was recorded → reconcile proves NOT_FOUND → one safe retry → exactly one appeal', async () => {
+  it('timeout before anything was recorded → status page NOT_FOUND → paused (no automatic resubmit) → user retries → exactly one appeal', async () => {
     await scenario('submit_timeout_before_record');
     const id = await createCase();
     await reviewAndApprove(id);
-    const c = await waitFor(id, (x) => DONE.includes(x.state));
+    let c = await waitFor(id, (x) => DONE.includes(x.state));
+    expect(c.state).toBe('NEEDS_USER');
+    expect(c.needsUser?.code).toBe('NOT_FOUND_AFTER_UNKNOWN');
+    expect(c.stateHistory.map((h) => h.to)).toContain('UNKNOWN_RESULT');
+    expect(c.stateHistory.filter((h) => h.to === 'FILLING')).toHaveLength(1); // nothing was resubmitted automatically
+    expect(await appeals()).toHaveLength(0);
+    // checking again is read-only and stays paused; while it runs, other actions on the case are refused (409)
+    expect((await post(`/api/jobs/${id}/resume`, { action: 'reconcile' })).status).toBe(202);
+    // the user decides to retry under the same approval (once the check has finished)
+    let status = 409;
+    for (let i = 0; i < 100 && status === 409; i++) {
+      status = (await post(`/api/jobs/${id}/resume`, { action: 'retry' })).status;
+      if (status === 409) await new Promise((r) => setTimeout(r, 200));
+    }
+    expect(status).toBe(202);
+    c = await waitFor(
+      id,
+      (x) => x.state === 'SUBMITTED' || x.state === 'FAILED' || (x.state === 'NEEDS_USER' && x.stateHistory.filter((h) => h.to === 'FILLING').length === 2),
+    );
     expect(c.state).toBe('SUBMITTED');
     expect(c.stateHistory.filter((h) => h.to === 'FILLING')).toHaveLength(2);
+    expect(await appeals()).toHaveLength(1);
+  });
+
+  it('a second appeal for the same ticket is never filed', async () => {
+    await scenario('normal');
+    const first = await createCase();
+    await reviewAndApprove(first);
+    expect((await waitFor(first, (x) => DONE.includes(x.state))).state).toBe('SUBMITTED');
+    const second = await createCase();
+    await reviewAndApprove(second);
+    const c = await waitFor(second, (x) => DONE.includes(x.state));
+    expect(c.state).toBe('SUBMITTED');
+    expect(c.receipt?.alreadyOnFile).toBe(true);
     expect(await appeals()).toHaveLength(1);
   });
 
@@ -222,16 +253,44 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
     expect(a[0].statement).toContain('medical appointment');
   });
 
-  it('a chat message during statement review is a revision request: back through DRAFTING to a new revision', async () => {
+  it('a chat message during statement review goes back through fact confirmation before anything is rewritten', async () => {
     await scenario('normal');
     const id = await createCase();
-    await confirmFacts(id);
+    const before = await confirmFacts(id);
     const fd = new FormData();
-    fd.append('text', '写短一点');
+    fd.append('text', '请加上我当时正在附近药店买药');
     expect((await fetch(`${api}/api/cases/${id}/messages`, { method: 'POST', body: fd })).status).toBe(202);
-    const c = await waitFor(id, (x) => x.state === 'STATEMENT_REVIEW' && x.draft?.revision === 2);
+    let c = await waitFor(id, (x) => x.state === 'FACTS_REVIEW');
+    const note = c.facts.find((f) => f.key === 'revision1');
+    expect(note).toMatchObject({ status: 'USER_STATEMENT', provenance: 'USER_TEXT' });
+    expect(c.draft?.revision).toBe(1); // nothing rewritten yet
+    expect((await post(`/api/cases/${id}/approve`, { payloadHash: before.preview!.payloadHash })).status).toBe(409);
+    expect((await post(`/api/cases/${id}/facts/confirm`, { confirm: [], done: true })).status).toBe(422); // the new note is unconfirmed
+    expect((await post(`/api/cases/${id}/facts/confirm`, { confirm: [note!.id], done: true })).status).toBe(202);
+    c = await waitFor(id, (x) => x.state === 'STATEMENT_REVIEW' && x.draft?.revision === 2);
     expect(c.stateHistory.filter((h) => h.to === 'DRAFTING')).toHaveLength(2);
+    expect(c.preview?.unconfirmedFactIds).toEqual([]);
     expect(await appeals()).toHaveLength(0);
+  });
+
+  it('a fact edited after gate 1 sends the case back through it; the old approval hash is refused', async () => {
+    await scenario('normal');
+    const id = await createCase();
+    const before = await confirmFacts(id);
+    const loc = before.facts.find((f) => f.key === 'location')!;
+    const r = await post(`/api/cases/${id}/facts/confirm`, { edits: [{ id: loc.id, value: '710 Commonwealth Ave, Boston' }] });
+    expect(r.status).toBe(200);
+    let c = (await r.json()) as CaseView;
+    expect(c.state).toBe('FACTS_REVIEW');
+    expect((await post(`/api/cases/${id}/approve`, { payloadHash: before.preview!.payloadHash })).status).toBe(409);
+    expect((await post(`/api/cases/${id}/facts/confirm`, { confirm: [], done: true })).status).toBe(202);
+    c = await waitFor(id, (x) => x.state === 'STATEMENT_REVIEW' && x.draft?.revision === 2);
+    expect(c.preview!.payloadHash).not.toBe(before.preview!.payloadHash);
+    expect(c.draft!.statementEn).toContain('710 Commonwealth Ave');
+    expect((await post(`/api/cases/${id}/approve`, { payloadHash: before.preview!.payloadHash })).status).toBe(409);
+    expect((await post(`/api/cases/${id}/approve`, { payloadHash: c.preview!.payloadHash })).status).toBe(202);
+    expect((await waitFor(id, (x) => DONE.includes(x.state) && x.state !== 'STATEMENT_REVIEW')).state).toBe('SUBMITTED');
+    expect((await appeals())[0].statement).toContain('710 Commonwealth Ave');
   });
 
   it('negative triage: hydrant with matching vehicle → PAY recommendation, user can close without appealing', async () => {

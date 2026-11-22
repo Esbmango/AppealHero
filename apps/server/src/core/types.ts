@@ -50,6 +50,10 @@ export interface CaseRecord {
   triage?: Triage;
   draft?: Draft;
   approval?: ApprovalRecord;
+  /** write-ahead record of the latest submit attempt (persisted before the click) */
+  submission?: { attemptId: string; payloadHash: string; startedAt: string };
+  /** the user explicitly chose "appeal anyway" after an honest PAY recommendation */
+  appealAnyway?: boolean;
   receipt?: Receipt;
   needsUser?: NeedsUser;
   metrics: Metrics;

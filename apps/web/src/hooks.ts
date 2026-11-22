@@ -1,9 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentEvent, CaseView } from '@appealhero/shared';
-import { api } from './api';
+import { api, ApiError } from './api';
 
 /** Server is the source of truth: any SSE event → refetch the case. EventSource resends Last-Event-ID on reconnect. */
-export function useCase(caseId: string | null) {
+export function useCase(caseId: string | null, onGone?: () => void) {
+  // The case vanished (e.g. "Reset demo" on the desktop): tell the app so the phone returns to the start screen.
+  const gone = useRef(onGone);
+  gone.current = onGone;
+  const handle = (e: unknown) => {
+    if (e instanceof ApiError && e.status === 404) gone.current?.();
+  };
   const [c, setC] = useState<CaseView | null>(null);
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [tick, setTick] = useState(0);
@@ -20,7 +26,7 @@ export function useCase(caseId: string | null) {
       timer = setTimeout(() => {
         api.getCase(caseId).then(
           (v) => alive && setC(v),
-          () => undefined,
+          (e) => alive && handle(e),
         );
       }, 60);
     };
@@ -39,7 +45,7 @@ export function useCase(caseId: string | null) {
   }, [caseId]);
 
   useEffect(() => {
-    if (caseId && tick) api.getCase(caseId).then(setC, () => undefined);
+    if (caseId && tick) api.getCase(caseId).then(setC, handle);
   }, [caseId, tick]);
 
   return { c, events, refresh };

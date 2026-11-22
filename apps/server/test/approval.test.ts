@@ -36,6 +36,24 @@ describe('approval gate', () => {
     expect(approvalPreview(c).unconfirmedFactIds).toEqual([]);
   });
 
+  it('an unconfirmed user statement can never ground the statement or ride into an approval', () => {
+    const c = readyCase();
+    for (const f of c.facts) if (f.status === 'NEEDS_CONFIRMATION') f.status = 'CONFIRMED';
+    expect(approvalPreview(c).unconfirmedFactIds).toEqual([]);
+    const said = upsertFact(c, {
+      key: 'revision1',
+      label: 'Requested change #1',
+      value: 'I was buying medicine',
+      provenance: 'USER_TEXT',
+      status: 'USER_STATEMENT',
+    });
+    expect(approvalPreview(c).unconfirmedFactIds).toContain(said.id); // pending anywhere blocks approval
+    c.draft!.paragraphs.push({ text: 'I was buying medicine nearby.', factIds: [said.id], author: 'agent' });
+    expect(approvalPreview(c).unconfirmedFactIds).toContain(said.id); // and it cannot be cited either
+    said.status = 'CONFIRMED';
+    expect(approvalPreview(c).unconfirmedFactIds).toEqual([]);
+  });
+
   it('token verifies only for the exact payload, case and adapter version', () => {
     const c = readyCase();
     const ph = hashPayload(buildApprovalPayload(c));

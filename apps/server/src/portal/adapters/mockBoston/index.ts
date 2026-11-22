@@ -138,16 +138,27 @@ export class PortalSession {
   }
 
   /** Called only after the read-back gate passed and the interlock is armed. Classifies conservatively. */
-  async submit(timeoutMs: number): Promise<{ kind: 'confirmed'; confirmationNumber: string } | { kind: 'unknown'; detail: string }> {
+  async submit(timeoutMs: number): Promise<{ kind: 'confirmed'; confirmationNumber: string; alreadyOnFile?: boolean } | { kind: 'unknown'; detail: string }> {
     await this.page.getByLabel(/I certify/i).check();
     const byId = this.page.locator('#submitAppeal');
     const button = (await byId.count()) === 1 ? byId : this.page.getByRole('button', { name: /submit appeal/i });
     this.h.step('submit', 'start', 'T1', 'one-shot interlock armed — submitting exactly once');
+    const dup = this.page.locator('[data-already-on-file]');
     try {
-      await Promise.all([this.page.waitForURL(/\/appeal\/confirmation\//, { timeout: timeoutMs }), button.click({ timeout: timeoutMs })]);
+      // Either the confirmation page, or the portal's own "already on file" page (it accepts one appeal per ticket).
+      await Promise.all([
+        Promise.race([this.page.waitForURL(/\/appeal\/confirmation\//, { timeout: timeoutMs }), dup.first().waitFor({ timeout: timeoutMs })]),
+        button.click({ timeout: timeoutMs }),
+      ]);
     } catch (err) {
       this.h.step('submit', 'fail', undefined, `no confirmation within ${timeoutMs} ms — result unknown`);
       return { kind: 'unknown', detail: String((err as Error).message ?? err).slice(0, 160) };
+    }
+    if ((await dup.count()) > 0) {
+      const existing = (await dup.first().getAttribute('data-confirmation')) ?? '';
+      await this.snap('already-on-file');
+      this.h.step('submit', 'ok', undefined, `portal says an appeal is already on file: ${existing}`);
+      return { kind: 'confirmed', confirmationNumber: existing, alreadyOnFile: true };
     }
     const conf = ((await this.page.locator('[data-confirmation]').first().textContent()) ?? '').trim();
     await this.snap('confirmation');

@@ -1,7 +1,16 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { ADAPTER_VERSION, PORTAL_FIELDS, PORTAL_ID, canonicalize, type ApprovalPayload, type ApprovalPreview, type PortalFieldId } from '@appealhero/shared';
+import {
+  ADAPTER_VERSION,
+  EVIDENCE_LIMITS,
+  PORTAL_FIELDS,
+  PORTAL_ID,
+  canonicalize,
+  type ApprovalPayload,
+  type ApprovalPreview,
+  type PortalFieldId,
+} from '@appealhero/shared';
 import type { CaseRecord } from '../core/types';
-import { SUBMITTABLE, factsNeedingConfirmation, latestFact, validateGrounds } from '../agent/policy/facts';
+import { SUBMITTABLE, factsNeedingConfirmation, latestFact, pendingFactIds, validateGrounds } from '../agent/policy/facts';
 import { sha256Hex } from '../core/util';
 
 /** Which fact backs each portal field (null = comes from the draft). */
@@ -61,6 +70,10 @@ export function approvalPreview(c: CaseRecord): ApprovalPreview {
     missing.push(...validateGrounds(c.draft.paragraphs, c.facts));
     for (const id of factsNeedingConfirmation(c.draft.paragraphs, c.facts)) unconfirmed.add(id);
   }
+  if (payload.evidence.length > EVIDENCE_LIMITS.maxFiles)
+    missing.push(`Evidence: at most ${EVIDENCE_LIMITS.maxFiles} files can be submitted — remove ${payload.evidence.length - EVIDENCE_LIMITS.maxFiles}`);
+  // Nothing unconfirmed anywhere may ride along into an approval (gate 1 must be complete).
+  for (const id of pendingFactIds(c)) unconfirmed.add(id);
   return {
     payload,
     payloadHash: hashPayload(payload),

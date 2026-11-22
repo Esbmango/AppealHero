@@ -1,6 +1,6 @@
 import { say, type Ctx } from '../../core/ctx';
 import { latestFact } from '../policy/facts';
-import { FINES, formatBoston } from '../rules/boston';
+import { fineFor, formatBoston } from '../rules/boston';
 import { runTool } from '../tools';
 import type { TurnInput } from '../runtime/investigate';
 
@@ -24,7 +24,7 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
   const text = input.kind === 'user' ? input.text : '';
 
   if (input.kind === 'start') {
-    const fine = FINES[c0.violationType ?? 'OTHER']?.fine;
+    const fine = fineFor(fact('violation')?.value, Number(fact('fineAmount')?.value) || undefined, c0.violationType).fine;
     say(
       ctx,
       caseId,
@@ -63,7 +63,8 @@ export async function fakeTurn(ctx: Ctx, caseId: string, input: TurnInput) {
     await tool('propose_outcome', { recommendation: 'APPEAL', dispute_reason: reason, summary_user_lang: summary, grounds });
   };
   const proposePay = async (why: string, whyEn: string, factIds: string[]) => {
-    const f = FINES[c0.violationType ?? 'OTHER'];
+    const f0 = fineFor(fact('violation')?.value, Number(fact('fineAmount')?.value) || undefined, c0.violationType);
+    const f = f0.fine !== undefined ? { fine: f0.fine, late: f0.late } : undefined;
     await tool('check_rule', { rule: 'appeal_deadline' });
     await tool('propose_outcome', {
       recommendation: 'PAY',

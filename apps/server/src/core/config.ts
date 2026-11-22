@@ -32,6 +32,7 @@ const Env = z.object({
   PRICE_IN_PER_M: z.coerce.number().default(0.75),
   PRICE_OUT_PER_M: z.coerce.number().default(3.75),
   DATA_DIR: z.string().default('data'),
+  DEMO_KEY: z.string().optional(),
 });
 const env = Env.parse(process.env);
 
@@ -63,6 +64,8 @@ export const config = {
   priceInPerM: env.PRICE_IN_PER_M,
   priceOutPerM: env.PRICE_OUT_PER_M,
   dataDir: path.resolve(REPO_ROOT, env.DATA_DIR),
+  /** Demo Mode gate for public tunnels: when set, /api/* needs the key (open the app once with ?key=…). */
+  demoKey: env.DEMO_KEY || undefined,
   persist: true,
 };
 export type Config = typeof config;

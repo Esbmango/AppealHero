@@ -46,6 +46,20 @@ export async function buildServer() {
     );
   }
 
+  // Demo Mode gate (review P0.3): single-tenant demo with synthetic data, not a multi-user deployment.
+  // When DEMO_KEY is set (always set it before opening a public tunnel), every /api call needs the key.
+  if (config.demoKey) {
+    const key = config.demoKey;
+    app.addHook('onRequest', async (req, reply) => {
+      const q = (req.query ?? {}) as { key?: string };
+      const hasCookie = (req.headers.cookie ?? '').split(';').some((p) => p.trim() === `ah_demo=${key}`);
+      if (q.key === key && !hasCookie) reply.header('set-cookie', `ah_demo=${key}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`);
+      const ok = hasCookie || q.key === key || req.headers['x-demo-key'] === key;
+      if (!ok && req.url.startsWith('/api/') && !req.url.startsWith('/api/health'))
+        return reply.code(401).send({ error: 'demo key required — open the app with ?key=…' });
+    });
+  }
+
   app.setErrorHandler((err: FastifyError | Error, _req, reply) => {
     if (err instanceof HttpError) return reply.code(err.status).send({ error: err.message, ...(err.body ?? {}) });
     if (err instanceof ZodError) return reply.code(400).send({ error: 'invalid request', issues: err.issues });

@@ -2,7 +2,8 @@
 
 > 本文是团队和所有 AI 编码代理共用的设计说明。字段级定义以 `packages/shared` 的代码为准，本文只描述结构、流程和规则。
 > 状态标记：✅ v0.2 已实现并有测试 · 🔧 v0.2 已有、需按 v2 重构 · 🆕 v2 新增
-> **WP0 已完成（分支 `wp0-foundation`）**：§1 状态机 v2、§2 数据模型契约、§3 接口契约、§4.2/§4.6 工具注册表、§8 存储、§10 目录迁移已经实现并有测试。其余 🆕 项由 WP1–WP9 完成。
+> **评审修订（2026-11-21 19:34 确认，已实现并有测试）**：确认事实之后的新信息一律回到事实确认；提交前同步写盘；结果未知只做只读对账，查不到就暂停由用户决定；同一案件的 Agent 回合排队、执行器与对账互斥；演示模式加 `DEMO_KEY`。
+> **WP0 已完成**：§1 状态机 v2、§2 数据模型契约、§3 接口契约、§4.2/§4.6 工具注册表、§8 存储、§10 目录迁移已经实现并有测试。其余 🆕 项由 WP1–WP9 完成。
 > 需求见 [PRODUCT_SPEC.md](PRODUCT_SPEC.md)，罚单知识见 [PLAYBOOKS.md](PLAYBOOKS.md)，分工见 [TASKS.md](TASKS.md)，AI 编码规则见 [../AGENTS.md](../AGENTS.md)。
 
 ## 0. 总览
@@ -49,7 +50,7 @@ flowchart TD
 | AI | `@google/genai`：`gemini-3.8-flash` 负责对话、工具调用、看图、听音；Computer Use 走 Interactions API | 一个 SDK 覆盖全部 |
 | 浏览器 | Playwright | 确定性脚本优先，CU 兜底 |
 | 前端 | React 19 + Vite + Tailwind 4 + React Router 7 | 手机网页打开即用；有账户页、凭证页，需要路由 |
-| 多语言 | i18next + react-i18next；文案按功能拆成 JSON | AI 工具熟悉；分文件避免冲突 |
+| 多语言 | 极简 `t()` + 按功能拆分的 JSON 词典（中 / 西 / 英），不引入 i18next | 够用、无依赖；分文件避免冲突 |
 | 测试 | Vitest + Playwright + fake AI + 黄金对话测试 | 不用 key 也能验证每份手册和每个故障场景 |
 | 规范 | Prettier + TS strict + AGENTS.md | 多个 AI 同时写代码时保持一致 |
 
@@ -67,8 +68,7 @@ stateDiagram-v2
   FACTS_REVIEW --> DRAFTING: 用户确认全部事实
   FACTS_REVIEW --> INVESTIGATING: 用户补充信息
   DRAFTING --> STATEMENT_REVIEW
-  STATEMENT_REVIEW --> DRAFTING: 用户要求修改
-  STATEMENT_REVIEW --> FACTS_REVIEW: 用户修改事实
+  STATEMENT_REVIEW --> FACTS_REVIEW: 用户修改事实或要求改信
   STATEMENT_REVIEW --> APPROVED: 用户批准（签名）
   APPROVED --> FILLING
   FILLING --> SUBMITTING: 读回比对通过
@@ -79,7 +79,8 @@ stateDiagram-v2
   SUBMITTING --> UNKNOWN_RESULT: 超时
   VERIFYING --> SUBMITTED
   UNKNOWN_RESULT --> SUBMITTED: 状态页查到
-  UNKNOWN_RESULT --> FILLING: 证明未提交，重试一次
+  UNKNOWN_RESULT --> NEEDS_USER: 状态页查不到，暂停
+  NEEDS_USER --> FILLING: 用户确认重试
   SUBMITTED --> [*]
 ```
 
@@ -103,7 +104,6 @@ stateDiagram-v2
   FACTS_REVIEW --> CLOSED_NO_APPEAL: user
   DRAFTING --> STATEMENT_REVIEW: system
   DRAFTING --> FACTS_REVIEW: system
-  STATEMENT_REVIEW --> DRAFTING: user
   STATEMENT_REVIEW --> FACTS_REVIEW: user
   STATEMENT_REVIEW --> APPROVED: approval
   STATEMENT_REVIEW --> CLOSED_NO_APPEAL: user
@@ -123,6 +123,7 @@ stateDiagram-v2
   UNKNOWN_RESULT --> FILLING: executor
   UNKNOWN_RESULT --> NEEDS_USER: executor / system
   NEEDS_USER --> FILLING: executor
+  NEEDS_USER --> SUBMITTED: executor
   NEEDS_USER --> STATEMENT_REVIEW: user / system
   NEEDS_USER --> FACTS_REVIEW: user
   NEEDS_USER --> INVESTIGATING: user
@@ -149,8 +150,7 @@ stateDiagram-v2
 | FACTS_REVIEW | CLOSED_NO_APPEAL | user |  |
 | DRAFTING | STATEMENT_REVIEW | system | writer finished |
 | DRAFTING | FACTS_REVIEW | system | writer failed |
-| STATEMENT_REVIEW | DRAFTING | user | user asks for a revision |
-| STATEMENT_REVIEW | FACTS_REVIEW | user | user changes facts |
+| STATEMENT_REVIEW | FACTS_REVIEW | user | user changes a fact or asks for a revision: back through gate 1 |
 | STATEMENT_REVIEW | APPROVED | approval | gate 2: signed approval of the exact payload |
 | STATEMENT_REVIEW | CLOSED_NO_APPEAL | user |  |
 | APPROVED | FILLING | executor |  |
@@ -169,6 +169,7 @@ stateDiagram-v2
 | UNKNOWN_RESULT | FILLING | executor | status page proves nothing was filed; one retry |
 | UNKNOWN_RESULT | NEEDS_USER | executor / system |  |
 | NEEDS_USER | FILLING | executor |  |
+| NEEDS_USER | SUBMITTED | executor | status page shows the appeal after a pause |
 | NEEDS_USER | STATEMENT_REVIEW | user / system |  |
 | NEEDS_USER | FACTS_REVIEW | user |  |
 | NEEDS_USER | INVESTIGATING | user |  |
@@ -196,6 +197,9 @@ stateDiagram-v2
 | SUBMITTING / VERIFYING | UNKNOWN_RESULT | 点击可能已发出，必须先核对 |
 | APPROVED | STATEMENT_REVIEW | 任务没启动；密钥可能已轮换，需要重新批准 |
 | DRAFTING | FACTS_REVIEW | 写作中断；用户再确认一次后重写 |
+| NEW / IDENTIFYING | FAILED | 读罚单的任务中断（等待用户回答的除外）；请新建案件 |
+
+每次状态转移都**同步写盘**（原子写入）后才继续执行。所以“提交中”在点击之前已经落盘，崩溃后一定恢复成 UNKNOWN_RESULT 并先对账，不会被误判为“可以安全重跑”。
 
 ## 2. 数据模型 🔧
 
@@ -215,7 +219,7 @@ stateDiagram-v2
 **来源（provenance）**：TICKET_OCR、PORTAL_LOOKUP 🆕、USER_VOICE、USER_TEXT、PHOTO_EVIDENCE、RULE、PROFILE。
 **状态（status）**：NEEDS_CONFIRMATION、CONFIRMED、USER_STATEMENT、RULE_VERIFIED、UNVERIFIABLE。
 - 能进入提交内容的：CONFIRMED、RULE_VERIFIED。
-- 能作为申诉理由依据的：CONFIRMED、RULE_VERIFIED、USER_STATEMENT。
+- 能作为申诉理由依据的：CONFIRMED、RULE_VERIFIED。未确认的用户陈述（USER_STATEMENT）必须先经过事实确认，批准时也不允许任何未确认事实存在。
 
 **申诉理由**：METER_NOT_IN_EFFECT、PAID、SIGNAGE、VEHICLE_INFO、PERMIT_DISPLAYED 🆕、OTHER。
 
@@ -374,7 +378,7 @@ export const askUser = defineTool({
 
 ### 4.9 写作
 - `draft`：按理由和事实生成 3–5 段英文；每段引用事实 id；不超过门户字段上限；同时生成用户语言对照。✅
-- `revise`：按用户指令修改；指令里出现的新事实先记为 USER_STATEMENT；保留用户亲自写的段落；revision 加一。🆕
+- 修改：在申诉信核对阶段发聊天消息，会把消息记为未确认的“修改要求”，案件回到事实确认；用户确认后才重写，写作只能使用已确认的修改要求（✅ 已实现）。修改任何事实同样回到事实确认。用户直接编辑段落属于用户自己的文字，留在申诉信核对阶段，作者记为 user，批准时逐字确认。WP5 负责把修改要求真正落实到文字里。
 - `validate`：引用的事实必须存在且可作为依据；长度不超限；不出现承诺或威胁性措辞；校验失败退回模板。✅
 - 申诉信任何变化都会改变批准指纹，旧批准自动失效。
 
@@ -431,7 +435,7 @@ v0.2 的 `PortalSession` 已实现 fillToReview / submit / checkStatus / checkIn
 ### 5.4 四道闸门 + 签名
 1. **工具不可见**：模型在任何阶段都拿不到提交、批准、确认类工具。✅
 2. **只有用户能确认事实**；有未确认事实时不能写作，也不能批准。✅
-3. **读回门禁**：提交前读取门户审核页的值，组成同样结构的载荷并计算哈希，必须等于批准时的哈希。✅
+3. **读回门禁**：提交前读取门户审核页的值，组成同样结构的载荷并计算哈希，必须等于批准时的哈希。✅ 边界：字段值是逐个读回的；附件只读回文件名和大小，内容哈希沿用服务器端计算的值，并没有从门户重新取回文件做校验。
 4. **网络层一次性闸门**：硬拦真实政府域名；只放行一个来源；提交请求只有在门禁放行后才能通过一次。✅
 
 **签名令牌**：`HMAC(secret, caseId | payloadHash | adapterVersion | exp)`。执行前用当前数据重算哈希再验签。同一批准最多两次提交尝试，第二次必须在状态页证明第一次没有被记录之后。✅
@@ -460,15 +464,16 @@ sequenceDiagram
   else 超时
     E->>P: 查状态页
     P-->>E: 已记录 / 未记录
-    E-->>U: SUBMITTED，或在同一批准下安全重试一次
+    E-->>U: 查到 → SUBMITTED；查不到 → 暂停，由用户决定是否重试
   end
 ```
 
 ### 5.6 结果不明时的对账 ✅
 超时 → UNKNOWN_RESULT → 打开新的浏览器上下文（闸门不放行任何提交）查状态页：
 - 查到申诉 → SUBMITTED（回执来源 status_page）。
-- 证明没有提交，且尝试次数 < 2 → 回到 FILLING 重试一次。
-- 否则 → NEEDS_USER，并给出手动提交包。
+- 查不到 → NEEDS_USER（`NOT_FOUND_AFTER_UNKNOWN`），**不自动重新提交**。状态页查不到不等于一定没提交（门户可能有延迟），所以由用户选择“再查一次”或“确认重试”。重试是安全的，因为门户对同一张罚单只受理一次，第二次提交会显示“已在案”，执行器把它记为 SUBMITTED（alreadyOnFile）。
+- 同一批准最多两次提交尝试；之后只能用手动提交包。
+- 执行器和对账共用一把锁：同一案件不会有两个浏览器同时操作；执行器忙时，恢复类请求返回 409。
 
 ### 5.7 模拟门户与故障场景
 
@@ -477,7 +482,8 @@ sequenceDiagram
 | normal | SUBMITTED，确认页回执，邮件已核对 | ✅ |
 | redesign（标签消失 + 弹窗） | 弹窗被确定性关闭；文本字段由 T3 填写；SUBMITTED | ✅（fake CU） |
 | submit_timeout_after_record | UNKNOWN_RESULT → 状态页查到 → SUBMITTED，无重复 | ✅ |
-| submit_timeout_before_record | UNKNOWN_RESULT → 未记录 → 重试一次 → SUBMITTED，仅一条申诉 | ✅ |
+| submit_timeout_before_record | UNKNOWN_RESULT → 状态页查不到 → 暂停（NEEDS_USER）→ 用户确认重试 → SUBMITTED，仅一条申诉 | ✅ |
+| 同一张罚单第二次申诉 | 门户只受理一次 → 已在案（alreadyOnFile），仍然只有一条申诉 | ✅ |
 | captcha | BLOCKED，零提交，给出手动提交包 | ✅ |
 | missing_field | NEEDS_USER → 用户补充 → 旧批准被拒 → 重新批准 → SUBMITTED | ✅ |
 | 查询：MA 车牌 / 外州车牌 / 查不到 / 多张 | 列出罚单 / 要求罚单号 / 如实告知 / 让用户选 | 🆕 |
@@ -500,19 +506,29 @@ sequenceDiagram
 - 下载 Playwright trace（可在 trace.playwright.dev 完整回放）。
 - 审计哈希链的最新哈希。
 
-### 6.3 哈希链审计日志 🆕
-每个事件（状态转移、工具调用、执行步骤、批准、回执）追加一条：`hash_n = sha256(hash_{n-1} + canonical(event_n))`。导出 JSON 后可以用 `scripts/verify-audit.mjs` 重算，任何改动都会导致校验失败。
+### 6.3 哈希链审计日志 🆕（状态转移已写入 ✅）
+每个事件（状态转移、工具调用、执行步骤、批准、回执）追加一条：`hash_n = sha256(hash_{n-1} + canonical(event_n))`。目前已写入状态转移，其余事件由 WP8 补上。
+
+**它能证明什么、不能证明什么**：用户在凭证页拿到链头哈希之后，服务器上的记录再被改动，可以用 `verifyChain` 发现。但它不是防伪系统：能控制服务器的人可以从头重写整条链。如果要更强的保证，需要把链头哈希放进回执邮件，或交给第三方保存（赛后）。
+
+**隐私**：截图和 Playwright trace 会包含姓名、地址、邮箱和车牌。规则如下：
+- 只保存在本机 `data/` 目录下。
+- `MASK_PII=true` 时遮挡截图里的敏感字段。
+- 日志里不写完整车牌和邮箱。
+- 演示重置时清空。
+- 演示只用合成数据。
 
 ## 7. 账户与多语言
 
-### 7.1 轻账户 🆕（默认，待确认）
+### 7.1 演示模式（比赛版本，已确认）
+比赛版本不做真实账户：手机端用演示身份选择器填好资料和语言（WP1 只做网页端），服务器不区分用户。这是**单用户演示，使用合成数据**，不具备真实多用户部署所需的安全性。开公网隧道前必须设置 `DEMO_KEY`：所有 `/api` 请求都要带这个密钥，首次用 `?key=…` 打开后由 cookie 携带。下面的轻账户设计留到赛后：
 - 首次访问 `GET /api/me` 自动建号，下发 httpOnly 会话 cookie。
 - 资料与车辆存服务器；新建案件时自动作为 PROFILE 事实（已确认）带入。
 - 演示身份：`lin`（zh，NY `KDT4821`）、`maria`（es，MA `8KDW21`）、`sam`（en，MA `5NB302`），分别对应三张合成罚单。
 - 不做密码、OAuth、找回账户。
 
 ### 7.2 多语言 🆕
-- 界面：`apps/web/src/i18n/locales/{zh,es,en}/{common,onboarding,intake,chat,review,filing,proof,account}.json`；评委控制台只用英文。
+- 界面：`apps/web/src/i18n/locales/{zh,es,en}/{common,onboarding,intake,chat,review,filing,proof,account}.json`，由极简的 `t()` 读取，不引入 i18next；评委控制台只用英文。
 - 语言选择：首次打开选择，保存到账户；可随时切换。
 - Agent：以用户语言对话；每个问题同时保存英文版（`question_en`），用于审计。
 - 申诉信：英文正文（提交用）+ 用户语言对照（只供核对）。
@@ -520,7 +536,7 @@ sequenceDiagram
 - 可选：用浏览器的 `speechSynthesis` 朗读 Agent 消息。
 
 ## 8. 存储
-- 仓储接口：`UserRepo`、`CaseRepo`、`AuditRepo`；v2 使用 JSON 文件实现（防抖 + 先写临时文件再 rename），需要时可换 SQLite，调用方不用改。
+- 仓储接口：`UserRepo`、`CaseRepo`、`AuditRepo`；v2 使用 JSON 文件实现（先写临时文件再 rename；普通修改防抖写入，**状态转移同步写入**），需要时可换 SQLite，调用方不用改。
 - 上传文件：`data/uploads/<caseId>/`；截图：`data/shots/<caseId>/`；trace：`data/traces/<caseId>/`。
 - 启动时执行 §1.3 的崩溃恢复。
 

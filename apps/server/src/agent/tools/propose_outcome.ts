@@ -6,7 +6,7 @@ import { say, type Ctx } from '../../core/ctx';
 import { transition } from '../../core/fsm';
 import { isObj, str } from '../../core/util';
 import { latestFact, pendingFactIds, validateGrounds } from '../policy/facts';
-import { FINES, runRule } from '../rules/boston';
+import { fineFor, runRule } from '../rules/boston';
 
 const params = z.object({
   recommendation: z.enum(['APPEAL', 'PAY']),
@@ -36,15 +36,15 @@ async function proposeOutcome(ctx: Ctx, caseId: string, a: Record<string, unknow
   const summary = str(a.summary_user_lang);
 
   if (recommendation === 'PAY') {
-    const f = FINES[c.violationType ?? 'OTHER'];
+    const f = fineFor(latestFact(c, 'violation')?.value, Number(latestFact(c, 'fineAmount')?.value) || undefined, c.violationType);
     const issued = latestFact(c, 'issuedAt')?.value;
     const deadline = issued ? runRule('appeal_deadline', { issuedAt: issued }) : null;
     const triage: Triage = {
       recommendation: 'PAY',
       summary,
       reasons: grounds,
-      fineAmount: f?.fine,
-      latePenalty: f?.late,
+      fineAmount: f.fine,
+      latePenalty: f.late,
       deadline: typeof deadline?.result === 'string' ? deadline.result : undefined,
     };
     ctx.store.mutate(caseId, (r) => {
@@ -61,6 +61,18 @@ async function proposeOutcome(ctx: Ctx, caseId: string, a: Record<string, unknow
   if (missingContact.length)
     return { result: { error: `missing appellant details: ${missingContact.join(', ')} — ask the user with ask_user, then record_fact` }, isError: true };
   const reason = (DISPUTE_REASON_KEYS as readonly string[]).includes(str(a.dispute_reason)) ? (str(a.dispute_reason) as DisputeReason) : 'OTHER';
+  // Honest triage (review P1.2): OTHER is the user's own story, never a ground the model invents. It is allowed only
+  // after the user explicitly chose "appeal anyway", or for ticket types without a playbook — and must cite what the user said.
+  if (reason === 'OTHER') {
+    if (!c.appealAnyway && c.violationType && c.violationType !== 'OTHER')
+      return {
+        result: { error: 'OTHER is only allowed after the user explicitly chooses to appeal anyway — use a supported ground or recommend PAY' },
+        isError: true,
+      };
+    const userFacts = new Set(c.facts.filter((f) => f.provenance === 'USER_TEXT' || f.provenance === 'USER_VOICE').map((f) => f.id));
+    if (!grounds.some((g) => g.factIds.some((id) => userFacts.has(id))))
+      return { result: { error: "an OTHER appeal must cite the user's own statement" }, isError: true };
+  }
   // v2: the agent only PROPOSES. The user confirms every fact (gate 1) before anything is written.
   ctx.store.mutate(caseId, (r) => {
     r.triage = { recommendation: 'APPEAL', summary, reasons: grounds, disputeReason: reason };

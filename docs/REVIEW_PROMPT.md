@@ -3,13 +3,12 @@
 你是 AppealHero 申诉英雄（BostonHacks 2026，Track 3 Boundless Boston）的产品与架构评审。附件是完整文档包：PRODUCT_SPEC、ARCHITECTURE、PLAYBOOKS、TASKS、AGENTS、README、DEMO。
 
 **仓库**：https://github.com/Esbmango/AppealHero（公开）
-- `main` 分支：v0.2 可运行代码 + v2 设计文档（本轮评审对象）。
-- `wp0-foundation` 分支：WP0 地基（已完成，交付说明见该分支的 `WP0_STATUS.md`），可选评审。
+- `main` 分支：v2 地基（WP0）+ 第一轮 GPT / Gemini 评审的修订，可运行（fake 模式 + 模拟门户）。第一轮评审针对的旧版本在 tag `v0.3-reviewed`。
 - 只想读一个文件：`docs/REVIEW_BUNDLE.md` 是全部文档的合并版（自动生成，内容以各单独文件为准）。
 
 **背景**
 - 3 人团队，用 Codex、Cursor 等多个 AI 编码代理并行开发；提交截止是 2026-11-22 09:00 EST。
-- v0.2 骨架已经能跑通（21 个自动化测试 + UI 冒烟测试，fake 模式）。本轮文档描述 v2 目标设计，用 ✅（已实现）/ 🔧（需重构）/ 🆕（新增）区分。
+- v2 地基和第一轮评审修订已合并（自动化测试 + UI 冒烟测试通过，fake 模式）。文档用 ✅（已实现）/ 🔧（需重构）/ 🆕（新增）区分。
 - 演示只连仓库自带的模拟门户，不操作真实政府网站。
 - 真实 Gemini 调用（对话、看图、Computer Use）按 SDK 类型定义编写，尚未用真 key 验证。
 

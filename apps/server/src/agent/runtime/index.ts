@@ -1,13 +1,14 @@
 import { publishFacts, reportError, say, type Ctx } from '../../core/ctx';
 import { transition } from '../../core/fsm';
+import { serial } from '../../core/locks';
 import { extractTicket, transcribeAudio } from '../perception';
 import { upsertFact } from '../policy/facts';
 import { investigate } from './investigate';
 import { classifyViolation } from '../rules/boston';
-import { reviseStatement } from '../writer';
+import { requestRevision } from '../writer';
 
 /** Step 1: ticket photo (+voice/text) → facts → INVESTIGATING → first agent turn. */
-export async function runExtraction(ctx: Ctx, caseId: string, input: { ticketId: string; audioId?: string; text?: string }) {
+async function runExtractionNow(ctx: Ctx, caseId: string, input: { ticketId: string; audioId?: string; text?: string }) {
   try {
     const c = ctx.store.must(caseId);
     const ticket = c.evidence.find((e) => e.id === input.ticketId);
@@ -64,7 +65,7 @@ export async function runExtraction(ctx: Ctx, caseId: string, input: { ticketId:
 
 /** Step 2: a user reply (text / voice / photos). In FACTS_REVIEW it sends the case back to INVESTIGATING;
  *  in STATEMENT_REVIEW it is a revision request for the writer. */
-export async function continueInvestigation(ctx: Ctx, caseId: string, input: { text: string; evidenceIds: string[]; audioId?: string }) {
+async function continueInvestigationNow(ctx: Ctx, caseId: string, input: { text: string; evidenceIds: string[]; audioId?: string }) {
   try {
     let text = input.text;
     const c = ctx.store.must(caseId);
@@ -78,7 +79,7 @@ export async function continueInvestigation(ctx: Ctx, caseId: string, input: { t
     }
     const state = ctx.store.must(caseId).state;
     if (state === 'STATEMENT_REVIEW') {
-      if (text.trim()) await reviseStatement(ctx, caseId, text.trim());
+      if (text.trim()) requestRevision(ctx, caseId, text.trim());
       return;
     }
     if (state === 'FACTS_REVIEW' || state === 'NEEDS_USER' || state === 'CLOSED_NO_APPEAL')
@@ -91,14 +92,23 @@ export async function continueInvestigation(ctx: Ctx, caseId: string, input: { t
   }
 }
 
-export async function appealAnyway(ctx: Ctx, caseId: string) {
+async function appealAnywayNow(ctx: Ctx, caseId: string) {
   try {
     if (ctx.store.must(caseId).state === 'CLOSED_NO_APPEAL') transition(ctx, caseId, 'INVESTIGATING', 'user', 'user reopened the case');
     ctx.store.mutate(caseId, (r) => {
       r.triage = undefined;
+      r.appealAnyway = true; // the user's explicit choice — the only way an OTHER appeal is allowed on a playbook ticket
     });
     await investigate(ctx, caseId, { kind: 'decision', choice: 'appeal_anyway' });
   } catch (err) {
     reportError(ctx, caseId, err);
   }
 }
+
+// Per-case single flight: a double-tapped "send" queues behind the running turn instead of interleaving
+// two agent turns (which would scramble the Gemini history and fail the next call with a 400).
+export const runExtraction = (ctx: Ctx, caseId: string, input: { ticketId: string; audioId?: string; text?: string }) =>
+  serial(caseId, () => runExtractionNow(ctx, caseId, input));
+export const continueInvestigation = (ctx: Ctx, caseId: string, input: { text: string; evidenceIds: string[]; audioId?: string }) =>
+  serial(caseId, () => continueInvestigationNow(ctx, caseId, input));
+export const appealAnyway = (ctx: Ctx, caseId: string) => serial(caseId, () => appealAnywayNow(ctx, caseId));

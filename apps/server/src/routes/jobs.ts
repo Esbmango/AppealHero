@@ -5,7 +5,7 @@ import { publishFacts, view, type Ctx } from '../core/ctx';
 import { transition } from '../core/fsm';
 import { HttpError } from '../core/util';
 import { upsertFact } from '../agent/policy/facts';
-import { reconcile, runJob } from '../portal/runner';
+import { NOT_FOUND_CODE, isExecBusy, reconcile, runJob } from '../portal/runner';
 
 /** FROZEN 5: POST /api/jobs/:id/resume  (jobId === caseId) */
 export function registerJobRoutes(app: FastifyInstance, ctx: Ctx) {
@@ -15,7 +15,11 @@ export function registerJobRoutes(app: FastifyInstance, ctx: Ctx) {
     const c = ctx.store.must(id);
 
     // An unknown submit result is ALWAYS reconciled first — never resubmitted blindly.
-    if (c.state === 'UNKNOWN_RESULT') {
+    const busy = () => {
+      if (isExecBusy(id)) throw new HttpError(409, 'still working on this case (checking the portal or filling the form) — try again in a moment');
+    };
+    if (c.state === 'UNKNOWN_RESULT' || (c.state === 'NEEDS_USER' && body.action === 'reconcile' && c.needsUser?.code === NOT_FOUND_CODE)) {
+      busy();
       void reconcile(ctx, id);
       reply.code(202);
       return { jobId: id, state: c.state, action: 'reconcile' };
@@ -46,6 +50,7 @@ export function registerJobRoutes(app: FastifyInstance, ctx: Ctx) {
     }
 
     // retry: same approval; runJob re-verifies the signed token against the current payload.
+    busy();
     void runJob(ctx, id);
     reply.code(202);
     return { jobId: id, state: c.state, action: 'retry' };

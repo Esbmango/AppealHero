@@ -100,7 +100,7 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
     const id = req.params.id;
     const body = ConfirmFactsRequestSchema.parse(req.body ?? {});
     const c = ctx.store.must(id);
-    if (isExecuting(c.state)) throw new HttpError(409, `cannot edit facts while ${c.state}`);
+    if (isExecuting(c.state) || c.state === 'SUBMITTED' || c.state === 'FAILED') throw new HttpError(409, `cannot edit facts while ${c.state}`);
     if (body.done && c.state !== 'FACTS_REVIEW') throw new HttpError(409, `nothing to confirm in state ${c.state}`);
     ctx.store.mutate(id, (r) => {
       for (const fid of body.confirm) {
@@ -118,6 +118,11 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
       }
     });
     publishFacts(ctx, id);
+    // A fact changed after gate 1 → back through gate 1; the statement is rewritten and needs a fresh approval.
+    if (body.edits.length && ctx.store.must(id).state === 'STATEMENT_REVIEW')
+      transition(ctx, id, 'FACTS_REVIEW', 'user', 'user edited a fact — confirm, then the statement is rewritten', (r) => {
+        r.approval = undefined;
+      });
     const after = ctx.store.must(id);
     const pending = pendingFactIds(after);
     if (after.state === 'FACTS_REVIEW') {

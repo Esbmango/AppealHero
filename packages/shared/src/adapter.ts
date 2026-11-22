@@ -24,7 +24,7 @@ export interface AdapterHooks {
   screenshot: (label: string) => Promise<void>;
 }
 
-export type SubmitOutcome = { kind: 'confirmed'; confirmationNumber: string } | { kind: 'unknown'; detail: string };
+export type SubmitOutcome = { kind: 'confirmed'; confirmationNumber: string; alreadyOnFile?: boolean } | { kind: 'unknown'; detail: string };
 
 export interface PortalAdapter<Page = unknown> {
   /** e.g. 'mock-boston' */

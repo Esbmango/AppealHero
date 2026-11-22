@@ -5,7 +5,7 @@ import { transition } from '../../core/fsm';
 import type { CaseRecord } from '../../core/types';
 import { HttpError } from '../../core/util';
 import { approvalPreview } from '../../approval';
-import { latestFact, validateGrounds } from '../policy/facts';
+import { latestFact, pendingFactIds, upsertFact, validateGrounds } from '../policy/facts';
 import { generateJson } from '../llm';
 import { formatBoston } from '../rules/boston';
 
@@ -142,7 +142,12 @@ export async function writeStatement(ctx: Ctx, caseId: string, instructions?: st
     const c = ctx.store.must(caseId);
     const { reason, grounds } = plan(c);
     if (!grounds.length) throw new Error('nothing to argue yet — tell me in your own words why you are appealing');
-    const draft = await composeDraft(ctx, caseId, reason, grounds, { instructions, revision: (c.draft?.revision ?? 0) + 1 });
+    // Confirmed revision requests (gate 1) are the only extra instructions the writer may follow.
+    const confirmedRevisions = c.facts.filter((f) => REVISION_KEY.test(f.key) && f.status === 'CONFIRMED').map((f) => f.note ?? f.value);
+    const draft = await composeDraft(ctx, caseId, reason, grounds, {
+      instructions: [...confirmedRevisions, ...(instructions ?? [])],
+      revision: (c.draft?.revision ?? 0) + 1,
+    });
     transition(ctx, caseId, 'STATEMENT_REVIEW', 'system', `statement revision ${draft.revision} ready`, (r) => {
       r.draft = draft;
     });
@@ -153,13 +158,32 @@ export async function writeStatement(ctx: Ctx, caseId: string, instructions?: st
   }
 }
 
-/** A chat message during STATEMENT_REVIEW is a revision request. WP5 replaces this with a real reviser
- *  (new facts in the instruction → USER_STATEMENT, keep user-written paragraphs). */
-export async function reviseStatement(ctx: Ctx, caseId: string, instruction: string) {
-  transition(ctx, caseId, 'DRAFTING', 'user', `user asked for a revision: ${instruction.slice(0, 80)}`);
-  const lang = ctx.store.must(caseId).lang;
-  say(ctx, caseId, lang === 'zh' ? '好的，我按你的要求修改申诉信。' : lang === 'es' ? 'De acuerdo, voy a revisar la carta.' : 'OK — revising the statement.');
-  await writeStatement(ctx, caseId, [instruction]);
+const REVISION_KEY = /^revision\d+$/;
+
+/**
+ * A chat message during STATEMENT_REVIEW is new input from the user. It is recorded as an unconfirmed USER_STATEMENT
+ * and the case goes back to FACTS_REVIEW: nothing reaches the statement until the user confirms it (gate 1),
+ * and the rewritten statement needs a fresh approval (gate 2). WP5 adds a real reviser on top of this.
+ */
+export function requestRevision(ctx: Ctx, caseId: string, instruction: string) {
+  const c = ctx.store.must(caseId);
+  const n = c.facts.filter((f) => REVISION_KEY.test(f.key)).length + 1;
+  const label = c.lang === 'zh' ? `修改要求 #${n}` : c.lang === 'es' ? `Cambio solicitado #${n}` : `Requested change #${n}`;
+  transition(ctx, caseId, 'FACTS_REVIEW', 'user', 'user asked for a revision — confirm it first, then the statement is rewritten', (r) => {
+    upsertFact(r, { key: `revision${n}`, label, value: instruction, provenance: 'USER_TEXT', status: 'USER_STATEMENT' });
+    r.approval = undefined;
+  });
+  say(
+    ctx,
+    caseId,
+    c.lang === 'zh'
+      ? '我记下了你的修改要求。请先在下面确认，确认后我会重写申诉信。'
+      : c.lang === 'es'
+        ? 'Anoté tu cambio. Confírmalo abajo y luego reescribiré la carta.'
+        : 'I noted your change. Please confirm it below; then I will rewrite the statement.',
+  );
+  const after = ctx.store.must(caseId);
+  ctx.hub.emit({ type: 'facts.review', caseId, facts: after.facts, pendingFactIds: pendingFactIds(after) });
 }
 
 /** PUT /api/cases/:id/statement — the user edits paragraphs directly. Unchanged paragraphs keep their citations. */

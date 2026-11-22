@@ -19,6 +19,8 @@ export function transition(ctx: Ctx, caseId: string, to: CaseState, actor: Actor
     if (from === 'NEEDS_USER' || from === 'BLOCKED') r.needsUser = undefined;
     patch?.(r);
   });
+  // Durability: every state change is on disk before anyone acts on it (atomic write, small file).
+  ctx.store.flush();
   ctx.audit.append({ caseId, type: 'state.changed', actor, data: { from, to, reason } });
   ctx.hub.emit({ type: 'state.changed', caseId, from, to, reason, actor });
   if (c.needsUser && (to === 'NEEDS_USER' || to === 'BLOCKED')) ctx.hub.emit({ type: 'needs_user', caseId, needsUser: c.needsUser });
