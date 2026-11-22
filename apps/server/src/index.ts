@@ -19,6 +19,7 @@ import { registerCaseRoutes } from './routes/cases';
 import { registerJobRoutes } from './routes/jobs';
 import { registerDemoRoutes } from './routes/demo';
 import { registerUserRoutes } from './routes/users';
+import { recordProofEvents } from './audit/proof';
 import { registerProofRoutes } from './routes/proof';
 
 export async function buildServer() {
@@ -32,6 +33,7 @@ export async function buildServer() {
   const audit = new JsonAuditRepo(config.persist ? path.join(config.dataDir, 'audit.json') : null);
   const ctx: Ctx = { store, hub: new EventHub(), users, audit };
 
+  const stopRecording = recordProofEvents(ctx);
   for (const dir of ['uploads', 'shots']) fs.mkdirSync(path.join(config.dataDir, dir), { recursive: true });
   await app.register(fastifyStatic, { root: path.join(config.dataDir, 'uploads'), prefix: '/api/files/', decorateReply: false });
   await app.register(fastifyStatic, { root: path.join(config.dataDir, 'shots'), prefix: '/api/shots/', decorateReply: false });
@@ -76,6 +78,7 @@ export async function buildServer() {
 
   app.addHook('onClose', async () => {
     await closeBrowser();
+    stopRecording();
     store.flush();
     users.flush();
     audit.flush();

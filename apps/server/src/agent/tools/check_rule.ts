@@ -30,6 +30,8 @@ function ruleInputFromCase(c: CaseRecord, modelInput: Record<string, unknown>): 
     violationDescription: latestFact(c, 'violation')?.value,
     printedFine: Number(latestFact(c, 'fineAmount')?.value) || undefined,
     paidUntil: latestFact(c, 'paidUntil')?.value,
+    receiptPlate: latestFact(c, 'receiptPlate')?.value,
+    ticketPlate: latestFact(c, 'plateNumber')?.value,
     paidFrom: latestFact(c, 'paidFrom')?.value,
   };
   const out: RuleInput = {
@@ -46,6 +48,7 @@ function checkRule(ctx: Ctx, caseId: string, a: Record<string, unknown>): ToolRe
   if (!RULE_NAMES.includes(rule)) throw new Error(`unknown rule ${rule}`);
   const c = ctx.store.must(caseId);
   const r = runRule(rule, ruleInputFromCase(c, isObj(a.input) ? a.input : {}));
+  if (!r.verified) return { result: { error: 'This rule has not been verified and cannot ground an appeal.' }, isError: true };
   let factId = '';
   ctx.store.mutate(caseId, (rec) => {
     factId = upsertFact(rec, {

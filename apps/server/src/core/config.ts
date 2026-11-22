@@ -23,7 +23,7 @@ const Env = z.object({
   AI_MODE: z.enum(['auto', 'gemini', 'fake']).default('auto'),
   APPROVAL_SECRET: z.string().optional(),
   APPROVAL_TTL_MS: z.coerce.number().default(15 * 60_000),
-  EXEC_TIERS: z.string().default('T1,T3'),
+  EXEC_TIERS: z.string().default('T1,T2'),
   HEADLESS: z.string().default('true'),
   BROWSER_CHANNEL: z.string().optional(),
   SLOW_MO_MS: z.coerce.number().default(0),

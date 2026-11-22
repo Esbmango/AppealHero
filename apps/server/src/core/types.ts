@@ -1,5 +1,18 @@
 import type { Content } from '@google/genai';
-import type { Actor, CaseState, ChatMessage, Draft, Evidence, Fact, Metrics, NeedsUser, Receipt, TicketInfo, Triage } from '@appealhero/shared';
+import type {
+  Actor,
+  ApprovalPayload,
+  CaseState,
+  ChatMessage,
+  Draft,
+  Evidence,
+  Fact,
+  Metrics,
+  NeedsUser,
+  Receipt,
+  TicketInfo,
+  Triage,
+} from '@appealhero/shared';
 import type { ViolationType } from '../agent/rules/boston';
 
 export interface EvidenceRecord extends Evidence {
@@ -8,6 +21,11 @@ export interface EvidenceRecord extends Evidence {
 }
 
 export interface ApprovalRecord {
+  payload?: ApprovalPayload;
+  statementUserLang?: string;
+  readbackHash?: string;
+  readbackMatches?: boolean;
+  traceReady?: boolean;
   token: string;
   payloadHash: string;
   issuedAt: string;

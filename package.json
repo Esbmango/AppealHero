@@ -16,6 +16,7 @@
     "test": "vitest run",
     "browsers": "playwright install chromium",
     "smoke": "node scripts/ui-smoke.mjs",
+    "smoke:gemini": "node scripts/smoke-gemini.mjs",
     "docs:fsm": "tsx scripts/docs-fsm.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

@@ -6,6 +6,7 @@ import { say, type Ctx } from '../../core/ctx';
 import { transition } from '../../core/fsm';
 import { isObj, str } from '../../core/util';
 import { latestFact, pendingFactIds, validateGrounds } from '../policy/facts';
+import { matchPlaybook, playbookContext, supportsGrounds } from '../playbooks';
 import { fineFor, runRule } from '../rules/boston';
 
 const params = z.object({
@@ -73,6 +74,11 @@ async function proposeOutcome(ctx: Ctx, caseId: string, a: Record<string, unknow
     if (!grounds.some((g) => g.factIds.some((id) => userFacts.has(id))))
       return { result: { error: "an OTHER appeal must cite the user's own statement" }, isError: true };
   }
+  // Ticket types with a playbook must match one of its defenses. Types without one yet (street cleaning, no stopping)
+  // keep the grounds checks above until a generic playbook exists, so a wrong-plate appeal is not silently blocked.
+  const book = matchPlaybook(c.ticket?.violation ?? c.violationType ?? '');
+  if (reason !== 'OTHER' && book && !supportsGrounds(book, playbookContext(c), reason, grounds))
+    return { result: { error: 'This appeal reason is unsupported by the cited evidence and verified rules for this ticket.' }, isError: true };
   // v2: the agent only PROPOSES. The user confirms every fact (gate 1) before anything is written.
   ctx.store.mutate(caseId, (r) => {
     r.triage = { recommendation: 'APPEAL', summary, reasons: grounds, disputeReason: reason };

@@ -29,7 +29,6 @@ export interface CuModel {
   readonly kind: 'gemini' | 'fake';
   start(goal: string, png: Buffer, url: string, page: Page): Promise<CuAction[]>;
   next(results: CuResult[], page: Page): Promise<CuAction[]>;
-  usage(): { tokensIn: number; tokensOut: number };
 }
 
 export class CuHandoff extends Error {
@@ -64,14 +63,20 @@ const SYSTEM = [
   'If a CAPTCHA, login or anything ambiguous appears, call yield_to_user. When the value is typed, call report_done.',
 ].join(' ');
 
+function handleInteractionError(err: unknown): never {
+  if (err instanceof Error && /blocked due to safety violations/i.test(err.message))
+    throw new CuHandoff('CU_SAFETY', 'Gemini blocked this browser interaction for safety. A person must review the form.');
+  throw err;
+}
+
 /** Gemini Computer Use via the Interactions API (@google/genai ≥ 3). Verify on your key before relying on it. */
 export class GeminiCuModel implements CuModel {
   readonly kind = 'gemini' as const;
   private prevId?: string;
-  private tokens = { tokensIn: 0, tokensOut: 0 };
   constructor(
     private ai: GoogleGenAI,
     private model: string,
+    private onUsage: (tokensIn: number, tokensOut: number) => void,
   ) {}
 
   private tools() {
@@ -98,8 +103,7 @@ export class GeminiCuModel implements CuModel {
     usage?: { total_input_tokens?: number; total_output_tokens?: number; total_thought_tokens?: number };
   }): CuAction[] {
     this.prevId = it.id;
-    this.tokens.tokensIn += it.usage?.total_input_tokens ?? 0;
-    this.tokens.tokensOut += (it.usage?.total_output_tokens ?? 0) + (it.usage?.total_thought_tokens ?? 0);
+    this.onUsage(it.usage?.total_input_tokens ?? 0, (it.usage?.total_output_tokens ?? 0) + (it.usage?.total_thought_tokens ?? 0));
     return (it.steps ?? [])
       .filter(
         (s): s is { type: 'function_call'; id: string; name: string; arguments: Record<string, unknown> } => (s as { type?: string }).type === 'function_call',
@@ -108,16 +112,23 @@ export class GeminiCuModel implements CuModel {
   }
 
   async start(goal: string, png: Buffer, url: string): Promise<CuAction[]> {
-    const it = await this.ai.interactions.create({
-      model: this.model,
-      system_instruction: SYSTEM,
-      tools: this.tools(),
-      generation_config: { thinking_level: 'low' },
-      input: [
-        { type: 'text', text: `${goal}\nCurrent URL: ${url}` },
-        { type: 'image', data: png.toString('base64'), mime_type: 'image/png' },
-      ],
-    });
+    const it = await this.ai.interactions
+      .create({
+        model: this.model,
+        system_instruction: SYSTEM,
+        tools: this.tools(),
+        generation_config: { thinking_level: 'low' },
+        input: [
+          {
+            type: 'user_input',
+            content: [
+              { type: 'text', text: `${goal}\nCurrent URL: ${url}` },
+              { type: 'image', data: png.toString('base64'), mime_type: 'image/png' },
+            ],
+          },
+        ],
+      })
+      .catch(handleInteractionError);
     return this.parse(it);
   }
 
@@ -131,18 +142,16 @@ export class GeminiCuModel implements CuModel {
         ...(r.png ? [{ type: 'image' as const, data: r.png.toString('base64'), mime_type: 'image/png' }] : []),
       ],
     }));
-    const it = await this.ai.interactions.create({
-      model: this.model,
-      system_instruction: SYSTEM,
-      tools: this.tools(),
-      previous_interaction_id: this.prevId,
-      input,
-    });
+    const it = await this.ai.interactions
+      .create({
+        model: this.model,
+        system_instruction: SYSTEM,
+        tools: this.tools(),
+        previous_interaction_id: this.prevId,
+        input,
+      })
+      .catch(handleInteractionError);
     return this.parse(it);
-  }
-
-  usage() {
-    return this.tokens;
   }
 }
 
@@ -176,9 +185,6 @@ export class FakeCuModel implements CuModel {
   }
   async next(): Promise<CuAction[]> {
     return this.phase++ === 0 ? [{ id: 'fake-3', name: 'report_done', args: {} }] : [];
-  }
-  usage() {
-    return { tokensIn: 0, tokensOut: 0 };
   }
 }
 
