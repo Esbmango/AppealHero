@@ -33,6 +33,16 @@ export const DEMO_TICKETS = {
     location: 'Beacon St, Boston',
     fineAmount: 100,
   },
+  // Main demo path (docs/DEMO.md §2): weekday meter ticket + a parking-app payment receipt that covers the ticket time.
+  meterWeekday: {
+    ticketNumber: '900000006',
+    plateNumber: 'KDT4821',
+    plateState: 'NY',
+    violationDescription: 'METER FEE UNPAID',
+    issuedAt: '2026-11-17T10:05:00-05:00', // Tuesday, meters in effect
+    location: 'Massachusetts Ave, Boston',
+    fineAmount: 40,
+  },
   // v2 additions (playbooks boston.street_cleaning / boston.no_stopping — golden tests, not the main demo)
   streetCleaning: {
     ticketNumber: '900000004',
@@ -57,6 +67,17 @@ export type DemoTicketKey = keyof typeof DEMO_TICKETS;
 
 export const isSyntheticTicket = (t: string) => /^9\d{8}$/.test(t);
 
+/** Synthetic payment receipts (ground truth for the fake perception and the receipt image). */
+export const DEMO_RECEIPTS = {
+  meterWeekday: {
+    ticket: 'meterWeekday' as DemoTicketKey,
+    paidFrom: '2026-11-17T09:30:00-05:00',
+    paidUntil: '2026-11-17T10:30:00-05:00',
+    amount: 2.5,
+    label: 'Parking app receipt (synthetic)',
+  },
+} as const;
+
 /** Demo personas (all synthetic). Each maps to one main-path ticket — see docs/PRODUCT_SPEC.md §3. */
 export const DEMO_PERSONAS: Record<
   PersonaId,
@@ -75,7 +96,7 @@ export const DEMO_PERSONAS: Record<
     mailingAddress: '100 Example Ave, Apt 2, Boston, MA 02215',
     email: 'lin.demo@example.com',
     vehicles: [{ plate: 'KDT4821', state: 'NY', make: 'Toyota', color: 'Silver' }],
-    ticket: 'permit',
+    ticket: 'meterWeekday', // main demo path; her second ticket (permit, 900000002) is a backup story
   },
   maria: {
     name: 'María González',

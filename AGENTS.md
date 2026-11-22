@@ -15,13 +15,13 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 5. **Keep the network guard** (`apps/server/src/portal/browser/guard.ts`): hard-block real government hosts, allow one portal origin, one-shot submit interlock.
 6. **Never send requests to boston.gov, rmcpay.com, or any real government system. Never bypass a CAPTCHA.**
 7. **Unknown submit result → read-only reconcile via the portal status page.** Not found → pause (NEEDS_USER); never resubmit automatically. Every state change is flushed to disk before anyone acts on it.
+8. **Fake mode must keep working.** `AI_MODE=fake` runs the whole flow with no key and no network; all tests run in fake mode.
 9. **Gate 1 is never bypassed.** New or changed facts after confirmation (including chat revisions) go back to FACTS_REVIEW; only CONFIRMED / RULE_VERIFIED facts can ground the statement.
 10. **One actor per case at a time.** Agent turns are queued per case (`core/locks.ts`); the executor job and reconcile are mutually exclusive.
-8. **Fake mode must keep working.** `AI_MODE=fake` runs the whole flow with no key and no network; all tests run in fake mode.
 
 ## Contracts
 
-- `packages/shared` (Zod) is the single source of truth for types, API payloads, events and states. Changes are **additive only** and go through the WP0 owner: write a "Contract change request" at the end of your task card instead of editing shared files yourself.
+- `packages/shared` (Zod) is the single source of truth for types, API payloads, events and states. Changes are **additive only** and are made only by person B (see `docs/ASSIGNMENTS.md`); everyone else asks B instead of editing shared files.
 - The 5 frozen endpoints (jobId === caseId):
   `POST /api/cases` · `POST /api/cases/:id/messages` · `POST /api/cases/:id/approve` · `GET /api/cases/:id/stream` · `POST /api/jobs/:id/resume`
 
@@ -45,7 +45,7 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 
 ## Workflow
 
-- Edit only the paths your task card owns.
+- Edit only the paths your task owns (`docs/ASSIGNMENTS.md` §1 and the task prompt).
 - Before you finish: `npm run format && npm run typecheck && npm test` must pass (CI also runs `npm run format:check` and `npm run docs:fsm -- --check`). Add tests for new behavior: golden conversation tests for playbooks, e2e scenarios for portal changes.
 - No new dependencies without a one-line justification in the PR.
 - All user-facing strings go through i18n. Never hardcode UI text.

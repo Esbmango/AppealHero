@@ -80,6 +80,8 @@ flowchart LR
 
 ## 3. 人员与 AI 分配建议
 
+> **当前分工以 [ASSIGNMENTS.md](ASSIGNMENTS.md) 为准**（两人各用 Codex，A 前端 / 视觉，B 通用）。下表是最初的三人方案，仅供参考。
+
 | 成员 | 负责的卡 | 同时运行的 AI 代理 |
 |---|---|---|
 | A（后端 / Agent） | WP0 验收与合并 → WP2、WP4、WP5 | 3 个 |

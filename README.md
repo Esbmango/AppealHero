@@ -105,6 +105,7 @@ npm run smoke             # with the app running: clicks through the phone flow 
 | [docs/PLAYBOOKS.md](docs/PLAYBOOKS.md) | Ticket-type playbooks and rules, with official sources (Chinese) |
 | [docs/TASKS.md](docs/TASKS.md) | Parallel work packages with acceptance tests (Chinese) |
 | [docs/DEMO.md](docs/DEMO.md) | Demo script, checklist and Q&A (Chinese) |
+| [docs/ASSIGNMENTS.md](docs/ASSIGNMENTS.md) | Who does what until the deadline, with ready-to-paste Codex prompts (Chinese) |
 | [AGENTS.md](AGENTS.md) | Rules for AI coding agents working in this repo |
 | [docs/REVIEW_PROMPT.md](docs/REVIEW_PROMPT.md) | Prompt for external design reviewers (Chinese) |
 | [docs/REVIEW_BUNDLE.md](docs/REVIEW_BUNDLE.md) | All docs merged into one file for external reviewers (generated) |

@@ -24,6 +24,7 @@ export const V2_API = {
   persona: 'POST /api/session/persona', // WP1
   confirmFacts: 'POST /api/cases/:id/facts/confirm', // WP0 — { confirm, edits, done }
   editStatement: 'PUT /api/cases/:id/statement', // WP0 contract, WP5 implementation
+  selectTicket: 'POST /api/cases/:id/select-ticket', // A4 — { ticketNumber } chosen from lookupResults
   decision: 'POST /api/cases/:id/decision', // existing
   proof: 'GET /api/cases/:id/proof', // WP8
   trace: 'GET /api/cases/:id/trace', // WP8
@@ -41,6 +42,8 @@ export const CreateCaseFieldsSchema = z.object({
     .regex(/^\d{6,12}$/)
     .optional(), // lookup by ticket number
   vehicleId: z.string().optional(), // lookup by a saved vehicle (MA plates only — see PLAYBOOKS §8)
+  plate: z.string().max(10).optional(), // lookup by plate (Demo Mode: the persona's plate) — MA plates only
+  plateState: z.string().max(5).optional(),
   text: z.string().max(4000).optional(),
   lang: z.string().optional(),
   profileName: z.string().optional(), // v0.2 compatibility; v2 reads the profile from the account
@@ -79,6 +82,9 @@ export const ConfirmFactsRequestSchema = z.object({
 export type ConfirmFactsRequest = z.infer<typeof ConfirmFactsRequestSchema>;
 
 export const DecisionRequestSchema = z.object({ choice: z.enum(['accept_pay', 'appeal_anyway']) });
+
+/** After a read-only portal lookup, the user picks one of case.lookupResults. */
+export const SelectTicketRequestSchema = z.object({ ticketNumber: z.string().regex(/^\d{6,12}$/) });
 
 /** The user edits the statement directly. Unchanged paragraphs keep their citations; changed ones become author 'user'. */
 export const StatementEditRequestSchema = z.object({

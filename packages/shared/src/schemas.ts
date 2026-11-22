@@ -222,6 +222,8 @@ export const CaseViewSchema = z.object({
   lang: z.string(),
   userId: z.string().optional(),
   ticket: TicketInfoSchema.optional(),
+  /** read-only portal lookup results waiting for the user's choice (mode=lookup) */
+  lookupResults: z.array(TicketInfoSchema).optional(),
   playbookId: z.string().optional(),
   violationType: z.string().optional(),
   facts: z.array(FactSchema),

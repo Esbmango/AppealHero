@@ -39,6 +39,8 @@ export interface CaseRecord {
   userId?: string;
   /** v2: the ticket as identified (OCR or portal lookup) */
   ticket?: TicketInfo;
+  /** v2 (A4): read-only portal lookup results waiting for the user's choice */
+  lookupResults?: TicketInfo[];
   /** v2: matched playbook id, e.g. 'boston.meter' (WP4) */
   playbookId?: string;
   violationType?: ViolationType;

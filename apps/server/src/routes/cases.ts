@@ -5,6 +5,7 @@ import {
   ConfirmFactsRequestSchema,
   CreateCaseFieldsSchema,
   DecisionRequestSchema,
+  SelectTicketRequestSchema,
   StatementEditRequestSchema,
   LANGS,
   isExecuting,
@@ -137,6 +138,13 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
     }
     if (after.draft && after.state === 'STATEMENT_REVIEW') ctx.hub.emit({ type: 'review.ready', caseId: id, preview: approvalPreview(after) });
     return view(after);
+  });
+
+  // ---- v2 (A4): the user picks a ticket from the read-only lookup results ----
+  app.post<IdParams>('/api/cases/:id/select-ticket', async (req) => {
+    SelectTicketRequestSchema.parse(req.body ?? {});
+    ctx.store.must(req.params.id);
+    throw new HttpError(501, 'ticket lookup is not implemented yet (A4)');
   });
 
   // ---- v2: the user edits the statement directly (WP5 owns the writer; WP0 fixes the contract) ----
