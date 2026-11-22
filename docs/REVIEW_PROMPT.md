@@ -3,7 +3,7 @@
 你是 AppealHero 申诉英雄（BostonHacks 2026，Track 3 Boundless Boston）的产品与架构评审。附件是完整文档包：PRODUCT_SPEC、ARCHITECTURE、PLAYBOOKS、TASKS、AGENTS、README、DEMO。
 
 **仓库**：https://github.com/Esbmango/AppealHero（公开）
-- `main` 分支：v2 地基（WP0）+ 第一轮 GPT / Gemini 评审的修订，可运行（fake 模式 + 模拟门户）。第一轮评审针对的旧版本在 tag `v0.3-reviewed`。
+- `main` 分支：v2 地基（WP0）+ 第一轮 GPT / Gemini 评审的修订，可运行（fake 模式 + 模拟门户）。第一轮评审针对的旧版本是 commit `2f5cfb7`。
 - 只想读一个文件：`docs/REVIEW_BUNDLE.md` 是全部文档的合并版（自动生成，内容以各单独文件为准）。
 
 **背景**
