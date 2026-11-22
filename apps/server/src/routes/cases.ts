@@ -3,20 +3,23 @@ import {
   ADAPTER_VERSION,
   ApproveRequestSchema,
   ConfirmFactsRequestSchema,
+  CreateCaseFieldsSchema,
   DecisionRequestSchema,
+  StatementEditRequestSchema,
   LANGS,
   isExecuting,
   type ChatMessage,
 } from '@appealhero/shared';
-import { config } from '../config';
+import { config } from '../core/config';
 import { approvalPreview, issueToken } from '../approval';
-import { publishFacts, view, type Ctx } from '../ctx';
-import { transition } from '../fsm';
-import { newCaseRecord } from '../store';
-import { HttpError, newId, now } from '../util';
-import { appealAnyway, continueInvestigation, runExtraction } from '../agent';
-import { upsertFact } from '../agent/facts';
-import { runJob } from '../executor/runner';
+import { publishFacts, view, type Ctx } from '../core/ctx';
+import { transition } from '../core/fsm';
+import { newCaseRecord } from '../core/store/cases';
+import { HttpError, newId, now } from '../core/util';
+import { appealAnyway, continueInvestigation, runExtraction } from '../agent/runtime';
+import { pendingFactIds, upsertFact } from '../agent/policy/facts';
+import { applyUserEdit, writeStatement } from '../agent/writer';
+import { runJob } from '../portal/runner';
 import { readForm, saveEvidence } from './uploads';
 
 type IdParams = { Params: { id: string } };
@@ -30,8 +33,12 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
   // ---- FROZEN 1: create a case from a ticket photo (+ optional voice note / text) ----
   app.post('/api/cases', async (req, reply) => {
     const { fields, files } = await readForm(req);
+    const parsed = CreateCaseFieldsSchema.parse(fields);
     const ticket = files.find((f) => f.field === 'ticket');
-    if (!ticket) throw new HttpError(400, 'a ticket photo (field "ticket") is required');
+    if (!ticket) {
+      if (parsed.mode === 'lookup' || parsed.mode === 'chat') throw new HttpError(501, `intake mode "${parsed.mode}" is not implemented yet (WP2)`);
+      throw new HttpError(400, 'a ticket photo (field "ticket") is required');
+    }
     const lang = fields.lang && fields.lang in LANGS ? fields.lang : 'zh';
     const c = newCaseRecord(lang);
     const ticketEv = saveEvidence(c, ticket, 'ticket_photo');
@@ -81,12 +88,13 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
     return { ok: true };
   });
 
-  // ---- helper: user confirms / edits facts on the review screen (only the user can CONFIRM) ----
-  app.post<IdParams>('/api/cases/:id/facts/confirm', async (req) => {
+  // ---- gate 1: the user confirms / edits facts (the ONLY way a fact becomes CONFIRMED); done=true → DRAFTING ----
+  app.post<IdParams>('/api/cases/:id/facts/confirm', async (req, reply) => {
     const id = req.params.id;
     const body = ConfirmFactsRequestSchema.parse(req.body ?? {});
     const c = ctx.store.must(id);
     if (isExecuting(c.state)) throw new HttpError(409, `cannot edit facts while ${c.state}`);
+    if (body.done && c.state !== 'FACTS_REVIEW') throw new HttpError(409, `nothing to confirm in state ${c.state}`);
     ctx.store.mutate(id, (r) => {
       for (const fid of body.confirm) {
         const f = r.facts.find((x) => x.id === fid);
@@ -104,8 +112,27 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
     });
     publishFacts(ctx, id);
     const after = ctx.store.must(id);
-    if (after.draft && after.state === 'READY_FOR_REVIEW') ctx.hub.emit({ type: 'review.ready', caseId: id, preview: approvalPreview(after) });
+    const pending = pendingFactIds(after);
+    if (after.state === 'FACTS_REVIEW') {
+      if (body.done) {
+        if (pending.length) throw new HttpError(422, 'some facts are not confirmed yet', { unconfirmedFactIds: pending });
+        transition(ctx, id, 'DRAFTING', 'user', 'user confirmed every fact — writing the statement');
+        void writeStatement(ctx, id);
+        reply.code(202);
+        return view(ctx.store.must(id));
+      }
+      ctx.hub.emit({ type: 'facts.review', caseId: id, facts: after.facts, pendingFactIds: pending });
+    }
+    if (after.draft && after.state === 'STATEMENT_REVIEW') ctx.hub.emit({ type: 'review.ready', caseId: id, preview: approvalPreview(after) });
     return view(after);
+  });
+
+  // ---- v2: the user edits the statement directly (WP5 owns the writer; WP0 fixes the contract) ----
+  app.put<IdParams>('/api/cases/:id/statement', async (req) => {
+    const id = req.params.id;
+    const body = StatementEditRequestSchema.parse(req.body ?? {});
+    applyUserEdit(ctx, id, body);
+    return view(ctx.store.must(id));
   });
 
   // ---- helper: negative-triage decision ----
@@ -130,7 +157,7 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
     const c = ctx.store.must(id);
     // Idempotent: a double tap on "approve" must not start two jobs.
     if (c.approval?.payloadHash === payloadHash && (isExecuting(c.state) || c.state === 'SUBMITTED')) return { jobId: id, state: c.state, idempotent: true };
-    if (c.state !== 'READY_FOR_REVIEW') throw new HttpError(409, `cannot approve in state ${c.state}`);
+    if (c.state !== 'STATEMENT_REVIEW') throw new HttpError(409, `cannot approve in state ${c.state} — confirm the facts and review the statement first`);
     const preview = approvalPreview(c);
     if (preview.missing.length || preview.unconfirmedFactIds.length)
       throw new HttpError(422, 'not ready for approval', { missing: preview.missing, unconfirmedFactIds: preview.unconfirmedFactIds });

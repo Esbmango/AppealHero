@@ -1,12 +1,18 @@
 /**
- * Case lifecycle. The state machine is owned by code — the LLM can only *propose*
- * transitions inside the investigation phase (see AGENT_ALLOWED).
+ * Case lifecycle (v2). The state machine is owned by code — the LLM can only *propose*
+ * moves inside identification/investigation (actor 'agent'), and only the user can pass
+ * the two confirmation gates (facts → drafting, statement → approval via the signed approval gate).
+ *
+ * TRANSITION_TABLE is the single source of truth. docs/ARCHITECTURE.md §1 is generated from it
+ * (`npm run docs:fsm -- --write`) and checked in CI (`npm run docs:fsm -- --check`).
  */
 export const CASE_STATES = [
   'NEW',
-  'EXTRACTED',
+  'IDENTIFYING',
   'INVESTIGATING',
-  'READY_FOR_REVIEW',
+  'FACTS_REVIEW',
+  'DRAFTING',
+  'STATEMENT_REVIEW',
   'APPROVED',
   'FILLING',
   'SUBMITTING',
@@ -21,65 +27,95 @@ export const CASE_STATES = [
 export type CaseState = (typeof CASE_STATES)[number];
 
 /** Who is asking for a transition. */
-export type Actor = 'system' | 'agent' | 'user' | 'approval' | 'executor';
+export const ACTORS = ['system', 'agent', 'user', 'approval', 'executor'] as const;
+export type Actor = (typeof ACTORS)[number];
 
-export const TRANSITIONS: Readonly<Record<CaseState, readonly CaseState[]>> = {
-  NEW: ['EXTRACTED', 'FAILED'],
-  EXTRACTED: ['INVESTIGATING', 'FAILED'],
-  INVESTIGATING: ['READY_FOR_REVIEW', 'CLOSED_NO_APPEAL', 'FAILED'],
-  READY_FOR_REVIEW: ['APPROVED', 'INVESTIGATING', 'CLOSED_NO_APPEAL'],
-  APPROVED: ['FILLING', 'READY_FOR_REVIEW'],
-  // FILLING → SUBMITTED only when the duplicate pre-check finds an appeal already on file.
-  FILLING: ['SUBMITTING', 'SUBMITTED', 'NEEDS_USER', 'BLOCKED', 'READY_FOR_REVIEW', 'FAILED'],
-  // A submit attempt is either confirmed or unknown — never "failed" without reconciliation.
-  SUBMITTING: ['VERIFYING', 'UNKNOWN_RESULT'],
-  VERIFYING: ['SUBMITTED', 'UNKNOWN_RESULT'],
-  // UNKNOWN_RESULT → FILLING only after the status page proves nothing was filed.
-  UNKNOWN_RESULT: ['SUBMITTED', 'FILLING', 'NEEDS_USER'],
-  NEEDS_USER: ['FILLING', 'READY_FOR_REVIEW', 'INVESTIGATING', 'CLOSED_NO_APPEAL'],
-  BLOCKED: ['FILLING', 'READY_FOR_REVIEW', 'CLOSED_NO_APPEAL'],
-  SUBMITTED: [],
-  FAILED: [],
-  // Negative triage: the user accepted "pay instead". They can still change their mind.
-  CLOSED_NO_APPEAL: ['INVESTIGATING'],
-};
+type Row = readonly [from: CaseState, to: CaseState, actors: readonly Actor[], note?: string];
 
-/** Transitions only specific actors may perform. Unlisted transitions: any actor except 'agent'. */
-const RESTRICTED: Readonly<Record<string, readonly Actor[]>> = {
-  'READY_FOR_REVIEW>APPROVED': ['approval'],
-  'APPROVED>FILLING': ['executor'],
-  'NEEDS_USER>FILLING': ['executor'],
-  'BLOCKED>FILLING': ['executor'],
-  'UNKNOWN_RESULT>FILLING': ['executor'],
-  'FILLING>SUBMITTING': ['executor'],
-  'FILLING>SUBMITTED': ['executor'],
-  'SUBMITTING>VERIFYING': ['executor'],
-  'SUBMITTING>UNKNOWN_RESULT': ['executor', 'system'],
-  'VERIFYING>SUBMITTED': ['executor'],
-  'VERIFYING>UNKNOWN_RESULT': ['executor', 'system'],
-  'UNKNOWN_RESULT>SUBMITTED': ['executor'],
-  'INVESTIGATING>CLOSED_NO_APPEAL': ['user'],
-  'READY_FOR_REVIEW>CLOSED_NO_APPEAL': ['user'],
-  'NEEDS_USER>CLOSED_NO_APPEAL': ['user'],
-  'BLOCKED>CLOSED_NO_APPEAL': ['user'],
-  'CLOSED_NO_APPEAL>INVESTIGATING': ['user'],
-};
+/** Every legal transition and exactly who may perform it (default deny). */
+export const TRANSITION_TABLE: readonly Row[] = [
+  ['NEW', 'IDENTIFYING', ['system']],
+  ['NEW', 'FAILED', ['system']],
+  ['IDENTIFYING', 'INVESTIGATING', ['system', 'agent'], 'ticket identified'],
+  ['IDENTIFYING', 'FAILED', ['system']],
+  ['INVESTIGATING', 'FACTS_REVIEW', ['agent', 'system'], 'agent proposes an appeal; code checks required facts'],
+  ['INVESTIGATING', 'CLOSED_NO_APPEAL', ['user'], 'user accepts the recommendation to pay'],
+  ['INVESTIGATING', 'FAILED', ['system']],
+  ['FACTS_REVIEW', 'DRAFTING', ['user'], 'gate 1: the user confirmed every fact'],
+  ['FACTS_REVIEW', 'INVESTIGATING', ['user'], 'user adds information'],
+  ['FACTS_REVIEW', 'CLOSED_NO_APPEAL', ['user']],
+  ['DRAFTING', 'STATEMENT_REVIEW', ['system'], 'writer finished'],
+  ['DRAFTING', 'FACTS_REVIEW', ['system'], 'writer failed'],
+  ['STATEMENT_REVIEW', 'DRAFTING', ['user'], 'user asks for a revision'],
+  ['STATEMENT_REVIEW', 'FACTS_REVIEW', ['user'], 'user changes facts'],
+  ['STATEMENT_REVIEW', 'APPROVED', ['approval'], 'gate 2: signed approval of the exact payload'],
+  ['STATEMENT_REVIEW', 'CLOSED_NO_APPEAL', ['user']],
+  ['APPROVED', 'FILLING', ['executor']],
+  ['APPROVED', 'STATEMENT_REVIEW', ['system'], 'approval token invalid'],
+  ['FILLING', 'SUBMITTING', ['executor'], 'read-back hash equals the approved hash'],
+  ['FILLING', 'SUBMITTED', ['executor'], 'an appeal is already on file'],
+  ['FILLING', 'NEEDS_USER', ['executor', 'system']],
+  ['FILLING', 'BLOCKED', ['executor'], 'human verification'],
+  ['FILLING', 'STATEMENT_REVIEW', ['executor', 'system']],
+  ['FILLING', 'FAILED', ['executor', 'system']],
+  ['SUBMITTING', 'VERIFYING', ['executor']],
+  ['SUBMITTING', 'UNKNOWN_RESULT', ['executor', 'system'], 'timeout or crash after the click'],
+  ['VERIFYING', 'SUBMITTED', ['executor']],
+  ['VERIFYING', 'UNKNOWN_RESULT', ['executor', 'system']],
+  ['UNKNOWN_RESULT', 'SUBMITTED', ['executor'], 'status page shows the appeal'],
+  ['UNKNOWN_RESULT', 'FILLING', ['executor'], 'status page proves nothing was filed; one retry'],
+  ['UNKNOWN_RESULT', 'NEEDS_USER', ['executor', 'system']],
+  ['NEEDS_USER', 'FILLING', ['executor']],
+  ['NEEDS_USER', 'STATEMENT_REVIEW', ['user', 'system']],
+  ['NEEDS_USER', 'FACTS_REVIEW', ['user']],
+  ['NEEDS_USER', 'INVESTIGATING', ['user']],
+  ['NEEDS_USER', 'CLOSED_NO_APPEAL', ['user']],
+  ['BLOCKED', 'FILLING', ['executor']],
+  ['BLOCKED', 'STATEMENT_REVIEW', ['user', 'system']],
+  ['BLOCKED', 'CLOSED_NO_APPEAL', ['user']],
+  ['CLOSED_NO_APPEAL', 'INVESTIGATING', ['user'], 'user reopens the case'],
+];
 
-/** The LLM agent may only move a case through the investigation phase. */
-const AGENT_ALLOWED: ReadonlySet<string> = new Set(['EXTRACTED>INVESTIGATING', 'INVESTIGATING>READY_FOR_REVIEW']);
+const key = (from: CaseState, to: CaseState) => `${from}>${to}`;
+const ACTORS_BY_KEY: ReadonlyMap<string, readonly Actor[]> = new Map(TRANSITION_TABLE.map(([f, t, a]) => [key(f, t), a]));
+
+export const TRANSITIONS: Readonly<Record<CaseState, readonly CaseState[]>> = Object.fromEntries(
+  CASE_STATES.map((s) => [s, TRANSITION_TABLE.filter(([f]) => f === s).map(([, t]) => t)]),
+) as unknown as Record<CaseState, readonly CaseState[]>;
+
+/** The LLM agent may only perform these (derived from the table, for tests and docs). */
+export const AGENT_TRANSITIONS: readonly string[] = TRANSITION_TABLE.filter(([, , a]) => a.includes('agent')).map(([f, t]) => key(f, t));
 
 export type TransitionCheck = { ok: true } | { ok: false; reason: string };
 
 export function checkTransition(from: CaseState, to: CaseState, actor: Actor): TransitionCheck {
-  if (!TRANSITIONS[from].includes(to)) return { ok: false, reason: `illegal transition ${from} → ${to}` };
-  const key = `${from}>${to}`;
-  if (actor === 'agent' && !AGENT_ALLOWED.has(key)) return { ok: false, reason: `the agent may not perform ${key}` };
-  const allowed = RESTRICTED[key];
-  if (allowed && !allowed.includes(actor)) return { ok: false, reason: `${actor} may not perform ${key}` };
+  const allowed = ACTORS_BY_KEY.get(key(from, to));
+  if (!allowed) return { ok: false, reason: `illegal transition ${from} → ${to}` };
+  if (!allowed.includes(actor)) return { ok: false, reason: `${actor} may not perform ${from} → ${to}` };
   return { ok: true };
 }
+
+export const allowedActors = (from: CaseState, to: CaseState): readonly Actor[] => ACTORS_BY_KEY.get(key(from, to)) ?? [];
 
 /** States in which the browser executor owns the case (no user edits allowed). */
 export const EXECUTION_STATES: readonly CaseState[] = ['APPROVED', 'FILLING', 'SUBMITTING', 'VERIFYING'];
 export const isExecuting = (s: CaseState) => EXECUTION_STATES.includes(s);
 export const TERMINAL_STATES: readonly CaseState[] = ['SUBMITTED', 'FAILED'];
+/** States where the agent loop may run (tools are offered only here). */
+export const AGENT_STATES: readonly CaseState[] = ['IDENTIFYING', 'INVESTIGATING'];
+
+/**
+ * Where an interrupted case goes when the server restarts (crash, or `tsx watch` reloading on save).
+ * FILLING: nothing submitted yet → safe to retry · SUBMITTING/VERIFYING: the click may have gone through → reconcile first
+ * APPROVED: job never started, secret may have rotated → re-approve · DRAFTING: writer died → confirm facts again
+ * IDENTIFYING: only when no question is pending (the extraction job died) → FAILED.
+ */
+export const RECOVERY: Readonly<Partial<Record<CaseState, CaseState>>> = {
+  FILLING: 'NEEDS_USER',
+  SUBMITTING: 'UNKNOWN_RESULT',
+  VERIFYING: 'UNKNOWN_RESULT',
+  APPROVED: 'STATEMENT_REVIEW',
+  DRAFTING: 'FACTS_REVIEW',
+  NEW: 'FAILED',
+  IDENTIFYING: 'FAILED',
+};

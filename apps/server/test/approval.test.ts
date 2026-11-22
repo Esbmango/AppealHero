@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { ADAPTER_VERSION } from '@appealhero/shared';
 import { approvalPreview, buildApprovalPayload, hashPayload, issueToken, verifyToken } from '../src/approval';
-import { upsertFact } from '../src/agent/facts';
-import { templateDraft } from '../src/agent/draft';
-import { newCaseRecord, recoverAfterRestart } from '../src/store';
+import { upsertFact } from '../src/agent/policy/facts';
+import { templateDraft } from '../src/agent/writer';
+import { newCaseRecord } from '../src/core/store/cases';
+import { recoverAfterRestart } from '../src/core/fsm';
 
 function readyCase() {
   const c = newCaseRecord('zh');
@@ -70,5 +71,16 @@ describe('approval gate', () => {
     b.state = 'FILLING';
     recoverAfterRestart(b);
     expect(b.state).toBe('NEEDS_USER');
+    const c = readyCase();
+    c.state = 'APPROVED';
+    recoverAfterRestart(c);
+    expect(c.state).toBe('STATEMENT_REVIEW');
+    const d = readyCase();
+    d.state = 'DRAFTING';
+    recoverAfterRestart(d);
+    expect(d.state).toBe('FACTS_REVIEW');
+    const e = readyCase();
+    e.state = 'STATEMENT_REVIEW';
+    expect(recoverAfterRestart(e)).toBeNull();
   });
 });

@@ -8,11 +8,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { CaseView, Scenario } from '@appealhero/shared';
-import { config } from '../src/config';
+import { config } from '../src/core/config';
 
 const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const TICKET = '900000001';
-const DONE = ['SUBMITTED', 'NEEDS_USER', 'BLOCKED', 'FAILED', 'READY_FOR_REVIEW', 'CLOSED_NO_APPEAL'];
+const DONE = ['SUBMITTED', 'NEEDS_USER', 'BLOCKED', 'FAILED', 'STATEMENT_REVIEW', 'CLOSED_NO_APPEAL'];
 
 let api = '';
 let portal = '';
@@ -81,13 +81,27 @@ async function createCase(text = '周日下午在 Comm Ave 停车，被开了计
   return ((await r.json()) as { caseId: string }).caseId;
 }
 
+/** v2: gate 1 (confirm every fact) → the writer drafts → gate 2 (approve the exact statement). */
+async function confirmFacts(id: string) {
+  let c = await waitFor(id, (x) => x.state === 'FACTS_REVIEW');
+  expect(c.draft).toBeUndefined(); // nothing is written before the user confirms the facts
+  expect(c.triage?.recommendation).toBe('APPEAL');
+  // approving is impossible before there is a statement
+  expect((await post(`/api/cases/${id}/approve`, { payloadHash: 'a'.repeat(64) })).status).toBe(409);
+  const pending = c.facts.filter((f) => f.status === 'NEEDS_CONFIRMATION' || f.status === 'USER_STATEMENT').map((f) => f.id);
+  expect(pending.length).toBeGreaterThan(0);
+  // "done" without confirming everything is refused
+  expect((await post(`/api/cases/${id}/facts/confirm`, { confirm: pending.slice(1), done: true })).status).toBe(422);
+  expect((await post(`/api/cases/${id}/facts/confirm`, { confirm: pending, done: true })).status).toBe(202);
+  c = await waitFor(id, (x) => x.state === 'STATEMENT_REVIEW');
+  expect(c.stateHistory.map((h) => h.to)).toContain('DRAFTING');
+  expect(c.draft?.revision).toBe(1);
+  return c;
+}
+
 async function reviewAndApprove(id: string) {
-  let c = await waitFor(id, (x) => x.state === 'READY_FOR_REVIEW');
+  const c = await confirmFacts(id);
   expect(c.preview?.missing).toEqual([]);
-  // stale hash is refused before the user confirmed anything
-  expect((await post(`/api/cases/${id}/approve`, { payloadHash: c.preview!.payloadHash })).status).toBe(422);
-  await post(`/api/cases/${id}/facts/confirm`, { confirm: c.preview!.unconfirmedFactIds });
-  c = await getCase(id);
   expect(c.preview!.unconfirmedFactIds).toEqual([]);
   const r = await post(`/api/cases/${id}/approve`, { payloadHash: c.preview!.payloadHash });
   expect(r.status).toBe(202);
@@ -168,15 +182,49 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
     const r = await post(`/api/jobs/${id}/resume`, { action: 'provide_info', field: c.needsUser!.field, value: 'Toyota' });
     expect(r.status).toBe(200);
     c = await getCase(id);
-    expect(c.state).toBe('READY_FOR_REVIEW');
+    expect(c.state).toBe('STATEMENT_REVIEW');
     expect(c.preview!.payloadHash).not.toBe(first.payloadHash);
     expect((await post(`/api/cases/${id}/approve`, { payloadHash: first.payloadHash })).status).toBe(409); // stale approval
     expect((await post(`/api/cases/${id}/approve`, { payloadHash: c.preview!.payloadHash })).status).toBe(202);
-    c = await waitFor(id, (x) => DONE.includes(x.state) && x.state !== 'READY_FOR_REVIEW');
+    c = await waitFor(id, (x) => DONE.includes(x.state) && x.state !== 'STATEMENT_REVIEW');
     expect(c.state).toBe('SUBMITTED');
     const a = await appeals();
     expect(a).toHaveLength(1);
     expect(a[0].extra['Vehicle make']).toBe('Toyota');
+  });
+
+  it('statement edits change the approval hash: the old hash is refused, the new one is accepted', async () => {
+    await scenario('normal');
+    const id = await createCase();
+    const c = await confirmFacts(id);
+    const oldHash = c.preview!.payloadHash;
+    const paragraphs = c.draft!.paragraphs.map((p) => ({ text: p.text, factIds: p.factIds }));
+    paragraphs.splice(paragraphs.length - 1, 0, { text: 'I was attending a medical appointment nearby.', factIds: [] });
+    const r = await fetch(`${api}/api/cases/${id}/statement`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ paragraphs }) });
+    expect(r.status).toBe(200);
+    const after = (await r.json()) as CaseView;
+    expect(after.draft?.revision).toBe(2);
+    expect(after.draft?.paragraphs.find((p) => p.text.startsWith('I was attending'))?.author).toBe('user');
+    expect(after.preview!.payloadHash).not.toBe(oldHash);
+    expect((await post(`/api/cases/${id}/approve`, { payloadHash: oldHash })).status).toBe(409);
+    expect((await post(`/api/cases/${id}/approve`, { payloadHash: after.preview!.payloadHash })).status).toBe(202);
+    const done = await waitFor(id, (x) => DONE.includes(x.state) && x.state !== 'STATEMENT_REVIEW');
+    expect(done.state).toBe('SUBMITTED');
+    const a = await appeals();
+    expect(a).toHaveLength(1);
+    expect(a[0].statement).toContain('medical appointment');
+  });
+
+  it('a chat message during statement review is a revision request: back through DRAFTING to a new revision', async () => {
+    await scenario('normal');
+    const id = await createCase();
+    await confirmFacts(id);
+    const fd = new FormData();
+    fd.append('text', '写短一点');
+    expect((await fetch(`${api}/api/cases/${id}/messages`, { method: 'POST', body: fd })).status).toBe(202);
+    const c = await waitFor(id, (x) => x.state === 'STATEMENT_REVIEW' && x.draft?.revision === 2);
+    expect(c.stateHistory.filter((h) => h.to === 'DRAFTING')).toHaveLength(2);
+    expect(await appeals()).toHaveLength(0);
   });
 
   it('negative triage: hydrant with matching vehicle → PAY recommendation, user can close without appealing', async () => {
@@ -198,8 +246,8 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
 
   it('network interlock: a submit POST that did not pass the gate never leaves the browser; real portals are hard-blocked', async () => {
     await scenario('normal');
-    const { getBrowser } = await import('../src/executor/browser');
-    const { Interlock, installNetworkGuard } = await import('../src/executor/guard');
+    const { getBrowser } = await import('../src/portal/browser/browser');
+    const { Interlock, installNetworkGuard } = await import('../src/portal/browser/guard');
     const browser = await getBrowser();
     const context = await browser.newContext();
     const blocked: string[] = [];

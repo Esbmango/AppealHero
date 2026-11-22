@@ -6,16 +6,20 @@ import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import { ZodError } from 'zod';
-import { REPO_ROOT, config } from './config';
-import type { Ctx } from './ctx';
-import { TransitionError } from './fsm';
-import { EventHub } from './hub';
-import { CaseStore } from './store';
-import { HttpError } from './util';
-import { closeBrowser } from './executor/browser';
+import { REPO_ROOT, config } from './core/config';
+import type { Ctx } from './core/ctx';
+import { TransitionError } from './core/fsm';
+import { EventHub } from './core/hub';
+import { CaseStore } from './core/store/cases';
+import { JsonUserRepo } from './core/store/users';
+import { JsonAuditRepo } from './core/store/audit';
+import { HttpError } from './core/util';
+import { closeBrowser } from './portal/browser/browser';
 import { registerCaseRoutes } from './routes/cases';
 import { registerJobRoutes } from './routes/jobs';
 import { registerDemoRoutes } from './routes/demo';
+import { registerUserRoutes } from './routes/users';
+import { registerProofRoutes } from './routes/proof';
 
 export async function buildServer() {
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' } });
@@ -24,7 +28,9 @@ export async function buildServer() {
 
   const store = new CaseStore(config.persist ? path.join(config.dataDir, 'cases.json') : null);
   for (const note of store.load()) app.log.warn(`[crash recovery] ${note}`);
-  const ctx: Ctx = { store, hub: new EventHub() };
+  const users = new JsonUserRepo(config.persist ? path.join(config.dataDir, 'users.json') : null);
+  const audit = new JsonAuditRepo(config.persist ? path.join(config.dataDir, 'audit.json') : null);
+  const ctx: Ctx = { store, hub: new EventHub(), users, audit };
 
   for (const dir of ['uploads', 'shots']) fs.mkdirSync(path.join(config.dataDir, dir), { recursive: true });
   await app.register(fastifyStatic, { root: path.join(config.dataDir, 'uploads'), prefix: '/api/files/', decorateReply: false });
@@ -51,10 +57,14 @@ export async function buildServer() {
   registerCaseRoutes(app, ctx);
   registerJobRoutes(app, ctx);
   registerDemoRoutes(app, ctx);
+  registerUserRoutes(app, ctx);
+  registerProofRoutes(app, ctx);
 
   app.addHook('onClose', async () => {
     await closeBrowser();
     store.flush();
+    users.flush();
+    audit.flush();
   });
   return { app, ctx };
 }

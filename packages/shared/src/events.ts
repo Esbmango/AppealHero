@@ -8,6 +8,7 @@ import {
   MetricsSchema,
   NeedsUserSchema,
   ReceiptSchema,
+  TicketInfoSchema,
   TriageSchema,
 } from './schemas';
 
@@ -30,6 +31,10 @@ export const AgentEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('agent.tool'), caseId: z.string(), name: z.string(), args: z.unknown(), result: z.unknown(), ms: z.number() }),
   z.object({ type: z.literal('facts.updated'), caseId: z.string(), facts: z.array(FactSchema) }),
   z.object({ type: z.literal('triage'), caseId: z.string(), triage: TriageSchema }),
+  /** v2 gate 1: every fact the user must confirm before drafting (pendingFactIds empty = ready) */
+  z.object({ type: z.literal('facts.review'), caseId: z.string(), facts: z.array(FactSchema), pendingFactIds: z.array(z.string()) }),
+  /** v2: read-only portal lookup results for the user to pick from */
+  z.object({ type: z.literal('lookup.results'), caseId: z.string(), tickets: z.array(TicketInfoSchema), message: z.string().optional() }),
   z.object({ type: z.literal('review.ready'), caseId: z.string(), preview: ApprovalPreviewSchema }),
   z.object({
     type: z.literal('exec.step'),

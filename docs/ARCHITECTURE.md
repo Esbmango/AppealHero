@@ -82,40 +82,106 @@ stateDiagram-v2
   SUBMITTED --> [*]
 ```
 
-### 1.1 转移与“谁能触发”
+### 1.1 完整转移表（自动生成）
 
-| 从 → 到 | 谁能触发 |
-|---|---|
-| NEW → IDENTIFYING | system |
-| IDENTIFYING → INVESTIGATING | agent / system |
-| INVESTIGATING → FACTS_REVIEW | agent（提议，代码校验必需事实齐全） |
-| INVESTIGATING → CLOSED_NO_APPEAL | **user** |
-| FACTS_REVIEW → DRAFTING | **user**（全部事实已确认） |
-| FACTS_REVIEW → INVESTIGATING | user |
-| DRAFTING → STATEMENT_REVIEW | system（writer 完成） |
-| STATEMENT_REVIEW → DRAFTING | user（修改请求） |
-| STATEMENT_REVIEW → FACTS_REVIEW | user |
-| STATEMENT_REVIEW → APPROVED | **approval**（唯一入口） |
-| STATEMENT_REVIEW → CLOSED_NO_APPEAL | user |
-| APPROVED → FILLING | executor |
-| APPROVED → STATEMENT_REVIEW | system（令牌无效） |
-| FILLING → SUBMITTING / SUBMITTED / NEEDS_USER / BLOCKED / FAILED | executor |
-| SUBMITTING → VERIFYING | executor |
-| SUBMITTING / VERIFYING → UNKNOWN_RESULT | executor / system |
-| VERIFYING → SUBMITTED | executor |
-| UNKNOWN_RESULT → SUBMITTED / FILLING | executor |
-| UNKNOWN_RESULT → NEEDS_USER | executor / system |
-| NEEDS_USER / BLOCKED → FILLING | executor |
-| NEEDS_USER → STATEMENT_REVIEW / FACTS_REVIEW / INVESTIGATING | user |
-| BLOCKED → STATEMENT_REVIEW | user |
-| NEEDS_USER / BLOCKED → CLOSED_NO_APPEAL | user |
-| CLOSED_NO_APPEAL → INVESTIGATING | user |
-| NEW / IDENTIFYING → FAILED | system |
+上面的图是省略了异常分支的概览。下面是从代码生成的完整转移表，CI 用 `npm run docs:fsm -- --check` 检查它与代码一致（默认拒绝：表里没有的转移一律非法）。
+
+<!-- fsm:begin — generated from packages/shared/src/states.ts by `npm run docs:fsm -- --write`; do not edit by hand -->
+```mermaid
+stateDiagram-v2
+  [*] --> NEW
+  NEW --> IDENTIFYING: system
+  NEW --> FAILED: system
+  IDENTIFYING --> INVESTIGATING: system / agent
+  IDENTIFYING --> FAILED: system
+  INVESTIGATING --> FACTS_REVIEW: agent / system
+  INVESTIGATING --> CLOSED_NO_APPEAL: user
+  INVESTIGATING --> FAILED: system
+  FACTS_REVIEW --> DRAFTING: user
+  FACTS_REVIEW --> INVESTIGATING: user
+  FACTS_REVIEW --> CLOSED_NO_APPEAL: user
+  DRAFTING --> STATEMENT_REVIEW: system
+  DRAFTING --> FACTS_REVIEW: system
+  STATEMENT_REVIEW --> DRAFTING: user
+  STATEMENT_REVIEW --> FACTS_REVIEW: user
+  STATEMENT_REVIEW --> APPROVED: approval
+  STATEMENT_REVIEW --> CLOSED_NO_APPEAL: user
+  APPROVED --> FILLING: executor
+  APPROVED --> STATEMENT_REVIEW: system
+  FILLING --> SUBMITTING: executor
+  FILLING --> SUBMITTED: executor
+  FILLING --> NEEDS_USER: executor / system
+  FILLING --> BLOCKED: executor
+  FILLING --> STATEMENT_REVIEW: executor / system
+  FILLING --> FAILED: executor / system
+  SUBMITTING --> VERIFYING: executor
+  SUBMITTING --> UNKNOWN_RESULT: executor / system
+  VERIFYING --> SUBMITTED: executor
+  VERIFYING --> UNKNOWN_RESULT: executor / system
+  UNKNOWN_RESULT --> SUBMITTED: executor
+  UNKNOWN_RESULT --> FILLING: executor
+  UNKNOWN_RESULT --> NEEDS_USER: executor / system
+  NEEDS_USER --> FILLING: executor
+  NEEDS_USER --> STATEMENT_REVIEW: user / system
+  NEEDS_USER --> FACTS_REVIEW: user
+  NEEDS_USER --> INVESTIGATING: user
+  NEEDS_USER --> CLOSED_NO_APPEAL: user
+  BLOCKED --> FILLING: executor
+  BLOCKED --> STATEMENT_REVIEW: user / system
+  BLOCKED --> CLOSED_NO_APPEAL: user
+  CLOSED_NO_APPEAL --> INVESTIGATING: user
+  SUBMITTED --> [*]
+  FAILED --> [*]
+```
+
+| 从 | 到 | 谁能触发 | 说明 |
+|---|---|---|---|
+| NEW | IDENTIFYING | system |  |
+| NEW | FAILED | system |  |
+| IDENTIFYING | INVESTIGATING | system / agent | ticket identified |
+| IDENTIFYING | FAILED | system |  |
+| INVESTIGATING | FACTS_REVIEW | agent / system | agent proposes an appeal; code checks required facts |
+| INVESTIGATING | CLOSED_NO_APPEAL | user | user accepts the recommendation to pay |
+| INVESTIGATING | FAILED | system |  |
+| FACTS_REVIEW | DRAFTING | user | gate 1: the user confirmed every fact |
+| FACTS_REVIEW | INVESTIGATING | user | user adds information |
+| FACTS_REVIEW | CLOSED_NO_APPEAL | user |  |
+| DRAFTING | STATEMENT_REVIEW | system | writer finished |
+| DRAFTING | FACTS_REVIEW | system | writer failed |
+| STATEMENT_REVIEW | DRAFTING | user | user asks for a revision |
+| STATEMENT_REVIEW | FACTS_REVIEW | user | user changes facts |
+| STATEMENT_REVIEW | APPROVED | approval | gate 2: signed approval of the exact payload |
+| STATEMENT_REVIEW | CLOSED_NO_APPEAL | user |  |
+| APPROVED | FILLING | executor |  |
+| APPROVED | STATEMENT_REVIEW | system | approval token invalid |
+| FILLING | SUBMITTING | executor | read-back hash equals the approved hash |
+| FILLING | SUBMITTED | executor | an appeal is already on file |
+| FILLING | NEEDS_USER | executor / system |  |
+| FILLING | BLOCKED | executor | human verification |
+| FILLING | STATEMENT_REVIEW | executor / system |  |
+| FILLING | FAILED | executor / system |  |
+| SUBMITTING | VERIFYING | executor |  |
+| SUBMITTING | UNKNOWN_RESULT | executor / system | timeout or crash after the click |
+| VERIFYING | SUBMITTED | executor |  |
+| VERIFYING | UNKNOWN_RESULT | executor / system |  |
+| UNKNOWN_RESULT | SUBMITTED | executor | status page shows the appeal |
+| UNKNOWN_RESULT | FILLING | executor | status page proves nothing was filed; one retry |
+| UNKNOWN_RESULT | NEEDS_USER | executor / system |  |
+| NEEDS_USER | FILLING | executor |  |
+| NEEDS_USER | STATEMENT_REVIEW | user / system |  |
+| NEEDS_USER | FACTS_REVIEW | user |  |
+| NEEDS_USER | INVESTIGATING | user |  |
+| NEEDS_USER | CLOSED_NO_APPEAL | user |  |
+| BLOCKED | FILLING | executor |  |
+| BLOCKED | STATEMENT_REVIEW | user / system |  |
+| BLOCKED | CLOSED_NO_APPEAL | user |  |
+| CLOSED_NO_APPEAL | INVESTIGATING | user | user reopens the case |
+<!-- fsm:end -->
 
 规则：
 - agent 只能触发 `IDENTIFYING → INVESTIGATING` 和 `INVESTIGATING → FACTS_REVIEW`。
 - `SUBMITTED`、`FAILED` 是终态。
-- 状态只能通过 `transition(ctx, caseId, to, actor, reason)` 改变；每次转移写入 `stateHistory` 和审计日志。
+- 状态只能通过 `transition(ctx, caseId, to, actor, reason)`（`apps/server/src/core/fsm.ts`）改变；每次转移写入 `stateHistory` 和审计哈希链。唯一的例外是启动时的崩溃恢复（同一文件），它只会把案件移到安全状态。
 
 ### 1.2 与 v0.2 的对应
 - `EXTRACTED` 并入 `IDENTIFYING`。

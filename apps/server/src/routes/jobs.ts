@@ -1,11 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import { ResumeRequestSchema } from '@appealhero/shared';
 import { approvalPreview } from '../approval';
-import { publishFacts, view, type Ctx } from '../ctx';
-import { transition } from '../fsm';
-import { HttpError } from '../util';
-import { upsertFact } from '../agent/facts';
-import { reconcile, runJob } from '../executor/runner';
+import { publishFacts, view, type Ctx } from '../core/ctx';
+import { transition } from '../core/fsm';
+import { HttpError } from '../core/util';
+import { upsertFact } from '../agent/policy/facts';
+import { reconcile, runJob } from '../portal/runner';
 
 /** FROZEN 5: POST /api/jobs/:id/resume  (jobId === caseId) */
 export function registerJobRoutes(app: FastifyInstance, ctx: Ctx) {
@@ -31,7 +31,7 @@ export function registerJobRoutes(app: FastifyInstance, ctx: Ctx) {
         upsertFact(r, { key: `extra:${label}`, label, value, provenance: 'USER_TEXT', status: 'CONFIRMED' });
       });
       publishFacts(ctx, id);
-      transition(ctx, id, 'READY_FOR_REVIEW', 'user', `user provided "${label}" — re-approval required`, (r) => {
+      transition(ctx, id, 'STATEMENT_REVIEW', 'user', `user provided "${label}" — re-approval required`, (r) => {
         r.approval = undefined;
       });
       ctx.hub.emit({ type: 'review.ready', caseId: id, preview: approvalPreview(ctx.store.must(id)) });
@@ -39,7 +39,7 @@ export function registerJobRoutes(app: FastifyInstance, ctx: Ctx) {
     }
 
     if (body.action === 'back_to_review') {
-      transition(ctx, id, 'READY_FOR_REVIEW', 'user', 'user went back to review', (r) => {
+      transition(ctx, id, 'STATEMENT_REVIEW', 'user', 'user went back to statement review', (r) => {
         r.approval = undefined;
       });
       return view(ctx.store.must(id));

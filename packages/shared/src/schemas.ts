@@ -1,12 +1,13 @@
 import { z } from 'zod';
-import { CASE_STATES } from './states';
+import { ACTORS, CASE_STATES } from './states';
 import { DISPUTE_REASON_KEYS, PORTAL_FIELD_IDS } from './portal';
 
 export const CaseStateSchema = z.enum(CASE_STATES);
-export const ActorSchema = z.enum(['system', 'agent', 'user', 'approval', 'executor']);
+export const ActorSchema = z.enum(ACTORS);
+export const DisputeReasonSchema = z.enum(DISPUTE_REASON_KEYS);
 
 /** Where a fact came from — rendered as a badge next to every value the user approves. */
-export const ProvenanceSchema = z.enum(['TICKET_OCR', 'USER_VOICE', 'USER_TEXT', 'PHOTO_EVIDENCE', 'RULE', 'PROFILE']);
+export const ProvenanceSchema = z.enum(['TICKET_OCR', 'PORTAL_LOOKUP', 'USER_VOICE', 'USER_TEXT', 'PHOTO_EVIDENCE', 'RULE', 'PROFILE']);
 export type Provenance = z.infer<typeof ProvenanceSchema>;
 
 /** Only the user can make a fact CONFIRMED. RULE_VERIFIED comes from deterministic rule code. */
@@ -29,7 +30,7 @@ export type Fact = z.infer<typeof FactSchema>;
 
 export const EvidenceSchema = z.object({
   id: z.string(),
-  kind: z.enum(['ticket_photo', 'evidence_photo', 'audio']),
+  kind: z.enum(['ticket_photo', 'evidence_photo', 'document', 'audio']),
   filename: z.string(),
   mime: z.string(),
   bytes: z.number(),
@@ -47,7 +48,7 @@ export const ChatMessageSchema = z.object({
   textEn: z.string().optional(),
   at: z.string(),
   questionId: z.string().optional(),
-  expects: z.enum(['text', 'photo', 'choice']).optional(),
+  expects: z.enum(['text', 'photo', 'choice', 'yesno']).optional(),
   options: z.array(z.string()).optional(),
   evidenceIds: z.array(z.string()).optional(),
 });
@@ -60,19 +61,30 @@ export const TriageSchema = z.object({
   recommendation: z.enum(['APPEAL', 'PAY']),
   summary: z.string(),
   reasons: z.array(GroundSchema),
+  /** APPEAL only: the portal dispute type the writer will use once the facts are confirmed */
+  disputeReason: DisputeReasonSchema.optional(),
   fineAmount: z.number().optional(),
   latePenalty: z.number().optional(),
   deadline: z.string().optional(),
 });
 export type Triage = z.infer<typeof TriageSchema>;
 
-export const DisputeReasonSchema = z.enum(DISPUTE_REASON_KEYS);
+/** Agent paragraphs must cite facts; paragraphs the user wrote themselves may cite none. */
+export const DraftParagraphSchema = z.object({
+  text: z.string(),
+  factIds: z.array(z.string()),
+  author: z.enum(['agent', 'user']).optional(),
+});
+export type DraftParagraph = z.infer<typeof DraftParagraphSchema>;
+
 export const DraftSchema = z.object({
   disputeReason: DisputeReasonSchema,
-  paragraphs: z.array(GroundSchema),
+  paragraphs: z.array(DraftParagraphSchema),
   statementEn: z.string(),
   statementUserLang: z.string(),
   lang: z.string(),
+  /** starts at 1; every rewrite or user edit increments it (and changes the approval hash) */
+  revision: z.number().int().min(1),
 });
 export type Draft = z.infer<typeof DraftSchema>;
 
@@ -145,12 +157,72 @@ export const StateHistoryEntrySchema = z.object({
 });
 export type StateHistoryEntry = z.infer<typeof StateHistoryEntrySchema>;
 
+// ------------------------------------------------------------------ v2: accounts, tickets, audit
+
+export const PERSONA_IDS = ['lin', 'maria', 'sam'] as const;
+export const PersonaIdSchema = z.enum(PERSONA_IDS);
+export type PersonaId = z.infer<typeof PersonaIdSchema>;
+
+export const VehicleSchema = z.object({
+  id: z.string(),
+  plate: z.string().min(1).max(10),
+  state: z.string().length(2).or(z.literal('OTHER')),
+  make: z.string().optional(),
+  color: z.string().optional(),
+  nickname: z.string().optional(),
+  isDefault: z.boolean(),
+});
+export type Vehicle = z.infer<typeof VehicleSchema>;
+
+export const UserSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  name: z.string(),
+  mailingAddress: z.string(),
+  email: z.string(),
+  lang: z.string(),
+  vehicles: z.array(VehicleSchema),
+  persona: PersonaIdSchema.optional(),
+});
+export type User = z.infer<typeof UserSchema>;
+
+export const TicketStatusSchema = z.enum(['OPEN', 'PAID', 'APPEALED']);
+export const TicketInfoSchema = z.object({
+  ticketNumber: z.string(),
+  plate: z.string(),
+  state: z.string(),
+  violation: z.string(),
+  /** ISO 8601 with offset */
+  issuedAt: z.string(),
+  location: z.string(),
+  fine: z.number().optional(),
+  status: TicketStatusSchema.optional(),
+  source: z.enum(['TICKET_OCR', 'PORTAL_LOOKUP']),
+});
+export type TicketInfo = z.infer<typeof TicketInfoSchema>;
+
+/** Append-only, hash-chained: hash = sha256(prevHash + canonical(event without hash)). */
+export const AuditEventSchema = z.object({
+  seq: z.number().int().min(1),
+  caseId: z.string(),
+  at: z.string(),
+  type: z.string(),
+  actor: ActorSchema.optional(),
+  data: z.unknown(),
+  prevHash: z.string(),
+  hash: z.string(),
+});
+export type AuditEvent = z.infer<typeof AuditEventSchema>;
+
 export const CaseViewSchema = z.object({
   id: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
   state: CaseStateSchema,
   lang: z.string(),
+  userId: z.string().optional(),
+  ticket: TicketInfoSchema.optional(),
+  playbookId: z.string().optional(),
   violationType: z.string().optional(),
   facts: z.array(FactSchema),
   evidence: z.array(EvidenceSchema),

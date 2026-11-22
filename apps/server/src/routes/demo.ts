@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { ScenarioSchema } from '@appealhero/shared';
-import { config } from '../config';
-import type { Ctx } from '../ctx';
+import { config } from '../core/config';
+import type { Ctx } from '../core/ctx';
 
 /** Demo-only helpers: flip mock-portal scenarios from the desktop console, reset between judge visits. */
 export function registerDemoRoutes(app: FastifyInstance, ctx: Ctx) {
@@ -26,6 +26,8 @@ export function registerDemoRoutes(app: FastifyInstance, ctx: Ctx) {
 
   app.post('/api/demo/reset', async () => {
     ctx.store.reset();
+    ctx.users.reset();
+    ctx.audit.reset();
     ctx.hub.clear();
     await portal('/admin/reset', { method: 'POST' }).catch(() => null);
     return { ok: true };

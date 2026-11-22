@@ -8,13 +8,14 @@ export const PORTAL_FIELD_SOURCE = 'https://www.boston.gov/departments/parking-c
 export const PORTAL_ID = 'mock-boston-parking-appeal';
 export const ADAPTER_VERSION = 'mock-boston@2026-11-21.1';
 
-export const DISPUTE_REASON_KEYS = ['METER_NOT_IN_EFFECT', 'PAID', 'SIGNAGE', 'VEHICLE_INFO', 'OTHER'] as const;
+export const DISPUTE_REASON_KEYS = ['METER_NOT_IN_EFFECT', 'PAID', 'SIGNAGE', 'VEHICLE_INFO', 'PERMIT_DISPLAYED', 'OTHER'] as const;
 export type DisputeReason = (typeof DISPUTE_REASON_KEYS)[number];
 export const DISPUTE_REASONS: Record<DisputeReason, string> = {
   METER_NOT_IN_EFFECT: 'Meter rules were not in effect (Sunday, holiday, or outside meter hours)',
   PAID: 'I paid for parking (meter or ParkBoston app)',
   SIGNAGE: 'Signs were missing, unclear, or did not apply',
   VEHICLE_INFO: 'The ticket has wrong vehicle or plate information',
+  PERMIT_DISPLAYED: 'I had a valid resident permit displayed',
   OTHER: 'Other',
 };
 

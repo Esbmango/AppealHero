@@ -5,6 +5,9 @@ export * from './demo';
 export * from './schemas';
 export * from './events';
 export * from './api';
+export * from './playbook';
+export * from './tool';
+export * from './adapter';
 
 export const LANGS = {
   zh: '中文',

@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyRequest } from 'fastify';
 import { EVIDENCE_LIMITS, type Evidence } from '@appealhero/shared';
-import { config } from '../config';
-import type { CaseRecord, EvidenceRecord } from '../types';
-import { newId, now, sha256Hex } from '../util';
+import { config } from '../core/config';
+import type { CaseRecord, EvidenceRecord } from '../core/types';
+import { newId, now, sha256Hex } from '../core/util';
 
 export interface UploadedFile {
   field: string;
