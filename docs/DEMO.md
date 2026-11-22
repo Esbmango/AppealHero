@@ -6,7 +6,7 @@
 
 1. 在演示机设置 `AI_MODE=fake`、`EXEC_TIERS=T1,T2`，运行 `npm start`。需要展示浏览器操作时，可在启动前设置 `HEADLESS=false`。真实 Gemini 模式的已测范围见 [README](../README.md#verified-so-far)。
 2. 打开主页，选择演示身份和界面语言。上台前在一套独立的演示数据上彩排。重复申诉同一张票时，门户可能显示它已经提交。
-3. **手机演示（HTTPS）**：手机上的麦克风只在 HTTPS 下可用。第一次在 `.env` 加一行 `DEMO_KEY=…`（`echo "DEMO_KEY=$(openssl rand -hex 12)" >> .env`），终端 1 运行 `npm start`，终端 2 运行 `npm run tunnel`（需要 `brew install cloudflared`）。缺少 DEMO_KEY、或正在运行的服务没有启用它时，脚本拒绝开隧道；成功后打印带 key 的手机链接。设置 DEMO_KEY 后，电脑上也要用 `http://localhost:4000/?key=…` 打开。
+3. **手机演示（HTTPS）**：手机上的麦克风只在 HTTPS 下可用。第一次在 `.env` 加一行 `DEMO_KEY=…`（`sed -i '' '/^DEMO_KEY=/d' .env && echo "DEMO_KEY=$(openssl rand -hex 12)" >> .env`），终端 1 运行 `npm start`，终端 2 运行 `npm run tunnel`（需要 `brew install cloudflared`）。缺少 DEMO_KEY、或正在运行的服务没有启用它时，脚本拒绝开隧道；成功后打印带 key 的手机链接。设置 DEMO_KEY 后，电脑上也要用 `http://localhost:4000/?key=…` 打开。
    浏览器测试覆盖 320 至 1440 像素宽度、正常和改版门户。WebKit 的 iPhone 13 模拟器已走通英文工作日罚单至回执的全程。实体 iPhone 的相机、麦克风和系统授权仍需要真机验证。使用团队准备好的 HTTPS 演示地址；公开隧道前先配置 `DEMO_KEY`。
 4. 录制素材使用英文界面、fake 模式和真实运行的 Playwright 浏览器。[参赛版 MP4](demo/appealhero-pitch.mp4) 为 60 秒，含英文讲解字幕和模拟回执，符合[当届 Devpost 时长要求](https://bostonhacks-2026.devpost.com/rules)。
 

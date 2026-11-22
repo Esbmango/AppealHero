@@ -20,7 +20,10 @@ export async function preflight({ key, base, fetchImpl = fetch }) {
   if (!key || key.length < 12)
     return {
       ok: false,
-      message: 'DEMO_KEY is missing or shorter than 12 characters. Add one, then restart the app:\n  echo "DEMO_KEY=$(openssl rand -hex 12)" >> .env',
+      message:
+        'DEMO_KEY is missing or shorter than 12 characters (an empty "DEMO_KEY=" line from .env.example counts as missing).\n' +
+        'Set one, then restart the app (Ctrl+C, npm start):\n' +
+        "  sed -i '' '/^DEMO_KEY=/d' .env && echo \"DEMO_KEY=$(openssl rand -hex 12)\" >> .env",
     };
   let health;
   try {

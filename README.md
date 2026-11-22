@@ -87,7 +87,7 @@ npm run smoke             # with the app running: clicks through the phone flow 
 ```
 
 - `npm run dev` runs everything with hot reload, with the web app on http://localhost:5173. Use `npm start` for demos.
-- On a phone, the microphone needs HTTPS. Add a key once (`echo "DEMO_KEY=$(openssl rand -hex 12)" >> .env`), run `npm start`, then `npm run tunnel` in a second terminal (needs `brew install cloudflared`). It refuses to start unless the running app rejects requests without the key, and prints the phone link with the key. With `DEMO_KEY` set, open the Mac browser at `http://localhost:4000/?key=…` too.
+- On a phone, the microphone needs HTTPS. Add a key once (`sed -i '' '/^DEMO_KEY=/d' .env && echo "DEMO_KEY=$(openssl rand -hex 12)" >> .env`), run `npm start`, then `npm run tunnel` in a second terminal (needs `brew install cloudflared`). It refuses to start unless the running app rejects requests without the key, and prints the phone link with the key. With `DEMO_KEY` set, open the Mac browser at `http://localhost:4000/?key=…` too.
 
 [Demo video, screenshots and cover](docs/demo/) · [Demo script](docs/DEMO.md) · [Devpost draft](docs/DEVPOST.md)
 
