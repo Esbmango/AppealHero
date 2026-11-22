@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ProofResponse } from '@appealhero/shared';
 import { api } from '../api';
 import { t, useLang, formatDate } from '../i18n';
-import { BrandBar } from './BrandBar';
+import { BrandBar, HOME_HREF } from './BrandBar';
 import { Button } from './ui';
 export function ProofScreen({ caseId }: { caseId: string }) {
   const lang = useLang();
@@ -48,9 +48,14 @@ export function ProofScreen({ caseId }: { caseId: string }) {
     <div className="phone-flow flex h-full min-w-0 flex-col" lang={lang === 'zh' ? 'zh-CN' : lang}>
       <header className="flow-header shrink-0 border-b bg-white">
         <BrandBar />
-        <a href="/" className="inline-flex min-h-11 items-center text-sm text-sky-700 underline">
-          {t('filing.backToApp')}
-        </a>
+        <div className="flex flex-wrap gap-x-5">
+          <a href="/" className="inline-flex min-h-11 items-center text-sm text-sky-700 underline">
+            {t('filing.backToApp')}
+          </a>
+          <a href={HOME_HREF} data-testid="proof-go-home" className="inline-flex min-h-11 items-center text-sm text-sky-700 underline">
+            {t('common.goHome')}
+          </a>
+        </div>
       </header>
       <div className="flow-scroll">
         <section className="space-y-4 rounded-[10px] border border-slate-200 bg-white p-5 text-sm shadow-sm" aria-label={t('filing.proof')}>

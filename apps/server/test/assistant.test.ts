@@ -6,7 +6,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { OFFICIAL_TICKET_LOOKUP_URL, AssistantResponseSchema } from '@appealhero/shared';
 import { config } from '../src/core/config';
-import { analyzeTickets, categorize } from '../src/assistant';
+import { analyzePhotoTicket, analyzeTickets, categorize } from '../src/assistant';
 import { demoPng, pixel } from './fixtures/demoPng';
 
 const SAMPLE = path.resolve(__dirname, '../../web/public/sample-lookup-results.png');
@@ -99,5 +99,48 @@ describe('assistant', () => {
     expect((await ask({ lang: 'en', text: 'hi', history: 'nope' })).status).toBe(400);
     const four = [1, 2, 3, 4].map(() => demoPng({ kind: 'sign', text: 'x', visibility: 'clear' }));
     expect((await ask({ lang: 'en', text: 'hi', history: '[]' }, four)).status).toBe(400);
+  });
+
+  it('explains a photo of a paper ticket: printed PAY BY date wins, otherwise ticket date + 21 days', () => {
+    // layout of a real paper ticket (PAY BY date + THEREAFTER amount); identifying values replaced
+    const printed = {
+      ticketNumber: '812345670',
+      issueDate: '2026-10-27',
+      issueTime: '12:07 AM',
+      plate: 'ABC1234',
+      plateState: 'NY',
+      violation: '340 Overnight Street Cleaning',
+      location: '67 Brighton Ave',
+      amount: 90,
+      payBy: '2026-11-17',
+      lateAmount: 120,
+    };
+    expect(analyzePhotoTicket(printed, '2026-11-22')).toMatchObject({ deadline: '2026-11-17', deadlineSource: 'printed', daysLeft: -5, overdue: true });
+    expect(analyzePhotoTicket({ ...printed, payBy: null }, '2026-11-10')).toMatchObject({
+      deadline: '2026-11-17',
+      deadlineSource: 'rule',
+      daysLeft: 7,
+      overdue: false,
+    });
+  });
+
+  it('reads an uploaded ticket photo instead of rejecting it', async () => {
+    const photo = demoPng({
+      kind: 'ticket',
+      ticketNumber: '912345678',
+      plateNumber: 'SAM123',
+      plateState: 'MA',
+      violationDescription: 'METER FEE UNPAID',
+      issuedAt: '2026-11-20T14:05:00-05:00',
+      location: '120 Commonwealth Ave',
+      fineAmount: 40,
+    });
+    const { status, body } = await ask({ lang: 'zh', text: '这是我收到的罚单他说了什么', history: '[]' }, [photo]);
+    expect(status).toBe(200);
+    const r = AssistantResponseSchema.parse(body);
+    expect(r.notTicketList).toBe(false);
+    expect(r.photoTicket).toMatchObject({ ticketNumber: '912345678', issueDate: '2026-11-20', amount: 40, deadline: '2026-12-11', deadlineSource: 'rule' });
+    expect(r.reply).toContain('912345678');
+    expect(r.reply).toContain('用这张罚单申诉');
   });
 });

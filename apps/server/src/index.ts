@@ -95,4 +95,6 @@ if (isMain) {
   app.log.info(
     `AppealHero API on :${config.port} — AI mode: ${config.aiMode}${config.aiMode === 'fake' ? ' (set GEMINI_API_KEY for the real agent)' : ` (${config.geminiModel})`}, tiers: ${config.execTiers.join(',')}, portal: ${config.mockPortalUrl}`,
   );
+  // DEMO_KEY gates every /api call, localhost included: print the link that sets the key cookie
+  if (config.demoKey) console.log(`\n  DEMO_KEY is on. Open the app with:  http://localhost:${config.port}/?key=${encodeURIComponent(config.demoKey)}\n`);
 }
