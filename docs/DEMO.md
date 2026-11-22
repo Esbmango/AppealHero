@@ -15,7 +15,7 @@
 **上台前 10 分钟**
 - [ ] 用 `npm start` 启动，不要用 `npm run dev`（dev 一保存文件就重启服务，会打断正在运行的浏览器任务）。
 - [ ] `.env` 里设 `HEADLESS=false`（默认是 true），让评委看到浏览器真的在填写。
-- [ ] 打开评委控制台：v2 是 `/console`；v0.2 是浏览器宽度 ≥ 1100px 时的右侧分屏。
+- [ ] 打开 `/`：手机、平板和桌面使用同一个申诉流程；桌面为居中单栏，没有右侧可视化控制台。演示案件保存在当前浏览器，切换窗口尺寸不会切换案件。
 - [ ] 手机走 HTTPS：先在 `.env` 设 `DEMO_KEY`，再运行 `cloudflared tunnel --url http://localhost:4000`；手机打开 `https://…/?key=<DEMO_KEY>`，授权相机和麦克风。
 - [ ] 看控制台顶部的 AI 标识：显示模型名，还是 “FAKE (no Gemini key)”。**是 FAKE 就如实说。**
 - [ ] 重置数据：控制台点 “Reset demo”，或 `POST /api/demo/reset`。

@@ -15,9 +15,77 @@ body {
     'Microsoft YaHei',
     sans-serif;
 }
+
+/* A single reading column grows with the window, without a simulated phone frame. */
+.app-shell {
+  width: 100%;
+  max-width: 52rem;
+  height: 100vh;
+  height: 100dvh;
+  margin-inline: auto;
+  overflow: hidden;
+  background: #f8fafc;
+  box-shadow: 0 0 0 1px #e2e8f0;
+}
+.phone-flow {
+  min-height: 0;
+  overflow-wrap: anywhere;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
+}
+.flow-header {
+  padding: 0.5rem clamp(0.75rem, 3vw, 1.5rem);
+}
+.flow-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: clamp(0.75rem, 3vw, 1.5rem);
+  padding-bottom: calc(clamp(0.75rem, 3vw, 1.5rem) + env(safe-area-inset-bottom, 0px));
+  scroll-padding-block: 1rem;
+}
+.flow-composer {
+  flex-shrink: 0;
+  max-height: 50%;
+  overflow-y: auto;
+  padding: 0.5rem clamp(0.75rem, 3vw, 1.5rem);
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+/* Avoid iOS zooming the page when an input receives focus. */
+.phone-flow :is(input, textarea, select) {
+  font-size: 1rem;
+}
+.persona-options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+}
+@media (min-width: 640px) {
+  .persona-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .persona-options > button:last-child {
+    grid-column: 1 / -1;
+  }
+}
 /* iOS: no callout / text selection on long-press for the record button */
 .no-callout {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* Phone controls retain accessible hit areas in all three languages. */
+.phone-flow :is(button, select, textarea, input:not([type='checkbox']), summary, label:has(input[type='file']), label:has(input[type='checkbox'])) {
+  min-height: 44px;
+  min-width: 44px;
+}
+.phone-flow :is(button, select, input, textarea, summary):focus-visible {
+  outline: 2px solid #0369a1;
+  outline-offset: 3px;
+}
+.phone-flow label:has(input[type='file']:focus-visible) {
+  outline: 2px solid #0369a1;
+  outline-offset: 3px;
 }

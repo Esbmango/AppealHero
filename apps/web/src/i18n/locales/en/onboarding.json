@@ -1,0 +1,21 @@
+{
+  "eyebrow": "Demo mode",
+  "title": "Choose a demo profile",
+  "intro": "Try the flow with synthetic details, or enter your own.",
+  "lin": "Lin",
+  "maria": "María",
+  "sam": "Sam",
+  "linDetail": "Chinese · New York plate",
+  "mariaDetail": "Spanish · Massachusetts plate",
+  "samDetail": "English · Massachusetts plate",
+  "custom": "Enter my details",
+  "customDetail": "Use your name, address and email",
+  "name": "Full name",
+  "address": "Mailing address",
+  "email": "Email",
+  "continue": "Continue to ticket",
+  "saved": "Details stay in this browser and are used to fill the appeal form.",
+  "change": "Change profile or details",
+  "using": "Profile: {name}",
+  "vehicle": "Vehicle: {plate} · {state}"
+}

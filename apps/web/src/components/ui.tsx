@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { CaseState, FactStatus, Provenance } from '@appealhero/shared';
+import { t, useLang } from '../i18n';
 
 export const cx = (...xs: (string | false | null | undefined)[]) => xs.filter(Boolean).join(' ');
 
@@ -12,7 +13,7 @@ export function Card({ title, children, tone = 'default' }: { title?: ReactNode;
     info: 'bg-sky-50 border-sky-200',
   }[tone];
   return (
-    <section className={cx('rounded-2xl border p-3 shadow-sm', toneCls)}>
+    <section className={cx('min-w-0 rounded-2xl border p-3 shadow-sm sm:p-4', toneCls)}>
       {title && <h3 className="mb-2 text-sm font-semibold">{title}</h3>}
       {children}
     </section>
@@ -40,54 +41,44 @@ export function Button({
     danger: 'bg-rose-600 text-white hover:bg-rose-500 disabled:bg-rose-200',
   }[variant];
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className={cx('rounded-xl px-3 py-2 text-sm font-medium transition', v, className)}>
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={cx('min-h-11 min-w-11 rounded-xl px-3 py-2 text-sm font-medium transition', v, className)}
+    >
       {children}
     </button>
   );
 }
 
-const PROV: Record<Provenance, [string, string]> = {
-  TICKET_OCR: ['罚单OCR', 'bg-sky-100 text-sky-800'],
-  PORTAL_LOOKUP: ['门户查询', 'bg-teal-100 text-teal-800'],
-  USER_VOICE: ['用户语音', 'bg-violet-100 text-violet-800'],
-  USER_TEXT: ['用户陈述', 'bg-violet-100 text-violet-800'],
-  PHOTO_EVIDENCE: ['照片证据', 'bg-amber-100 text-amber-800'],
-  RULE: ['官方规则', 'bg-emerald-100 text-emerald-800'],
-  PROFILE: ['个人资料', 'bg-slate-200 text-slate-700'],
+const PROV: Record<Provenance, string> = {
+  TICKET_OCR: 'bg-sky-100 text-sky-800',
+  PORTAL_LOOKUP: 'bg-teal-100 text-teal-800',
+  USER_VOICE: 'bg-violet-100 text-violet-800',
+  USER_TEXT: 'bg-violet-100 text-violet-800',
+  PHOTO_EVIDENCE: 'bg-amber-100 text-amber-800',
+  RULE: 'bg-emerald-100 text-emerald-800',
+  PROFILE: 'bg-slate-200 text-slate-700',
 };
 
 export function ProvBadge({ p }: { p?: Provenance }) {
+  useLang();
   if (!p) return null;
-  const [label, cls] = PROV[p];
+  const cls = PROV[p];
+  const label = t(`common.provenance.${p}`);
   return <span className={cx('whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold', cls)}>[{label}]</span>;
 }
 
 export function StatusMark({ s }: { s?: FactStatus }) {
+  useLang();
   if (!s) return null;
   const ok = s === 'CONFIRMED' || s === 'RULE_VERIFIED';
-  return <span className={cx('text-[10px] font-semibold', ok ? 'text-emerald-700' : 'text-amber-700')}>{ok ? '✓ 已确认' : '待确认'}</span>;
+  return <span className={cx('text-[10px] font-semibold', ok ? 'text-emerald-700' : 'text-amber-700')}>{t(ok ? 'common.confirmed' : 'common.pending')}</span>;
 }
 
-export const STATE_ZH: Record<CaseState, string> = {
-  NEW: '新建',
-  IDENTIFYING: '识别中',
-  INVESTIGATING: '调查中',
-  FACTS_REVIEW: '待确认事实',
-  DRAFTING: '撰写中',
-  STATEMENT_REVIEW: '待批准申诉信',
-  APPROVED: '已批准',
-  FILLING: '填写中',
-  SUBMITTING: '提交中',
-  VERIFYING: '核实回执',
-  SUBMITTED: '已提交',
-  NEEDS_USER: '需要你',
-  BLOCKED: '已暂停',
-  UNKNOWN_RESULT: '结果核对中',
-  FAILED: '失败',
-  CLOSED_NO_APPEAL: '已结案',
-};
-
 export function StateChip({ state }: { state: CaseState }) {
+  useLang();
   const cls =
     state === 'SUBMITTED'
       ? 'bg-emerald-600'
@@ -96,7 +87,7 @@ export function StateChip({ state }: { state: CaseState }) {
         : state === 'FAILED'
           ? 'bg-rose-600'
           : 'bg-slate-800';
-  return <span className={cx('rounded-full px-2 py-0.5 text-xs font-semibold text-white', cls)}>{STATE_ZH[state]}</span>;
+  return <span className={cx('rounded-full px-2 py-0.5 text-xs font-semibold text-white', cls)}>{t(`common.states.${state}`)}</span>;
 }
 
 export const ms = (n: number) => (n < 1000 ? `${n} ms` : `${(n / 1000).toFixed(1)} s`);

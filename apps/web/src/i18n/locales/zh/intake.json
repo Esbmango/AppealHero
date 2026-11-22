@@ -1,0 +1,14 @@
+{
+  "intro": "拍下罚单，用你习惯的语言说说发生了什么。我们会核对规则、询问缺少的信息，并在你批准后代你填写提交。",
+  "simulated": "演示仅连接模拟门户，不会向真实政府系统提交。",
+  "photoTitle": "罚单照片",
+  "photo": "拍照 / 选择照片",
+  "photoSelected": "✓ 已选：{name}",
+  "sample": "使用示例罚单（合成数据）",
+  "accountTitle": "发生了什么（可选）",
+  "accountPlaceholder": "例如：周日下午在 Comm Ave 停车被开了计时器罚单",
+  "audioReady": "✓ 已录音（{size} KB）",
+  "uploading": "上传中…",
+  "start": "开始处理这张罚单",
+  "profile": "我的资料（仅存本机）"
+}
