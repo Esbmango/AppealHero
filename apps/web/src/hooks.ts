@@ -12,43 +12,43 @@ export function useCase(caseId: string | null, onGone?: () => void) {
   };
   const [c, setC] = useState<CaseView | null>(null);
   const [events, setEvents] = useState<AgentEvent[]>([]);
-  const [tick, setTick] = useState(0);
-  const refresh = useCallback(() => setTick((t) => t + 1), []);
-
+  const reload = useRef<() => void>(() => {});
+  const refresh = useCallback(() => reload.current(), []);
   useEffect(() => {
     setC(null);
     setEvents([]);
     if (!caseId) return;
-    let alive = true;
+    let active = true,
+      request = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const load = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        api.getCase(caseId).then(
-          (v) => alive && setC(v),
-          (e) => alive && handle(e),
-        );
-      }, 60);
+      const sequence = ++request;
+      void api.getCase(caseId).then(
+        (value) => {
+          if (active && sequence === request) setC(value);
+        },
+        (error) => {
+          if (active && sequence === request) handle(error);
+        },
+      );
     };
+    reload.current = load;
     load();
-    const es = new EventSource(`/api/cases/${caseId}/stream`);
-    es.onmessage = (m) => {
-      const e = JSON.parse(m.data) as AgentEvent;
-      setEvents((xs) => (xs.length > 400 ? [...xs.slice(-300), e] : [...xs, e]));
-      load();
+    const stream = new EventSource(`/api/cases/${caseId}/stream`);
+    stream.onmessage = (m) => {
+      const event = JSON.parse(m.data) as AgentEvent;
+      setEvents((xs) => [...xs.slice(-399), event]);
+      clearTimeout(timer);
+      timer = setTimeout(load, 60);
     };
     return () => {
-      alive = false;
+      active = false;
       clearTimeout(timer);
-      es.close();
+      stream.close();
+      reload.current = () => {};
     };
   }, [caseId]);
-
-  useEffect(() => {
-    if (caseId && tick) api.getCase(caseId).then(setC, handle);
-  }, [caseId, tick]);
-
-  return { c, events, refresh };
+  return { c: c?.id === caseId ? c : null, events, refresh };
 }
 
 export function useLocalStorage<T>(key: string, initial: T) {

@@ -20,12 +20,12 @@ For residents who are more at home in Chinese or Spanish, that friction can be e
 
 ## What it does
 
-1. **Identify a ticket.** Upload a photo in the app, or use the lookup API to search the simulated portal by Massachusetts plate or by ticket number. Choose an open ticket to continue.
+1. **Identify a ticket.** Upload a photo in the app, or select **Find my ticket** to search the simulated portal by Massachusetts plate or by ticket number. Choose an open ticket to continue.
 2. **Asks only what matters.** Each ticket type has a playbook, plus deterministic rules that cite boston.gov. For example, meters are free on Sundays and city holidays, so a Sunday meter ticket needs zero questions.
 3. **Review the recommendation.** Each assessment explains the strength of the case, possible objections, and evidence that could help. Drivers can include personal circumstances for a discretionary request. The API also returns available fine, late-fee and deadline information.
 4. **Two confirmations.** You confirm the facts first. Then you approve the exact statement, shown in English with your language side by side.
 5. **Files it for you.** A browser agent fills in the (simulated) portal, reads the values back, and submits exactly once.
-6. **Verifiable afterwards.** The console shows a live timeline and screenshots. The proof API returns the approved form, its fingerprint, the read-back comparison, the confirmation number, the audit-chain head and a downloadable Playwright trace. The dedicated phone proof screen is a separate frontend task.
+6. **Verifiable afterwards.** The proof page shows the filing timeline and screenshots. The proof API returns the approved form, its fingerprint, the read-back comparison, the confirmation number, the audit-chain head and a downloadable Playwright trace. Open the filing proof from the submitted case to compare fingerprints, inspect screenshots, check status again or download the replay.
 
 | Capability | Status |
 |---|---|
@@ -35,12 +35,12 @@ For residents who are more at home in Chinese or Spanish, that friction can be e
 | Approval bound to the exact form payload (HMAC-signed) | ✅ v0.2 |
 | Browser filing with Playwright | Default T1/T2 verified on the redesigned portal. Live T3 Computer Use did not complete the redesign trial. |
 | Read-back gate, one-shot submit interlock, check-status-before-retry | ✅ v0.2 |
-| Judge console: state machine, live screenshots, tool trace, time and cost | ✅ v0.2 |
+| Filing progress and proof | Case timeline, screenshots, confirmation, status recheck and downloadable trace |
 | Plate or ticket-number lookup | Read-only API and explicit ticket selection tested against the simulated portal |
-| Case strength and personal circumstances | Backend and shared contract tested in fake mode. [Frontend integration guide](docs/PLAYBOOKS.md#c5-c6-api) |
+| Case strength and personal circumstances | Trilingual strength card, optional circumstances and evidence upload tested in fake mode. [Integration guide](docs/PLAYBOOKS.md#c5-c6-api) |
 | Separate fact confirmation and statement approval; statement edits | ✅ v2 (WP0) |
 | Chinese / Spanish / English interface | 🆕 v2 |
-| Proof API, status check, audit trail and downloadable Playwright trace | Backend tested. Phone proof page pending. |
+| Proof API, status check, audit trail and downloadable Playwright trace | Available from the submitted case, including the read-only portal status check. |
 
 ## How it works
 
@@ -89,19 +89,22 @@ npm run smoke             # with the app running: clicks through the phone flow 
 - `npm run dev` runs everything with hot reload, with the web app on http://localhost:5173. Use `npm start` for demos.
 - On a phone, the camera and microphone need HTTPS: `cloudflared tunnel --url http://localhost:4000`.
 
+[Demo video, screenshots and cover](docs/demo/) · [Demo script](docs/DEMO.md) · [Devpost draft](docs/DEVPOST.md)
+
 ## Local demo integration
 
-- For the weekday meter demo, post the original ticket PNG as multipart `ticket` and the receipt PNG as `images` on the case’s messages endpoint. The fake driver reads the `appealhero:truth` chunk. The B2 sample buttons must preserve the original bytes because canvas-to-JPEG compression removes the chunk. Bundled photo assets and buttons belong to B2.
-- For B4, `GET /api/cases/:id/proof` returns the shared `ProofResponseSchema`. A completed recording has a `traceUrl` for a ZIP download. Before read-back, or when an appeal was already on file, the comparison fields can be absent. The proof timeline includes screenshot URLs. `POST /api/cases/:id/status-check` performs a read-only lookup and returns HTTP 409 during a conflicting browser job.
+- For the weekday meter demo, post the original ticket PNG as multipart `ticket` and the receipt PNG as `images` on the case’s messages endpoint. The fake driver reads the `appealhero:truth` chunk. The sample buttons preserve the original PNG bytes, including the embedded demo data. The app includes both sample buttons.
+- For the filing proof, `GET /api/cases/:id/proof` returns the shared `ProofResponseSchema`. A completed recording has a `traceUrl` for a ZIP download. Before read-back, or when an appeal was already on file, the comparison fields can be absent. The proof timeline includes screenshot URLs. `POST /api/cases/:id/status-check` performs a read-only lookup and returns HTTP 409 during a conflicting browser job.
 - With a local Gemini key, `npm run smoke:gemini -- --models` lists the available models. With the app running in Gemini mode, `npm run smoke:gemini -- meter` uploads a synthetic ticket and reports the state path, questions, elapsed time and estimated cost when a question or decision is ready. The command also accepts `permit` or `hydrant`. A slow run can take several minutes. To resume polling without uploading or paying for the same ticket again, pass the case ID printed by the command. For a Computer Use trial, restart with `EXEC_TIERS=T1,T3` and select the redesigned simulated portal.
 
 ## Verified so far
 
-- On November 21, 2026, 72 tests passed, 42 acceptance items remained marked `todo`, and formatting, type checks and the state-machine documentation check passed. The offline suite exercises both approval gates, receipt times and plates, playbook evidence checks, read-back hashes, the proof timeline, trace downloads and read-only status lookup. The browser smoke test passed the normal and redesigned phone flows and the desktop console.
+- On November 21, 2026, 99 tests passed and 31 acceptance tests remained marked `todo`. Formatting, type checking, the state-machine documentation check and the production web build passed.
+- The offline browser checks cover English, Spanish and Chinese on both normal and redesigned portals, at eight viewport sizes. They exercise ticket lookup, evidence, both reviews, filing proof, trace download and draft isolation. The automated suite also covers fact corrections that change the grounds for appeal.
 - ✅ v0.2: 21 automated tests and the UI smoke test pass in fake mode. The tests cover a normal filing, the portal-redesign fallback, both timeout reconciliations, CAPTCHA stop, missing-field re-approval, honest triage and the network interlock.
 - A live key listed `gemini-3.8-flash`. The model read the three demo ticket photos, transcribed the hydrant voice note and called the Boston rule tools. The Sunday-meter case produced a grounded draft. After both reviews, the simulated portal recorded one appeal, the read-back matched the approved payload and the Playwright trace downloaded. The resident-permit and hydrant cases both closed after the simulated drivers accepted the recommendation to pay. The portal recorded no appeals for those tickets.
 - On the redesigned portal, live `gemini-3.8-flash` Computer Use proposed a click and then returned a safety block. A separate field trial with the redesign notice dismissed did not verify the ticket number within three minutes. Both trials stopped before submission. Use the default `EXEC_TIERS=T1,T2` for the demo. The offline end-to-end test verifies that these Playwright tiers fill the redesigned form and submit exactly once.
-- ⚠️ Not yet tested on real iPhone or Android devices.
+- A WebKit browser with an emulated iPhone 13 completed the English weekday-meter flow through filing proof. Physical iPhone and Android camera, microphone and permission prompts still need verification.
 - 🔲 Real Boston portal: not connected, by design.
 
 ## Documentation

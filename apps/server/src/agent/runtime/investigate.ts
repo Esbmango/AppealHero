@@ -6,7 +6,11 @@ import { declarationsFor, runTool, type ToolOutcome } from '../tools';
 import { buildSystemPrompt } from '../context';
 import { fakeTurn } from '../fake';
 
-export type TurnInput = { kind: 'start' } | { kind: 'user'; text: string; evidenceIds: string[] } | { kind: 'decision'; choice: 'appeal_anyway' };
+export type TurnInput =
+  | { kind: 'start' }
+  | { kind: 'correction'; keys: string[] }
+  | { kind: 'user'; text: string; evidenceIds: string[] }
+  | { kind: 'decision'; choice: 'appeal_anyway' };
 
 /** One agent turn. Gemini decides inside the INVESTIGATING state; code owns every transition. */
 export async function investigate(ctx: Ctx, caseId: string, input: TurnInput) {
@@ -27,6 +31,12 @@ const MAX_STEPS = 8;
 
 function userTurnText(input: TurnInput): string {
   if (input.kind === 'start') return 'The ticket has been extracted. Start the investigation.';
+  if (input.kind === 'correction')
+    return (
+      'The driver corrected these fact keys: ' +
+      input.keys.join(', ') +
+      '. Use the current fact values and recheck any affected rules before proposing an outcome.'
+    );
   if (input.kind === 'decision')
     return 'The user chose to appeal anyway despite your recommendation. Prepare an honest appeal using only facts they stated; if they have not stated a reason, ask for it. Never invent grounds.';
   return `User: ${input.text || '(no text)'}${input.evidenceIds.length ? `\n(Uploaded photo evidence: ${input.evidenceIds.join(', ')})` : ''}`;

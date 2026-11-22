@@ -127,16 +127,9 @@ async function phoneFlow(label) {
     await page.getByRole('button', { name: T('onboarding.continue'), exact: true }).click();
     await page.reload();
     assert.equal(await page.getByTestId('language-switch').inputValue(), lang);
+    const sunday = lang === 'es';
+    if (sunday) await page.getByLabel(T('intake.sampleType'), { exact: true }).selectOption('meter');
     await page.getByRole('button', { name: T('intake.sample'), exact: true }).click();
-    await page
-      .getByRole('textbox', { name: T('intake.accountTitle'), exact: true })
-      .fill(
-        lang === 'zh'
-          ? '周日下午在 Comm Ave 停车，被开了计时器罚单'
-          : lang === 'es'
-            ? 'Recibí una multa de parquímetro el domingo por la tarde en Comm Ave.'
-            : 'I got a meter ticket on Sunday afternoon on Comm Ave.',
-      );
     await checkResponsive(page, `${label}-intake`);
     await page.screenshot({ path: `${out}/${label}-1-intake.png` });
     const created = page.waitForResponse((response) => response.url() === BASE + '/api/cases' && response.request().method() === 'POST');
@@ -144,9 +137,14 @@ async function phoneFlow(label) {
     const response = await created;
     assert.equal(response.status(), 202);
     const { caseId } = await response.json();
+    if (!sunday) await page.getByRole('button', { name: T('chat.sampleReceipt'), exact: true }).click();
     await page.getByRole('heading', { name: T('review.factsTitle'), exact: true }).waitFor({ timeout: 20000 });
     const currentCase = await (await fetch(`${BASE}/api/cases/${caseId}`)).json();
     assert.equal(currentCase.lang, lang);
+    assert.equal(currentCase.triage.disputeReason, sunday ? 'METER_NOT_IN_EFFECT' : 'PAID');
+    assert.equal(currentCase.triage.strength, 'STRONG');
+    if (sunday) assert.equal(currentCase.metrics.questionsAsked, 0);
+    if (!sunday) assert.ok(currentCase.facts.some((f) => f.key === 'receiptPlate' && f.value === 'KDT4821'));
     const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('appealhero.profile.v1')));
     assert.equal(stored.name, name);
     for (const [key, value] of [
@@ -161,15 +159,43 @@ async function phoneFlow(label) {
     }
     await checkResponsive(page, `${label}-facts`);
     await page.screenshot({ path: `${out}/${label}-2-facts.png`, fullPage: true });
+    const editLabel = T('review.editField').replace('{field}', T('review.fields.fullName'));
+    await page.getByRole('button', { name: editLabel, exact: true }).click();
+    assert.equal(await page.getByRole('button', { name: T('review.confirmAll') }).isDisabled(), true);
+    const editedName = stored.name + ' Demo';
+    await page.getByRole('textbox', { name: T('review.fields.fullName'), exact: true }).fill(editedName);
+    await page.getByRole('button', { name: T('review.save'), exact: true }).click();
+    await page.getByText(editedName, { exact: true }).waitFor();
     await page.getByRole('button', { name: T('review.confirmAll'), exact: true }).click();
     await page.getByRole('heading', { name: T('review.statementTitle'), exact: true }).waitFor({ timeout: 20000 });
     await checkResponsive(page, `${label}-statement`);
     await page.screenshot({ path: `${out}/${label}-3-statement.png`, fullPage: true });
+    const beforeEdit = await (await fetch(`${BASE}/api/cases/${caseId}`)).json();
+    await page.getByRole('checkbox').check();
+    await page.getByRole('button', { name: T('review.editParagraph').replace('{number}', '1'), exact: true }).click();
+    const editor = page.getByRole('textbox', { name: T('review.editParagraph').replace('{number}', '1'), exact: true });
+    const edited = (await editor.inputValue()) + ' Please review my appeal.';
+    await editor.fill(edited);
+    await page.getByRole('button', { name: T('review.save'), exact: true }).click();
+    await page.getByText(T('review.userEdited'), { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: T('review.approve'), exact: true }).isDisabled(), true);
+    const afterEdit = await (await fetch(`${BASE}/api/cases/${caseId}`)).json();
+    assert.notEqual(beforeEdit.preview.payloadHash, afterEdit.preview.payloadHash);
     await page.getByRole('checkbox').check();
     await page.getByRole('button', { name: T('review.approve'), exact: true }).click();
     await page.getByRole('heading', { name: T('filing.submitted'), exact: true }).waitFor({ timeout: 40000 });
     await checkResponsive(page, `${label}-receipt`);
     await page.screenshot({ path: `${out}/${label}-4-receipt.png`, fullPage: true });
+    await page.getByRole('link', { name: T('filing.proof'), exact: true }).click();
+    await page.getByText(T('filing.hashMatch'), { exact: true }).waitFor();
+    await page.getByRole('button', { name: T('filing.recheck'), exact: true }).click();
+    await page
+      .getByRole('status')
+      .filter({ hasText: T('filing.statusFound').split('{time}')[0] })
+      .waitFor();
+    const trace = await page.getByRole('link', { name: T('filing.downloadTrace') }).getAttribute('href');
+    assert.equal((await page.request.get(BASE + trace)).status(), 200);
+    await checkResponsive(page, `${label}-proof`);
     log(lang, label, 'complete flow, profile facts, 44px targets and 8 viewport sizes OK');
   } finally {
     await context.close();

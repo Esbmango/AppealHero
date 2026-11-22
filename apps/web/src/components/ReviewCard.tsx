@@ -13,9 +13,13 @@ export function ReviewCard({ c, onChanged }: { c: CaseView; onChanged: () => voi
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [showTranslation, setShowTranslation] = useState(true);
+  const [editing, setEditing] = useState<number | null>(null),
+    [value, setValue] = useState('');
+  const [savedHash, setSavedHash] = useState<string>();
   const mountedAt = useRef(Date.now());
   if (!p) return null;
 
+  const hasTranslation = !!p.statementUserLang && p.statementUserLang.trim() !== p.payload.fields.statement.trim();
   const facts = new Map(c.facts.map((f) => [f.id, f]));
   const unconfirmed = p.unconfirmedFactIds.map((id) => facts.get(id)).filter((f): f is NonNullable<typeof f> => Boolean(f));
   const pretty = (id: string, v: string) => (id === 'disputeReason' ? reasonLabel(v) : id === 'plateState' ? `${US_STATES[v] ?? v} (${v})` : v);
@@ -97,14 +101,79 @@ export function ReviewCard({ c, onChanged }: { c: CaseView; onChanged: () => voi
       <div className="mt-3">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs font-semibold">{t('review.statementEnglish')}</span>
-          {p.statementUserLang && (
+          {hasTranslation && (
             <button className="min-h-11 min-w-11 text-xs text-sky-700 underline" onClick={() => setShowTranslation((s) => !s)}>
               {showTranslation ? t('review.hideTranslation') : t('review.showTranslation', { language: t(`common.languages.${c.lang}`) })}
             </button>
           )}
         </div>
-        <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-xl bg-slate-100 p-2 text-[11px] leading-relaxed">{p.payload.fields.statement}</pre>
-        {showTranslation && p.statementUserLang && (
+        {c.draft?.paragraphs.map((paragraph, index) => (
+          <div key={index} className="my-2 rounded-xl border border-slate-200 bg-white p-3 text-sm">
+            {editing === index ? (
+              <>
+                <label className="form-label">
+                  {t('review.editParagraph', { number: index + 1 })}
+                  <textarea autoFocus rows={4} value={value} onChange={(e) => setValue(e.target.value)} />
+                </label>
+                <Button
+                  disabled={busy || !value.trim() || value.trim() === paragraph.text}
+                  onClick={() =>
+                    run(async () => {
+                      const paragraphs = c.draft!.paragraphs.map((item, i) => ({
+                        text: i === index ? value.trim() : item.text,
+                        factIds: i === index ? [] : item.factIds,
+                      }));
+                      await api.editStatement(c.id, paragraphs);
+                      setSavedHash(p.payloadHash);
+                      setAttest(false);
+                      setEditing(null);
+                    })
+                  }
+                >
+                  {t('review.save')}
+                </Button>{' '}
+                <Button variant="ghost" disabled={busy} onClick={() => setEditing(null)}>
+                  {t('review.cancel')}
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="whitespace-pre-wrap">{paragraph.text}</p>
+                {paragraph.author === 'user' && <small>{t('review.userEdited')}</small>}
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  {paragraph.factIds.length > 0 && (
+                    <details>
+                      <summary>{t('review.sources', { count: paragraph.factIds.length })}</summary>
+                      <ul>
+                        {paragraph.factIds.map((id) => {
+                          const f = facts.get(id);
+                          return f ? (
+                            <li key={id}>
+                              {fieldLabel(f.key, f.label)} · {factText(f)}
+                            </li>
+                          ) : null;
+                        })}
+                      </ul>
+                    </details>
+                  )}
+                  <button
+                    disabled={busy || editing !== null}
+                    className="text-sky-700 underline"
+                    onClick={() => {
+                      setEditing(index);
+                      setValue(paragraph.text);
+                      setAttest(false);
+                    }}
+                  >
+                    {t('review.editParagraph', { number: index + 1 })}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+        <p className="text-xs text-slate-600">{t('review.revisionHelp')}</p>
+        {showTranslation && hasTranslation && (
           <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-violet-50 p-2 text-[11px] leading-relaxed text-violet-900">
             {p.statementUserLang}
           </pre>
@@ -122,7 +191,7 @@ export function ReviewCard({ c, onChanged }: { c: CaseView; onChanged: () => voi
       </label>
       <Button
         className="mt-2 w-full"
-        disabled={!attest || busy || unconfirmed.length > 0 || p.missing.length > 0}
+        disabled={!attest || busy || editing !== null || savedHash === p.payloadHash || unconfirmed.length > 0 || p.missing.length > 0}
         onClick={() => run(() => api.approve(c.id, p.payloadHash, Date.now() - mountedAt.current))}
       >
         {t('review.approve')}

@@ -9,5 +9,6 @@
   "micError": "Could not use the microphone. Check your browser permissions.",
   "converting": "Processing audio…",
   "stop": "■ Stop recording",
-  "record": "🎙 Record a voice note"
+  "record": "🎙 Record a voice note",
+  "sampleReceipt": "Use sample payment receipt"
 }
