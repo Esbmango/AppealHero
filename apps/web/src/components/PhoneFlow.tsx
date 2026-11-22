@@ -4,6 +4,8 @@ import { api } from '../api';
 import { t, useLang, formatDate, fieldLabel } from '../i18n';
 import { Onboarding } from '../features/onboarding/Onboarding';
 import { useProfile, type Profile } from '../features/onboarding/profile';
+import { LanguagePicker } from '../features/onboarding/LanguagePicker';
+import { useLocalStorage } from '../hooks';
 import { LookupForm, LookupResults } from '../features/intake/Lookup';
 import { Circumstances } from '../features/intake/Circumstances';
 import { loadSample } from '../features/intake/Samples';
@@ -34,6 +36,7 @@ export function PhoneFlow({
 }) {
   const lang = useLang();
   const [profile, setProfile] = useProfile();
+  const [langChosen, setLangChosen] = useLocalStorage<boolean>('cp.langChosen', false);
   const panel = useRef<HTMLDivElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
   // Braces matter: newer Chrome returns a Promise from scrollIntoView, and React would treat it as a cleanup fn.
@@ -62,8 +65,10 @@ export function PhoneFlow({
       {!c ? (
         profile.ready ? (
           <Intake profile={profile} onCreated={onCreated} onChangeProfile={() => setProfile({ ...profile, ready: false })} />
-        ) : (
+        ) : langChosen || profile.ready ? (
           <Onboarding profile={profile} onChange={setProfile} />
+        ) : (
+          <LanguagePicker onChosen={() => setLangChosen(true)} />
         )
       ) : (
         <>
@@ -219,7 +224,7 @@ function Intake({ profile, onCreated, onChangeProfile }: { profile: Profile; onC
           onChange={(event) => setText(event.target.value)}
         />
         <div className="mt-2">
-          <Recorder onAudio={setAudio} />
+          <Recorder onAudio={setAudio} value={text} onTranscript={setText} />
           {audio && <p className="mt-1 text-xs text-violet-800">{t('intake.audioReady', { size: Math.round(audio.size / 1024) })}</p>}
         </div>
       </Card>
@@ -340,6 +345,8 @@ function Composer({ c }: { c: CaseView }) {
       {photos.length > 0 && <p className="text-xs text-slate-500">{t('chat.photosSelected', { count: photos.length })}</p>}
       <Recorder
         disabled={busy}
+        value={text}
+        onTranscript={setText}
         onAudio={(wav) => {
           void send('', wav);
         }}

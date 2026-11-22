@@ -57,7 +57,8 @@ describe('WP9 phone web app v2', () => {
           return { width: rect.width, height: rect.height };
         }),
       );
-      expect(sizes.length).toBeGreaterThan(5);
+      // First screen = language picker: three language buttons plus the header language switch.
+      expect(sizes.length).toBeGreaterThanOrEqual(4);
       expect(sizes.every((size) => size.width >= 44 && size.height >= 44)).toBe(true);
     } finally {
       await browser.close();

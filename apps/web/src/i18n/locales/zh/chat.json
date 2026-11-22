@@ -10,5 +10,8 @@
   "converting": "处理录音中…",
   "stop": "■ 结束录音",
   "record": "🎙 开始录音",
-  "sampleReceipt": "使用示例付款收据"
+  "sampleReceipt": "使用示例付款收据",
+  "liveListening": "■ 结束录音（正在实时转文字）",
+  "liveHint": "说话时文字会实时出现在输入框里，可以修改后再发送。语音由浏览器的语音识别服务（Google 或 Apple）处理。",
+  "liveFallback": "实时转文字不可用，已改为录音后转写，请再点一次开始录音。"
 }

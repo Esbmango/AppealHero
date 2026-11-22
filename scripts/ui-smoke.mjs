@@ -108,20 +108,20 @@ async function phoneFlow(label) {
     const page = await context.newPage();
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto(BASE + '/');
-    // All personas set language and profile before any case is created.
-    for (const [persona, language, name] of [
-      ['lin', 'zh', 'Lin Xiaoyu'],
-      ['maria', 'es', 'María González'],
-      ['sam', 'en', 'Sam Carter'],
+    // The first screen picks the language; demo personas then fill the profile without changing it.
+    await page.getByTestId(`choose-lang-${lang}`).click();
+    for (const [persona, name] of [
+      ['lin', 'Lin Xiaoyu'],
+      ['maria', 'María González'],
+      ['sam', 'Sam Carter'],
     ]) {
       await page.getByTestId(`persona-${persona}`).click();
-      assert.equal(await page.getByTestId('language-switch').inputValue(), language);
+      assert.equal(await page.getByTestId('language-switch').inputValue(), lang);
       assert.equal(await page.locator('input[name="name"]').inputValue(), name);
     }
     const persona = lang === 'es' ? 'maria' : 'lin';
     const name = persona === 'maria' ? 'María González' : 'Lin Xiaoyu';
     await page.getByTestId(`persona-${persona}`).click();
-    await page.getByTestId('language-switch').selectOption(lang);
     await checkResponsive(page, `${label}-onboarding`);
     await page.screenshot({ path: `${out}/${label}-0-onboarding.png` });
     await page.getByRole('button', { name: T('onboarding.continue'), exact: true }).click();
@@ -207,8 +207,9 @@ async function customProfile() {
     const page = await context.newPage();
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto(BASE + '/');
+    await page.getByRole('heading', { name: T('onboarding.chooseLanguage', 'es'), exact: true }).waitFor();
+    await page.getByTestId('choose-lang-en').click();
     await page.getByTestId('persona-custom').click();
-    await page.getByTestId('language-switch').selectOption('en');
     await page.locator('input[name="name"]').fill('Alex Demo');
     await page.locator('input[name="address"]').fill('1 Example St, Boston, MA 02215');
     await page.locator('input[name="email"]').fill('alex.demo@example.com');
@@ -243,7 +244,7 @@ try {
     if (request.method() === 'GET' && request.url() === BASE + '/api/cases') listRequests.push(request.url());
   });
   await page.goto(BASE + '/');
-  await page.getByTestId('language-switch').selectOption(lang);
+  await page.getByTestId(`choose-lang-${lang}`).click();
   await page.getByRole('heading', { name: T('onboarding.title'), exact: true }).waitFor();
   await page.getByTestId('persona-custom').click();
   await page.locator('input[name="name"]').fill('Desktop Draft');

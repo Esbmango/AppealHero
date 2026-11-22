@@ -10,5 +10,8 @@
   "converting": "Procesando audio…",
   "stop": "■ Terminar grabación",
   "record": "🎙 Grabar nota de voz",
-  "sampleReceipt": "Usar recibo de pago de ejemplo"
+  "sampleReceipt": "Usar recibo de pago de ejemplo",
+  "liveListening": "■ Terminar (transcribiendo en vivo)",
+  "liveHint": "El texto aparece en el cuadro mientras hablas y puedes corregirlo antes de enviarlo. El reconocimiento de voz lo hace el navegador (Google o Apple).",
+  "liveFallback": "La transcripción en vivo no está disponible. Se grabará el audio y se transcribirá después; vuelve a tocar el botón."
 }

@@ -1,13 +1,13 @@
 {
   "eyebrow": "演示模式",
-  "title": "先选一个演示身份",
-  "intro": "用合成资料体验完整流程，也可以手动填写资料。",
+  "title": "填写资料",
+  "intro": "选一个演示身份（合成资料），或填写你自己的资料。",
   "lin": "林同学",
   "maria": "María",
   "sam": "Sam",
-  "linDetail": "中文 · 纽约州车牌",
-  "mariaDetail": "西语 · 马萨诸塞州车牌",
-  "samDetail": "英文 · 马萨诸塞州车牌",
+  "linDetail": "纽约州车牌",
+  "mariaDetail": "马萨诸塞州车牌",
+  "samDetail": "马萨诸塞州车牌",
   "custom": "手动填写资料",
   "customDetail": "使用自己的姓名、地址和邮箱",
   "name": "全名",
@@ -17,5 +17,7 @@
   "saved": "资料仅保存在此浏览器，用于填写申诉表。",
   "change": "更换身份或资料",
   "using": "当前身份：{name}",
-  "vehicle": "车辆：{plate} · {state}"
+  "vehicle": "车辆：{plate} · {state}",
+  "chooseLanguage": "选择你的语言",
+  "chooseLanguageHint": "之后可以在右上角随时切换。"
 }

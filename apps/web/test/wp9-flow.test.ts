@@ -64,8 +64,9 @@ describe('phone acceptance through the real API and simulated portal', () => {
   async function intake(language: Lang) {
     lang = language;
     await page.goto(base);
+    await page.getByTestId('choose-lang-' + lang).click();
     await page.getByTestId('persona-' + (lang === 'es' ? 'maria' : 'lin')).click();
-    await page.getByTestId('language-switch').selectOption(lang);
+    expect(await page.getByTestId('language-switch').inputValue()).toBe(lang);
     await button('onboarding.continue').click();
   }
   async function state(): Promise<CaseView> {

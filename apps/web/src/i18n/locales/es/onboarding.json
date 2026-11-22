@@ -1,13 +1,13 @@
 {
   "eyebrow": "Modo de demostración",
-  "title": "Elige un perfil de demostración",
-  "intro": "Prueba el proceso con datos ficticios o introduce tus datos.",
+  "title": "Tus datos",
+  "intro": "Elige un perfil de demostración (datos ficticios) o introduce tus datos.",
   "lin": "Lin",
   "maria": "María",
   "sam": "Sam",
-  "linDetail": "Chino · Matrícula de Nueva York",
-  "mariaDetail": "Español · Matrícula de Massachusetts",
-  "samDetail": "Inglés · Matrícula de Massachusetts",
+  "linDetail": "Matrícula de Nueva York",
+  "mariaDetail": "Matrícula de Massachusetts",
+  "samDetail": "Matrícula de Massachusetts",
   "custom": "Introducir mis datos",
   "customDetail": "Usa tu nombre, dirección y correo",
   "name": "Nombre completo",
@@ -17,5 +17,7 @@
   "saved": "Los datos se guardan solo en este navegador para rellenar la apelación.",
   "change": "Cambiar perfil o datos",
   "using": "Perfil: {name}",
-  "vehicle": "Vehículo: {plate} · {state}"
+  "vehicle": "Vehículo: {plate} · {state}",
+  "chooseLanguage": "Elige tu idioma",
+  "chooseLanguageHint": "Puedes cambiarlo en cualquier momento arriba a la derecha."
 }

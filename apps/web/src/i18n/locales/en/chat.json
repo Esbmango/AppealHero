@@ -10,5 +10,8 @@
   "converting": "Processing audio…",
   "stop": "■ Stop recording",
   "record": "🎙 Record a voice note",
-  "sampleReceipt": "Use sample payment receipt"
+  "sampleReceipt": "Use sample payment receipt",
+  "liveListening": "■ Stop (live transcription on)",
+  "liveHint": "Your words appear in the box as you speak, and you can edit them before sending. Speech is recognized by your browser’s service (Google or Apple).",
+  "liveFallback": "Live transcription is unavailable. Recording will be transcribed afterwards; tap the button again."
 }

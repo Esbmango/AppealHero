@@ -1,5 +1,5 @@
 import { DEMO_PERSONAS, type PersonaId } from '@appealhero/shared';
-import { t, useLang, setLang } from '../../i18n';
+import { t, useLang } from '../../i18n';
 import { Button, Card, cx } from '../../components/ui';
 import { EMPTY_PROFILE, personaProfile, type Profile } from './profile';
 
@@ -46,10 +46,7 @@ export function Onboarding({ profile, onChange }: { profile: Profile; onChange: 
             type="button"
             data-testid={`persona-${id}`}
             aria-pressed={profile.persona === id}
-            onClick={() => {
-              onChange(personaProfile(id));
-              setLang(DEMO_PERSONAS[id].lang);
-            }}
+            onClick={() => onChange(personaProfile(id))}
             className={cx(
               'flex min-h-16 min-w-0 w-full items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-left',
               profile.persona === id ? 'border-sky-700 bg-sky-50 ring-1 ring-sky-700' : 'border-slate-200 bg-white',
