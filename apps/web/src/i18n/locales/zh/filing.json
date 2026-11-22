@@ -55,5 +55,7 @@
   "step.fail": "失败",
   "step.blocked": "受阻",
   "step.info": "记录",
-  "backToApp": "返回案件"
+  "backToApp": "返回案件",
+  "uploadRejected": "门户拒收了证据文件，申诉尚未提交。请检查每个文件是否为 JPG、PNG 或 PDF，且不超过 {maxMB} MB。你可以重试，或使用下方资料手动提交。",
+  "sessionExpired": "门户会话再次过期，申诉尚未提交。点击“重试”可以开启新会话。"
 }

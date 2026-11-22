@@ -188,22 +188,42 @@ async function runJobNow(ctx: Ctx, caseId: string): Promise<boolean> {
     });
     const portal = new PortalSession(g.page, config.mockPortalUrl, hooks(ctx, caseId));
 
-    // 0) Duplicate pre-check — never file twice for the same ticket.
-    const pre = await portal.checkStatus(payload.fields.ticketNumber);
-    if (pre.found && pre.confirmationNumber) {
+    const prepare = async () => {
+      const pre = await portal.checkStatus(payload.fields.ticketNumber);
+      if (pre.found) {
+        if (!pre.confirmationNumber)
+          throw new NeedsUserError('RECEIPT_MISSING', 'An appeal is already on file for this ticket. Check the portal for its receipt.');
+        return { confirmationNumber: pre.confirmationNumber } as const;
+      }
+      await portal.stepStart(payload);
+      await portal.stepDetails(payload);
+      const files = ctx.store
+        .must(caseId)
+        .evidence.filter((e) => e.submitToPortal)
+        .map((e) => ({ name: e.filename, mimeType: e.mime, buffer: fs.readFileSync(e.path) }));
+      await portal.stepEvidence(files);
+      return { review: await portal.readReview() } as const;
+    };
+    let prepared;
+    try {
+      prepared = await prepare();
+    } catch (err) {
+      if (!(err instanceof NeedsUserError && err.code === 'SESSION_EXPIRED')) throw err;
+      ctx.hub.emit({
+        type: 'exec.step',
+        caseId,
+        step: 'session-expired',
+        status: 'info',
+        detail: 'Session expired before submission. Checking status and starting one fresh form.',
+      });
+      prepared = await prepare();
+    }
+    if (prepared.confirmationNumber !== undefined) {
       await closeJobBrowser();
-      await finishSubmitted(ctx, caseId, { confirmationNumber: pre.confirmationNumber, source: 'status_page', alreadyOnFile: true });
+      await finishSubmitted(ctx, caseId, { confirmationNumber: prepared.confirmationNumber, source: 'status_page', alreadyOnFile: true });
       return false;
     }
-
-    await portal.stepStart(payload);
-    await portal.stepDetails(payload);
-    const files = ctx.store
-      .must(caseId)
-      .evidence.filter((e) => e.submitToPortal)
-      .map((e) => ({ name: e.filename, mimeType: e.mime, buffer: fs.readFileSync(e.path) }));
-    await portal.stepEvidence(files);
-    const review = await portal.readReview();
+    const { review } = prepared;
     if (review.captcha)
       throw new BlockedError(
         'CAPTCHA',
@@ -230,6 +250,20 @@ async function runJobNow(ctx: Ctx, caseId: string): Promise<boolean> {
       status: 'ok',
       detail: `portal values hash ${rbHash.slice(0, 12)}… = approved ${ph.slice(0, 12)}…`,
     });
+
+    // A fresh form may take longer than the original approval's lifetime.
+    const current = ctx.store.must(caseId);
+    const currentHash = hashPayload(buildApprovalPayload(current));
+    if (
+      currentHash !== ph ||
+      !current.approval ||
+      !verifyToken(config.approvalSecret, current.approval.token, { caseId, payloadHash: ph, adapterVersion: ADAPTER_VERSION }).ok
+    ) {
+      transition(ctx, caseId, 'STATEMENT_REVIEW', 'system', 'Approval changed or expired during filling. Review and approve again.', (r) => {
+        r.approval = undefined;
+      });
+      return false;
+    }
 
     // 2) Submit exactly once.
     // Write-ahead: the attempt is on disk (transition() flushes synchronously) BEFORE the interlock is armed and the

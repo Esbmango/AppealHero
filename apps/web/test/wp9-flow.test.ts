@@ -8,7 +8,7 @@ import { buildPortal } from '../../mock-portal/src/index';
 import { buildServer } from '../../server/src/index';
 import { config } from '../../server/src/core/config';
 import { t, type Lang } from '../src/i18n';
-import type { CaseView } from '@appealhero/shared';
+import { EVIDENCE_LIMITS, type CaseView } from '@appealhero/shared';
 
 describe('phone acceptance through the real API and simulated portal', () => {
   let portal: Awaited<ReturnType<typeof buildPortal>>, server: Awaited<ReturnType<typeof buildServer>>, web: ViteDevServer, browser: Browser, page: Page;
@@ -79,17 +79,41 @@ describe('phone acceptance through the real API and simulated portal', () => {
     if (weekday) await button('chat.sampleReceipt').click();
     await heading('review.factsTitle').waitFor();
   }
-  async function approve() {
+  async function approveLetter() {
     await button('review.confirmAll').click();
     await heading('review.statementTitle').waitFor();
     await page.getByRole('checkbox').check();
     await button('review.approve').click();
+  }
+  async function approve() {
+    await approveLetter();
     await heading('filing.submitted').waitFor();
     await page.getByRole('link', { name: label('filing.proof'), exact: true }).click();
     await page.reload();
     await page.getByTestId('proof-match').waitFor();
     expect(await page.getByTestId('proof-match').innerText()).toBe(label('filing.hashMatch'));
   }
+  it('shows the rejected upload in each language and files once after the driver retries', async () => {
+    await portal.inject({ url: '/admin/scenario', method: 'POST', payload: { scenario: 'upload_rejected' } });
+    await intake('zh');
+    await sample(false);
+    await approveLetter();
+    await heading('filing.needsUser').waitFor();
+    for (const language of ['zh', 'es', 'en'] as const) {
+      lang = language;
+      await page.getByTestId('language-switch').selectOption(lang);
+      await page
+        .getByRole('alert')
+        .filter({ hasText: label('filing.uploadRejected', { maxMB: EVIDENCE_LIMITS.maxBytes / 1024 ** 2 }) })
+        .waitFor();
+      await page.getByText(label('review.evidence', { files: 'ticket.png' }), { exact: true }).waitFor();
+    }
+    expect((await portal.inject('/admin/state')).json().appeals).toHaveLength(0);
+    await portal.inject({ url: '/admin/scenario', method: 'POST', payload: { scenario: 'normal' } });
+    await button('filing.retry').click();
+    await heading('filing.submitted').waitFor();
+    expect((await portal.inject('/admin/state')).json().appeals).toHaveLength(1);
+  });
   it("wp9: smoke (zh) completes Lin's path on a 390×844 viewport", async () => {
     await intake('zh');
     await sample(true);

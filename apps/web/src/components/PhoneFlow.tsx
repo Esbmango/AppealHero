@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { type TicketQuery, type CircumstanceChoice, type AgentEvent, type CaseView, type ChatMessage } from '@appealhero/shared';
+import { EVIDENCE_LIMITS, type TicketQuery, type CircumstanceChoice, type AgentEvent, type CaseView, type ChatMessage } from '@appealhero/shared';
 import { api } from '../api';
 import { t, useLang, formatDate, fieldLabel } from '../i18n';
 import { Onboarding } from '../features/onboarding/Onboarding';
@@ -412,7 +412,23 @@ function StatePanel({ c, events, refresh }: { c: CaseView; events: AgentEvent[];
     const nu = c.needsUser;
     return (
       <Card title={t(c.state === 'BLOCKED' ? 'filing.blocked' : 'filing.needsUser')} tone="warn">
-        <p className="text-sm">{nu?.reason}</p>
+        <p className="text-sm" role="alert">
+          {nu?.code === 'UPLOAD_REJECTED'
+            ? t('filing.uploadRejected', { maxMB: EVIDENCE_LIMITS.maxBytes / 1024 ** 2 })
+            : nu?.code === 'SESSION_EXPIRED'
+              ? t('filing.sessionExpired')
+              : nu?.reason}
+        </p>
+        {nu?.code === 'UPLOAD_REJECTED' && (
+          <p className="mt-1 text-sm">
+            {t('review.evidence', {
+              files: c.evidence
+                .filter((e) => e.submitToPortal)
+                .map((e) => e.filename)
+                .join(', '),
+            })}
+          </p>
+        )}
         {nu?.code === 'MISSING_FIELD' && (
           <div className="mt-2 flex gap-2">
             <input
