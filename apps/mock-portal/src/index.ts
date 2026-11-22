@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
@@ -6,23 +8,46 @@ import formbody from '@fastify/formbody';
 import multipart from '@fastify/multipart';
 import { EVIDENCE_LIMITS, SCENARIOS, type Scenario } from '@appealhero/shared';
 import { checkTicket, db, newConfirmation, newSid, resetDb, type Appeal, type EvidenceFile, type Session } from './db';
+import { findTicket, lookup, norm, view, type LookupQuery } from './tickets';
 import {
   alreadyOnFilePage,
   confirmationPage,
+  contactPage,
   detailsPage,
   evidencePage,
+  faqPage,
+  findPage,
   inboxPage,
-  landingPage,
   messagePage,
+  resultsPage,
   reviewPage,
   startPage,
   statusPage,
+  ticketPage,
 } from './views';
 
 /**
- * SIMULATED Boston parking-ticket appeal portal. Field-faithful to boston.gov's published requirements,
- * deliberately NOT styled like the city's site. Scenarios inject the failures the executor must survive.
+ * SIMULATED Boston parking-ticket portal. Field-faithful to boston.gov's published requirements; the layout follows
+ * the real portal's flow (find ticket → results → appeal) but carries no seal, official names or wordmarks, and every
+ * page shows the SIMULATED banner. Lookup pages are read-only (GET). Scenarios inject the failures the executor must survive.
  */
+
+const require = createRequire(import.meta.url);
+/** Self-hosted OFL fonts (no network at demo time). */
+const FONT_FILES: Record<string, string> = Object.fromEntries(
+  ['oswald-latin-500-normal', 'oswald-latin-600-normal', 'lato-latin-400-normal', 'lato-latin-700-normal'].map((f) => [
+    `${f}.woff2`,
+    require.resolve(`@fontsource/${f.split('-')[0]}/files/${f}.woff2`),
+  ]),
+);
+
+/** Closed tickets in the portal's registry can't be appealed online (seeded plate mismatches are caught by checkTicket). */
+function closedTicketProblem(ticket: string, plate: string): string | null {
+  const t = findTicket(ticket);
+  if (!t) return null;
+  if (norm(t.plate) !== norm(plate)) return 'The plate number does not match this ticket.';
+  return t.status === 'OPEN' ? null : `This ticket is closed (${view(t).statusText}) and cannot be appealed online.`;
+}
 
 // Redesigned (v2) form uses different field names; normalize them to the canonical ids.
 const V2_NAMES: Record<string, string> = {
@@ -57,12 +82,41 @@ export async function buildPortal(opts: { hangMs?: number } = {}) {
   };
   const expired = (reply: FastifyReply) => html(reply, messagePage(db.scenario, 'Session expired', 'Please start your appeal again.'), 440);
 
-  app.get('/', (_req, reply) => html(reply, landingPage(db.scenario)));
+  app.get('/', (_req, reply) => html(reply, findPage(db.scenario)));
 
-  app.get('/appeal/start', (_req, reply) => html(reply, startPage(db.scenario)));
+  // ---- read-only lookup (GET only; the executor's one-shot submit interlock is unaffected) ----
+  app.get('/lookup', (req, reply) => {
+    const q = req.query as LookupQuery;
+    const r = lookup(q);
+    return r.kind === 'none'
+      ? html(reply, findPage(db.scenario, q, 'Please enter a ticket number, a license plate and state, or a VIN.'))
+      : html(reply, resultsPage(db.scenario, q, r));
+  });
+  app.get<{ Params: { n: string } }>('/ticket/:n', (req, reply) => {
+    const t = findTicket(req.params.n);
+    return t ? html(reply, ticketPage(db.scenario, view(t))) : html(reply, messagePage(db.scenario, 'Not found', 'No ticket with this number.'), 404);
+  });
+  app.get<{ Params: { n: string } }>('/ticket/:n/hearing', (_req, reply) =>
+    html(reply, messagePage(db.scenario, 'Request hearing', 'Hearing requests are not part of this simulation.')),
+  );
+  app.get('/faq', (_req, reply) => html(reply, faqPage(db.scenario)));
+  app.get('/contact', (_req, reply) => html(reply, contactPage(db.scenario)));
+  app.get<{ Params: { file: string } }>('/assets/fonts/:file', (req, reply) => {
+    const file = FONT_FILES[req.params.file];
+    if (!file) return reply.code(404).send();
+    return reply.header('cache-control', 'public, max-age=86400').type('font/woff2').send(readFileSync(file));
+  });
+
+  app.get('/appeal/start', (req, reply) => {
+    const q = req.query as { ticket?: string; plate?: string; state?: string };
+    return html(reply, startPage(db.scenario, '', { ticket: q.ticket, plate: q.plate, state: q.state }));
+  });
   app.post('/appeal/start', (req, reply) => {
     const b = canon(req.body);
-    const problem = !b.ticketNumber || !b.plateNumber || !b.plateState ? 'All fields are required.' : checkTicket(b.ticketNumber, b.plateNumber);
+    const problem =
+      !b.ticketNumber || !b.plateNumber || !b.plateState
+        ? 'All fields are required.'
+        : (checkTicket(b.ticketNumber, b.plateNumber) ?? closedTicketProblem(b.ticketNumber, b.plateNumber));
     if (problem) return html(reply, startPage(db.scenario, problem), 422);
     const existing = db.appeals.get(b.ticketNumber);
     if (existing) return html(reply, alreadyOnFilePage(db.scenario, existing), 409);

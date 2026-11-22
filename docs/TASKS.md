@@ -410,30 +410,34 @@ WP0 由成员 A 负责（可以交给一个 AI 编码代理执行），完成后
 
 ## 6. 页面结构约定：`/lookup`（WP6 ↔ WP7）
 
+已实现（`apps/mock-portal/src/tickets.ts` + `views.ts`，测试 `wp7: /lookup follows the markup contract`）。页面版式参照真实门户（首页三种查法 → 结果列表 → 详情），但不带市徽、官员姓名或官方字样，每页都有 SIMULATED 红条。
+
 ```html
-<!-- GET /lookup?plate=&state=&ticketNumber= （只读，不用 POST） -->
-<form id="lookup-form" method="get" action="/lookup">
-  <label for="lk-plate">Plate number</label>       <input id="lk-plate" name="plate">
-  <label for="lk-state">Registration state</label> <select id="lk-state" name="state">…</select>
-  <label for="lk-ticket">Ticket number</label>     <input id="lk-ticket" name="ticketNumber">
-  <button type="submit">Search</button>
-</form>
+<!-- 首页 / 三个表单都用 GET 提交到 /lookup；适配器可以直接打开带参数的 URL -->
+<form id="lookup-ticket-form" method="get" action="/lookup"> <input id="lk-ticket" name="ticketNumber"> </form>
+<form id="lookup-plate-form"  method="get" action="/lookup"> <input id="lk-plate" name="plate"> <select id="lk-state" name="state">…</select> </form>
+<form id="lookup-vin-form"    method="get" action="/lookup"> <input id="lk-vin" name="vin"> </form>
 
-<table data-lookup-results>
-  <tr data-ticket-row data-ticket-number="900000002">
-    <td data-field="ticketNumber">900000002</td>
-    <td data-field="issuedAt">2026-11-18T10:05:00-05:00</td>
-    <td data-field="violation">RESIDENT PERMIT ONLY</td>
-    <td data-field="location">Bay State Rd, Boston</td>
-    <td data-field="fine">60.00</td>
-    <td data-field="status">OPEN</td>   <!-- OPEN | PAID | APPEALED -->
-  </tr>
-</table>
+<!-- GET /lookup?ticketNumber=… | ?plate=…&state=… | ?vin=…  结果页 -->
+<div data-lookup-results data-query="plate">          <!-- ticket | plate | vin；无结果时带 hidden -->
+  <article data-ticket-row
+           data-ticket-number="900000001" data-plate="8KDW21" data-state="MA"
+           data-violation="METER FEE UNPAID" data-issued-at="2026-11-15T14:32:00-05:00"
+           data-location="700 Commonwealth Ave, Boston" data-fine="40.00" data-amount-due="40.00"
+           data-status="OPEN">                         <!-- OPEN | PAID | APPEALED（与 TicketStatusSchema 一致） -->
+    …给人看的文字（#号、金额、违章、Issue Date、Plate、链接）…
+  </article>
+  <!-- APPEALED 另带 data-decision="PENDING | ACCEPTED | DENIED" -->
+</div>
 
-<p data-lookup-message="plate_lookup_ma_only">…</p>   <!-- 或 not_found -->
+<p data-lookup-message="plate_lookup_ma_only">…</p>   <!-- 或 not_found；空查询回到首页并提示 -->
 ```
 
-查询只用 GET，网络闸门不需要为查询放行任何 POST，提交闸门保持“只放行一次”。
+- **适配器只读行上的 `data-*` 属性**，不解析给人看的文字。
+- 只有 MA 车牌能按车牌查（来源：boston.gov how-pay-parking-ticket）；外州车牌返回 `plate_lookup_ma_only`，改用罚单号查。VIN 能查到预置车辆的全部罚单。
+- 结果按开单时间倒序，包含历史罚单（Paid / Appeal Accepted / Appeal Denied，罚单号 98xxxxxxx，只存在于门户）。在本门户提交过申诉的罚单显示为 APPEALED + PENDING。
+- 已关闭的罚单在 `/appeal/start` 会被拒绝（422）。
+- 查询只用 GET，网络闸门不需要为查询放行任何 POST，提交闸门保持“只放行一次”。
 
 ## 7. 模板
 

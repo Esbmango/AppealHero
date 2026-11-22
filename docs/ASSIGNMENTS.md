@@ -248,12 +248,14 @@ Task C4 for AppealHero (read AGENTS.md, docs/ARCHITECTURE.md §6). Owned paths: 
 Verify as usual. PR. Tell B when it is merged (B4 depends on it).
 ```
 
-### C5“帮我查”（可选，约 2 小时，只在 03:00 前一切全绿时做）
+### C5“帮我查”（可选，约 1.5 小时，只在 03:00 前一切全绿时做）
+
+门户这一侧已经做好（`/lookup` 结果页、详情页、预置历史罚单、`wp7` 前三条测试），C 只需要做 Agent 和 API 这一侧（下面第 2–4 步）。
 
 ```text
 Task C5 for AppealHero (read AGENTS.md, docs/TASKS.md §6 /lookup markup contract, WP2/WP6/WP7 cards).
 Owned paths: apps/mock-portal/**, apps/server/**, packages/shared/** (additive).
-1. Mock portal GET /lookup (read-only, exactly the markup contract), seeds include a plate with two tickets; banner SIMULATED + noindex.
+1. Already done: mock portal GET /lookup + /ticket/:n (read-only, docs/TASKS.md §6). Read row data-* attributes only.
 2. adapter lookup in portal/adapters/mockBoston; tools lookup_tickets and select_ticket (stage IDENTIFYING) with Zod params.
 3. POST /api/cases with mode=lookup (+ plate/state or ticketNumber) → IDENTIFYING → list tickets (lookup.results event) → the user
    picks one → INVESTIGATING. MA plates can be looked up by plate; other states need a ticket number (say so honestly).

@@ -62,5 +62,5 @@ Before changing anything: read this file, your task card in `docs/TASKS.md`, and
 ## Don'ts
 
 - Don't add React Native / Expo, Next.js, ORMs, Redux, LangChain or multi-agent frameworks.
-- Don't describe the simulated portal as a "1:1 replica" — it is field-faithful, not pixel-faithful.
+- Don't describe the simulated portal as a "1:1 replica". Its fields and flow follow the real portal; it never carries a city seal, an official's name or a government wordmark, and every page keeps the SIMULATED banner.
 - Don't promise outcomes or call the product a lawyer.
