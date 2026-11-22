@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { demoPng } from './fixtures/demoPng';
-import { DEMO_TICKETS, type CaseView, type Scenario } from '@appealhero/shared';
+import { ProofResponseSchema, DEMO_TICKETS, type CaseView, type Scenario } from '@appealhero/shared';
 import { config } from '../src/core/config';
 
 const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
@@ -316,6 +316,50 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
       expect(c.triage?.recommendation).toBe('PAY');
       expect(await appeals(ticket.ticketNumber)).toHaveLength(0);
     }
+  });
+
+  it('wp8: proof returns the approval hash, read-back hash, steps, receipt and chain head', async () => {
+    await scenario('normal');
+    const id = await createCase();
+    const approved = await reviewAndApprove(id);
+    const finished = await waitFor(id, (c) => c.state === 'SUBMITTED');
+    const p = ProofResponseSchema.parse(await (await fetch(api + '/api/cases/' + id + '/proof')).json());
+    expect(p.approvedPayload).toEqual(approved.payload);
+    expect(p.approvedPayloadHash).toBe(approved.payloadHash);
+    expect(p.readbackHash).toBe(approved.payloadHash);
+    expect(p.readbackMatches).toBe(true);
+    expect(p.receipt).toEqual(finished.receipt);
+    expect(p.steps.some((s) => s.step === 'read-back' && s.status === 'ok')).toBe(true);
+    expect(p.steps.some((s) => s.screenshotUrl?.startsWith('/api/shots/' + id + '/'))).toBe(true);
+    expect(p.auditHead).toMatch(/^[a-f0-9]{64}$/);
+    expect(p.auditCount).toBeGreaterThan(p.steps.length);
+  });
+  it('wp6: every job records a Playwright trace', async () => {
+    await scenario('captcha');
+    const id = await createCase();
+    const url = api + '/api/cases/' + id + '/trace';
+    expect((await fetch(url)).status).toBe(404);
+    await reviewAndApprove(id);
+    await waitFor(id, (c) => c.state === 'BLOCKED');
+    const trace = await fetch(url);
+    expect(trace.status).toBe(200);
+    expect(trace.headers.get('content-type')).toContain('application/zip');
+    const zip = Buffer.from(await trace.arrayBuffer());
+    expect(zip.subarray(0, 2).toString()).toBe('PK');
+    expect(zip.includes(Buffer.from('trace.trace'))).toBe(true);
+  });
+  it('wp8: status-check is read-only and never submits', async () => {
+    await scenario('normal');
+    const id = await createCase();
+    await waitFor(id, (c) => c.state === 'FACTS_REVIEW');
+    const endpoint = '/api/cases/' + id + '/status-check';
+    expect(await (await post(endpoint, {})).json()).toMatchObject({ found: false });
+    expect(await appeals()).toHaveLength(0);
+    await reviewAndApprove(id);
+    const c = await waitFor(id, (x) => x.state === 'SUBMITTED');
+    expect(await (await post(endpoint, {})).json()).toMatchObject({ found: true, confirmationNumber: c.receipt!.confirmationNumber });
+    expect((await getCase(id)).stateHistory).toEqual(c.stateHistory);
+    expect(await appeals()).toHaveLength(1);
   });
 
   it('negative triage: hydrant with matching vehicle → PAY recommendation, user can close without appealing', async () => {

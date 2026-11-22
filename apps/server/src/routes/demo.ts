@@ -1,6 +1,10 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { ScenarioSchema } from '@appealhero/shared';
 import { config } from '../core/config';
+import { isExecBusy } from '../portal/runner';
+import { HttpError } from '../core/util';
 import type { Ctx } from '../core/ctx';
 
 /** Demo-only helpers: flip mock-portal scenarios from the desktop console, reset between judge visits. */
@@ -25,6 +29,8 @@ export function registerDemoRoutes(app: FastifyInstance, ctx: Ctx) {
   });
 
   app.post('/api/demo/reset', async () => {
+    if (ctx.store.list().some((c) => isExecBusy(c.id))) throw new HttpError(409, 'Wait for the current portal operation before resetting the demo.');
+    fs.rmSync(path.join(config.dataDir, 'traces'), { force: true, recursive: true });
     ctx.store.reset();
     ctx.users.reset();
     ctx.audit.reset();

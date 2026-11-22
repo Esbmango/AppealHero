@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import path from 'node:path';
+import { tracePath } from '../../audit/proof';
 import type { BrowserContext } from 'playwright';
 import { ADAPTER_VERSION, type ApprovalPayload, type Receipt, type Tier } from '@appealhero/shared';
 import { config } from '../../core/config';
@@ -6,7 +8,7 @@ import { buildApprovalPayload, hashPayload, verifyToken } from '../../approval';
 import { publishMetrics, reportError, type Ctx } from '../../core/ctx';
 import { transition } from '../../core/fsm';
 import type { CaseRecord } from '../../core/types';
-import { newId, now } from '../../core/util';
+import { HttpError, newId, now } from '../../core/util';
 import { exclusive, isHeld } from '../../core/locks';
 import { BlockedError, NeedsUserError, PortalSession, SUBMIT_PATH, type ReviewReadback, type SessionHooks } from '../adapters/mockBoston';
 import { VIEWPORT, getBrowser } from '../browser/browser';
@@ -109,6 +111,30 @@ async function runJobNow(ctx: Ctx, caseId: string): Promise<boolean> {
   const t0 = Date.now();
   let context: BrowserContext | null = null;
   let goReconcile = false;
+  let tracing = false;
+  async function closeJobBrowser() {
+    if (!context) return;
+    await finishTrace();
+    await context.close().catch(() => {});
+    context = null;
+  }
+  async function finishTrace() {
+    if (!context || !tracing) return;
+    tracing = false;
+    const file = tracePath(caseId);
+    const tmp = path.join(path.dirname(file), newId('job') + '.zip');
+    try {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      await context.tracing.stop({ path: tmp });
+      if (fs.existsSync(file)) fs.renameSync(file, path.join(path.dirname(file), newId('previous') + '.zip'));
+      fs.renameSync(tmp, file);
+      ctx.store.mutate(caseId, (r) => {
+        if (r.approval) r.approval.traceReady = true;
+      });
+    } catch (err) {
+      ctx.hub.emit({ type: 'exec.step', caseId, step: 'trace', status: 'fail', detail: 'Browser recording could not be saved.' });
+    }
+  }
   try {
     const c0 = ctx.store.must(caseId);
     // Defense in depth: re-derive the payload from current state and verify the signed approval against it.
@@ -142,11 +168,19 @@ async function runJobNow(ctx: Ctx, caseId: string): Promise<boolean> {
     const interlock = new Interlock();
     const g = await newGuardedPage(ctx, caseId, interlock);
     context = g.context;
+    await context.tracing.start({ screenshots: true, snapshots: true });
+    tracing = true;
+    ctx.store.mutate(caseId, (r) => {
+      r.approval!.traceReady = false;
+      r.approval!.readbackHash = undefined;
+      r.approval!.readbackMatches = undefined;
+    });
     const portal = new PortalSession(g.page, config.mockPortalUrl, hooks(ctx, caseId));
 
     // 0) Duplicate pre-check — never file twice for the same ticket.
     const pre = await portal.checkStatus(payload.fields.ticketNumber);
     if (pre.found && pre.confirmationNumber) {
+      await closeJobBrowser();
       await finishSubmitted(ctx, caseId, { confirmationNumber: pre.confirmationNumber, source: 'status_page', alreadyOnFile: true });
       return false;
     }
@@ -168,6 +202,10 @@ async function runJobNow(ctx: Ctx, caseId: string): Promise<boolean> {
     // 1) Read-back gate: what the portal shows must hash to exactly what the user approved.
     const rb = readbackPayload(payload, review);
     const rbHash = hashPayload(rb);
+    ctx.store.mutate(caseId, (r) => {
+      r.approval!.readbackHash = rbHash;
+      r.approval!.readbackMatches = rbHash === ph;
+    });
     if (rbHash !== ph)
       throw new NeedsUserError(
         'READBACK_MISMATCH',
@@ -202,6 +240,7 @@ async function runJobNow(ctx: Ctx, caseId: string): Promise<boolean> {
         `confirmation page shows ${outcome.confirmationNumber}${outcome.alreadyOnFile ? ' (already on file)' : ''}`,
       );
       const emailVerified = await portal.checkInbox(payload.fields.email, outcome.confirmationNumber).catch(() => false);
+      await closeJobBrowser();
       await finishSubmitted(ctx, caseId, {
         confirmationNumber: outcome.confirmationNumber,
         source: 'confirmation_page',
@@ -213,10 +252,11 @@ async function runJobNow(ctx: Ctx, caseId: string): Promise<boolean> {
       goReconcile = true;
     }
   } catch (err) {
+    await closeJobBrowser();
     handleError(ctx, caseId, err);
     if (ctx.store.get(caseId)?.state === 'UNKNOWN_RESULT') goReconcile = true;
   } finally {
-    if (context) await context.close().catch(() => {});
+    await closeJobBrowser();
     ctx.store.mutate(caseId, (c) => {
       c.metrics.execMs += Date.now() - t0;
     });
@@ -247,6 +287,25 @@ function handleError(ctx: Ctx, caseId: string, err: unknown) {
 export async function reconcile(ctx: Ctx, caseId: string): Promise<void> {
   // Shares the executor key: a job and a reconcile (or two reconciles) never drive browsers on the same case at once.
   await exclusive(execKey(caseId), () => reconcileNow(ctx, caseId));
+}
+
+export async function readPortalStatus(ctx: Ctx, id: string) {
+  const ticket = ctx.store.must(id).ticket?.ticketNumber;
+  if (!ticket) throw new HttpError(409, 'Identify a ticket before checking its status.');
+  let result: { found: boolean; confirmationNumber?: string; checkedAt: string } | undefined;
+  const ran = await exclusive(execKey(id), async () => {
+    const g = await newGuardedPage(ctx, id, new Interlock());
+    try {
+      // Status checks only need GET. Deny any write even if the simulated page changes.
+      await g.context.route('**/*', (route) => (['GET', 'HEAD'].includes(route.request().method()) ? route.fallback() : route.abort('blockedbyclient')));
+      const session = new PortalSession(g.page, config.mockPortalUrl, hooks(ctx, id));
+      result = { ...(await session.checkStatus(ticket)), checkedAt: now() };
+    } finally {
+      await g.context.close();
+    }
+  });
+  if (!ran || !result) throw new HttpError(409, 'A portal check or filing is in progress.');
+  return result;
 }
 
 async function reconcileNow(ctx: Ctx, caseId: string): Promise<void> {

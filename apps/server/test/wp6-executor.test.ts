@@ -8,7 +8,6 @@ import { describe, it } from 'vitest';
 describe('WP6 executor & portal adapters', () => {
   it.todo('wp6: every v0.2 portal scenario still passes on the v2 flow');
   it.todo('wp6: lookup handles MA plates, out-of-state plates, not found and multiple tickets');
-  it.todo('wp6: every job records a Playwright trace');
   it.todo('wp6: session_expired re-runs safely and still files exactly one appeal');
   it.todo('wp6: upload_rejected ends in NEEDS_USER with a clear reason');
   it.todo('wp6: injected page text never changes executor actions');
