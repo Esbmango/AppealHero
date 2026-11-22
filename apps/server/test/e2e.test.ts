@@ -380,7 +380,13 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
     expect(c.stateHistory.filter((h) => h.to === 'FILLING')).toHaveLength(1); // nothing was resubmitted automatically
     expect(await appeals()).toHaveLength(0);
     // checking again is read-only and stays paused; while it runs, other actions on the case are refused (409)
-    expect((await post(`/api/jobs/${id}/resume`, { action: 'reconcile' })).status).toBe(202);
+    // (the finished job may still be releasing its browser for a moment: that is also a 409, so wait for it)
+    let check = 409;
+    for (let i = 0; i < 100 && check === 409; i++) {
+      check = (await post(`/api/jobs/${id}/resume`, { action: 'reconcile' })).status;
+      if (check === 409) await new Promise((r) => setTimeout(r, 200));
+    }
+    expect(check).toBe(202);
     // the user decides to retry under the same approval (once the check has finished)
     let status = 409;
     for (let i = 0; i < 100 && status === 409; i++) {
