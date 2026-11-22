@@ -79,6 +79,10 @@ export function classifyViolation(desc: string): ViolationType {
   return 'OTHER';
 }
 
+/** Plates are printed and read with varying spacing, dashes and case ("KDT 4821", "kdt-4821"). Compare letters and digits only. */
+export const normalizePlate = (plate: string) => plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+export const samePlate = (a: string, b: string) => normalizePlate(a) !== '' && normalizePlate(a) === normalizePlate(b);
+
 export function bostonParts(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) throw new Error(`invalid date: ${iso}`);
@@ -134,6 +138,8 @@ export interface RuleInput {
   printedFine?: number;
   paidUntil?: string;
   paidFrom?: string;
+  receiptPlate?: string;
+  ticketPlate?: string;
   violationType?: string;
   plateState?: string;
   isMaResident?: boolean;
@@ -154,7 +160,22 @@ const req = (v: string | undefined, name: string) => {
   return v;
 };
 
-export function runRule(name: RuleName, input: RuleInput): RuleResult {
+// Dates reflect the source review recorded in docs/PLAYBOOKS.md §8. The receipt check is an evidence calculation.
+export const RULE_METADATA = {
+  meter_hours_in_effect: { source: RULE_SOURCES.meterHours, checkedAt: '2026-11-21', verified: true },
+  meter_free_day: { source: RULE_SOURCES.meterFreeDays, checkedAt: '2026-11-21', verified: true },
+  receipt_covers_ticket: { source: 'payment receipt and ticket timestamps', checkedAt: '2026-11-21', verified: true },
+  appeal_deadline: { source: RULE_SOURCES.deadline, checkedAt: '2026-11-21', verified: true },
+  fine_amount: { source: RULE_SOURCES.fines, checkedAt: '2026-11-21', verified: true },
+  video_hearing_eligibility: { source: RULE_SOURCES.videoHearing, checkedAt: '2026-11-21', verified: true },
+  online_plate_lookup: { source: RULE_SOURCES.plateLookup, checkedAt: '2026-11-21', verified: true },
+} satisfies Record<RuleName, { source: string; checkedAt: string; verified: boolean }>;
+
+export function runRule(name: RuleName, input: RuleInput) {
+  return { ...RULE_METADATA[name], ...calculateRule(name, input) };
+}
+
+function calculateRule(name: RuleName, input: RuleInput): RuleResult {
   switch (name) {
     case 'meter_hours_in_effect': {
       const p = bostonParts(req(input.issuedAt, 'issuedAt'));
@@ -185,11 +206,14 @@ export function runRule(name: RuleName, input: RuleInput): RuleResult {
       const issued = new Date(req(input.issuedAt, 'issuedAt'));
       const until = new Date(req(input.paidUntil, 'paidUntil'));
       const from = input.paidFrom ? new Date(input.paidFrom) : null;
-      const covers = until >= issued && (!from || from <= issued);
+      const mismatch = input.receiptPlate && input.ticketPlate && !samePlate(input.receiptPlate, input.ticketPlate);
+      const covers = !mismatch && until >= issued && (!from || from <= issued);
       return {
         rule: name,
         result: covers,
-        detail: `Paid ${from ? `from ${formatBoston(from.toISOString())} ` : ''}until ${formatBoston(until.toISOString())}; ticket issued ${formatBoston(issued.toISOString())} → ${covers ? 'covered' : 'not covered'}`,
+        detail: mismatch
+          ? 'The receipt shows a different plate from the ticket.'
+          : `Paid ${from ? `from ${formatBoston(from.toISOString())} ` : ''}until ${formatBoston(until.toISOString())}; ticket issued ${formatBoston(issued.toISOString())} → ${covers ? 'covered' : 'not covered'}`,
         source: 'computed from the payment receipt photo',
       };
     }

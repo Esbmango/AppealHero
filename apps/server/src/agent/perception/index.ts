@@ -1,5 +1,6 @@
 import type { Part } from '@google/genai';
 import { DEMO_TICKETS } from '@appealhero/shared';
+import { readDemoTruth } from './demoTruth';
 import { config } from '../../core/config';
 import type { Ctx } from '../../core/ctx';
 import type { EvidenceRecord, TicketExtraction } from '../../core/types';
@@ -35,7 +36,7 @@ export async function extractTicket(
   caseId: string,
   input: { ticket: EvidenceRecord; audio?: EvidenceRecord; text?: string; lang: string },
 ): Promise<TicketExtraction> {
-  if (config.aiMode === 'fake') return fakeExtraction(input.text, input.lang, Boolean(input.audio));
+  if (config.aiMode === 'fake') return fakeExtraction(input.text, input.lang, Boolean(input.audio), readDemoTruth(input.ticket.path));
   const parts: Part[] = [inlinePart(input.ticket.path, input.ticket.mime)];
   if (input.audio) parts.push(inlinePart(input.audio.path, input.audio.mime));
   parts.push({
@@ -70,10 +71,17 @@ export async function transcribeAudio(ctx: Ctx, caseId: string, audio: EvidenceR
   );
 }
 
-/** Deterministic stand-in so the whole pipeline runs without a key. Picks a demo ticket from keywords. */
-export function fakeExtraction(text = '', lang = 'zh', hasAudio = false): TicketExtraction {
+/** Deterministic stand-in so the whole pipeline runs without a key. Uses embedded fixture data first, then the existing keyword-based demos. */
+export function fakeExtraction(text = '', lang = 'zh', hasAudio = false, truth?: ReturnType<typeof readDemoTruth>): TicketExtraction {
   const t = text.toLowerCase();
-  const base = /hydrant|消防栓/.test(t) ? DEMO_TICKETS.hydrant : /permit|resident|居民|许可|路牌/.test(t) ? DEMO_TICKETS.permit : DEMO_TICKETS.meter;
+  const base =
+    truth?.kind === 'ticket'
+      ? truth
+      : /hydrant|消防栓/.test(t)
+        ? DEMO_TICKETS.hydrant
+        : /permit|resident|居民|许可|路牌/.test(t)
+          ? DEMO_TICKETS.permit
+          : DEMO_TICKETS.meter;
   const original = text || (hasAudio ? '（语音 · fake 模式不转写）' : '');
   return {
     ...base,

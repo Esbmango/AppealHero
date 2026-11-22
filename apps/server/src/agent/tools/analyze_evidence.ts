@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineTool, type ToolResult } from '@appealhero/shared';
 import type { ToolCtx } from './types';
+import { readDemoTruth } from '../perception/demoTruth';
 import { config } from '../../core/config';
 import { publishFacts, type Ctx } from '../../core/ctx';
 import type { CaseRecord, EvidenceRecord } from '../../core/types';
@@ -10,7 +11,7 @@ import { generateJson, inlinePart } from '../llm';
 
 const params = z.object({
   evidence_id: z.string(),
-  extract: z.enum(['paid_until', 'sign_text', 'vehicle_description', 'general']),
+  extract: z.enum(['paid_until', 'sign_text', 'permit_sticker', 'hydrant_context', 'vehicle_description', 'general']),
   question: z.string().optional(),
 });
 
@@ -45,12 +46,33 @@ async function analyzeEvidence(ctx: Ctx, caseId: string, a: Record<string, unkno
 async function analyzeWithGemini(ctx: Ctx, caseId: string, ev: EvidenceRecord, extract: string, question: string): Promise<Finding> {
   const ask: Record<string, string> = {
     paid_until:
-      'This is a parking payment receipt or a ParkBoston app screenshot. Return paid_from and paid_until as ISO 8601 with the America/New_York offset if visible.',
-    sign_text: 'Transcribe the parking sign text exactly and classify visibility as clear, partially_obscured or not_visible.',
+      'This is a parking payment receipt or a ParkBoston app screenshot. Return the printed plate in receipt_plate, and paid_from and paid_until as ISO 8601 with the America/New_York offset if visible.',
+    hydrant_context:
+      'Describe whether both the parked vehicle and hydrant are visible in hydrant_photo. Omit the field if either is missing. Do not estimate a distance from the image.',
+    permit_sticker:
+      'Read the printed neighborhood (permit_area), plate (permit_plate), and whether the photo shows the sticker displayed on the vehicle (permit_displayed: yes/no). Omit anything unreadable.',
+    sign_text:
+      'For a single legible weekly restriction return all its days in sign_days as comma-separated Mon,Tue,..., and sign_start and sign_end as 24-hour HH:MM. Omit all three for complex, ambiguous or seasonal schedules. Read the neighborhood into sign_area when visible. Transcribe the parking sign text exactly and classify visibility as clear, partially_obscured or not_visible.',
     vehicle_description: 'Describe the vehicle: make, color, plate state and number if visible.',
     general: question || 'Describe what this photo shows that is relevant to a parking ticket appeal.',
   };
-  const out = await generateJson<{ summary: string; paid_from?: string; paid_until?: string; sign_text?: string; sign_visibility?: string; vehicle?: string }>(
+  const out = await generateJson<{
+    summary: string;
+    paid_from?: string;
+    paid_until?: string;
+    receipt_plate?: string;
+    permit_plate?: string;
+    permit_area?: string;
+    sign_area?: string;
+    sign_days?: string;
+    sign_start?: string;
+    sign_end?: string;
+    hydrant_photo?: string;
+    permit_displayed?: string;
+    sign_text?: string;
+    sign_visibility?: string;
+    vehicle?: string;
+  }>(
     ctx,
     caseId,
     [inlinePart(ev.path, ev.mime), { text: ask[extract] ?? ask.general }],
@@ -60,6 +82,15 @@ async function analyzeWithGemini(ctx: Ctx, caseId: string, ev: EvidenceRecord, e
         summary: { type: 'string' },
         paid_from: { type: 'string' },
         paid_until: { type: 'string' },
+        receipt_plate: { type: 'string' },
+        permit_plate: { type: 'string' },
+        permit_area: { type: 'string' },
+        sign_area: { type: 'string' },
+        sign_days: { type: 'string' },
+        sign_start: { type: 'string' },
+        sign_end: { type: 'string' },
+        hydrant_photo: { type: 'string' },
+        permit_displayed: { type: 'string', enum: ['yes', 'no'] },
         sign_text: { type: 'string' },
         sign_visibility: { type: 'string', enum: ['clear', 'partially_obscured', 'not_visible'] },
         vehicle: { type: 'string' },
@@ -69,6 +100,20 @@ async function analyzeWithGemini(ctx: Ctx, caseId: string, ev: EvidenceRecord, e
     'You read evidence photos for a parking ticket appeal. Report only what is visible. Output JSON only.',
   );
   const facts: Finding['facts'] = [];
+  if (extract === 'paid_until' && out.receipt_plate) facts.push({ key: 'receiptPlate', label: 'Plate on receipt', value: out.receipt_plate });
+  if (extract === 'permit_sticker') {
+    if (out.permit_area) facts.push({ key: 'permitArea', label: 'Permit neighborhood', value: out.permit_area });
+    if (out.permit_plate) facts.push({ key: 'permitPlate', label: 'Permit plate', value: out.permit_plate });
+    if (out.permit_displayed) facts.push({ key: 'permitDisplayed', label: 'Permit displayed on vehicle', value: out.permit_displayed });
+  }
+  if (extract === 'hydrant_context' && out.hydrant_photo) facts.push({ key: 'hydrantPhoto', label: 'Vehicle and hydrant in photo', value: out.hydrant_photo });
+  if (extract === 'sign_text' && out.sign_days && out.sign_start && out.sign_end)
+    facts.push(
+      { key: 'signDays', label: 'Restriction days on sign', value: out.sign_days },
+      { key: 'signStart', label: 'Restriction starts', value: out.sign_start },
+      { key: 'signEnd', label: 'Restriction ends', value: out.sign_end },
+    );
+  if (extract === 'sign_text' && out.sign_area) facts.push({ key: 'signArea', label: 'Neighborhood on sign', value: out.sign_area });
   if (out.paid_until) facts.push({ key: 'paidUntil', label: 'Paid until (receipt)', value: out.paid_until });
   if (out.paid_from) facts.push({ key: 'paidFrom', label: 'Paid from (receipt)', value: out.paid_from });
   if (out.sign_text) facts.push({ key: 'signText', label: 'Sign text (photo)', value: out.sign_text });
@@ -78,9 +123,19 @@ async function analyzeWithGemini(ctx: Ctx, caseId: string, ev: EvidenceRecord, e
 }
 
 /** Fake mode: deterministic findings so the flows can be demoed without a key. */
-function fakeFinding(c: CaseRecord, _ev: EvidenceRecord, extract: string): Finding {
+function fakeFinding(c: CaseRecord, ev: EvidenceRecord, extract: string): Finding {
   const issued = latestFact(c, 'issuedAt')?.value ?? new Date().toISOString();
   if (extract === 'paid_until') {
+    const truth = readDemoTruth(ev.path);
+    if (truth?.kind === 'receipt')
+      return {
+        summary: '[fake] payment period read from synthetic receipt',
+        facts: [
+          { key: 'paidFrom', label: 'Paid from (receipt)', value: truth.paidFrom },
+          { key: 'paidUntil', label: 'Paid until (receipt)', value: truth.paidUntil },
+          { key: 'receiptPlate', label: 'Plate on receipt', value: truth.plate },
+        ],
+      };
     const until = new Date(new Date(issued).getTime() + 13 * 60_000).toISOString();
     return {
       summary: '[fake] receipt shows paid until 13 minutes after the ticket time',

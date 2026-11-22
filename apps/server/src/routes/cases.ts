@@ -20,7 +20,7 @@ import { HttpError, newId, now } from '../core/util';
 import { appealAnyway, continueInvestigation, runExtraction } from '../agent/runtime';
 import { pendingFactIds, upsertFact } from '../agent/policy/facts';
 import { applyUserEdit, writeStatement } from '../agent/writer';
-import { runJob } from '../portal/runner';
+import { isExecBusy, runJob } from '../portal/runner';
 import { readForm, saveEvidence } from './uploads';
 
 type IdParams = { Params: { id: string } };
@@ -183,11 +183,22 @@ export function registerCaseRoutes(app: FastifyInstance, ctx: Ctx) {
       throw new HttpError(422, 'not ready for approval', { missing: preview.missing, unconfirmedFactIds: preview.unconfirmedFactIds });
     if (preview.payloadHash !== payloadHash)
       throw new HttpError(409, 'the content changed since you reviewed it — please review again', { currentHash: preview.payloadHash });
+    if (isExecBusy(id)) throw new HttpError(409, 'A portal check is still running. Please retry approval in a moment.');
     const token = issueToken(config.approvalSecret, { caseId: id, payloadHash, adapterVersion: ADAPTER_VERSION, ttlMs: config.approvalTtlMs });
     transition(ctx, id, 'APPROVED', 'approval', `user approved payload ${payloadHash.slice(0, 12)}…`, (r) => {
-      r.approval = { token: token.token, payloadHash, issuedAt: now(), expiresAt: token.expiresAt, attempts: 0 };
+      r.approval = {
+        token: token.token,
+        payload: preview.payload,
+        statementUserLang: preview.statementUserLang,
+        payloadHash,
+        issuedAt: now(),
+        expiresAt: token.expiresAt,
+        attempts: 0,
+      };
       r.metrics.userActiveMs += activeMs ?? 0;
     });
+    ctx.audit.append({ caseId: id, type: 'approval', actor: 'user', data: { payloadHash, adapterVersion: ADAPTER_VERSION } });
+    ctx.audit.flush();
     void runJob(ctx, id);
     reply.code(202);
     return { jobId: id, state: 'APPROVED', idempotent: false };
