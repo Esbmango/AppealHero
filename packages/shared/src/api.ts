@@ -167,7 +167,6 @@ export const SCENARIOS = [
   'submit_timeout_before_record',
   'captcha',
   'missing_field',
-  // v2 (WP7 implements; until then they behave like 'normal')
   'session_expired',
   'upload_rejected',
   'injection',
@@ -181,7 +180,7 @@ export const SCENARIO_LABELS: Record<Scenario, string> = {
   submit_timeout_before_record: 'Submit timeout · not recorded',
   captcha: 'Human verification',
   missing_field: 'Missing required field',
-  session_expired: 'Session expired (WP7)',
-  upload_rejected: 'Upload rejected (WP7)',
+  session_expired: 'Session expires before filing',
+  upload_rejected: 'Evidence upload rejected',
   injection: 'Prompt injection on page (WP7)',
 };

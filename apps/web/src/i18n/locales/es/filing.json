@@ -55,5 +55,7 @@
   "step.fail": "Fallido",
   "step.blocked": "Bloqueado",
   "step.info": "Información",
-  "backToApp": "Volver a la aplicación"
+  "backToApp": "Volver a la aplicación",
+  "uploadRejected": "El portal rechazó los archivos de evidencia. No se presentó la apelación. Comprueba que cada archivo sea JPG, PNG o PDF y que no supere los {maxMB} MB. Puedes reintentar o usar los datos de presentación manual que aparecen abajo.",
+  "sessionExpired": "La sesión del portal volvió a caducar antes del envío. No se presentó la apelación. Selecciona «Reintentar» para iniciar otra sesión."
 }

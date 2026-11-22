@@ -99,7 +99,8 @@ npm run smoke             # with the app running: clicks through the phone flow 
 
 ## Verified so far
 
-- On November 21, 2026, 99 tests passed and 31 acceptance tests remained marked `todo`. Formatting, type checking, the state-machine documentation check and the production web build passed.
+- On November 22, 2026, 103 tests passed and 29 acceptance tests remained marked `todo`. Formatting, type checking, the state-machine documentation check and the production web build passed.
+- In the simulated portal, a session expiry before submission triggers a status check and at most one fresh form. A second expiry pauses the case. An expiry after the submit click triggers read-only reconciliation. Rejected evidence pauses the filing and shows the attachment names and a retry option in all three languages.
 - The offline browser checks cover English, Spanish and Chinese on both normal and redesigned portals, at eight viewport sizes. They exercise ticket lookup, evidence, both reviews, filing proof, trace download and draft isolation. The automated suite also covers fact corrections that change the grounds for appeal.
 - ✅ v0.2: 21 automated tests and the UI smoke test pass in fake mode. The tests cover a normal filing, the portal-redesign fallback, both timeout reconciliations, CAPTCHA stop, missing-field re-approval, honest triage and the network interlock.
 - A live key listed `gemini-3.8-flash`. The model read the three demo ticket photos, transcribed the hydrant voice note and called the Boston rule tools. The Sunday-meter case produced a grounded draft. After both reviews, the simulated portal recorded one appeal, the read-back matched the approved payload and the Playwright trace downloaded. The resident-permit and hydrant cases both closed after the simulated drivers accepted the recommendation to pay. The portal recorded no appeals for those tickets.

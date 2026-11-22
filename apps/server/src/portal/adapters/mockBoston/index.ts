@@ -181,7 +181,23 @@ export class PortalSession {
 
   private async clickContinue(next: RegExp) {
     const btn = this.page.getByRole('button', { name: /^(continue|next)/i }).first();
-    await Promise.all([this.page.waitForURL(next), btn.click()]);
+    const [response] = await Promise.all([
+      this.page.waitForResponse((res) => {
+        const request = res.request();
+        return request.isNavigationRequest() && res.frame() === this.page.mainFrame() && (res.status() < 300 || res.status() >= 400);
+      }),
+      btn.click(),
+    ]);
+    if (response.status() === 440)
+      throw new NeedsUserError('SESSION_EXPIRED', 'The portal session expired before filing. Nothing was submitted. Retry to start a new session.');
+    const path = new URL(response.url()).pathname;
+    if (path === '/appeal/evidence' && response.request().method() === 'POST' && [413, 415, 422].includes(response.status()))
+      throw new NeedsUserError(
+        'UPLOAD_REJECTED',
+        'The portal rejected the evidence upload. Nothing was submitted. Check the file size and format before retrying, or use the manual filing details.',
+      );
+    if (!response.ok() || !next.test(path)) throw new Error(`Portal form did not advance (HTTP ${response.status()}).`);
+    await this.page.waitForURL(next);
   }
 
   private async assertNoMissingRequired() {

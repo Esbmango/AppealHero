@@ -487,7 +487,9 @@ sequenceDiagram
 | captcha | BLOCKED，零提交，给出手动提交包 | ✅ |
 | missing_field | NEEDS_USER → 用户补充 → 旧批准被拒 → 重新批准 → SUBMITTED | ✅ |
 | 查询：MA 车牌 / 外州车牌 / 查不到 / 多张 | 列出罚单 / 要求罚单号 / 如实告知 / 让用户选 | 🆕 |
-| session_expired、upload_rejected、页面藏有提示注入文字 | NEEDS_USER 或安全重跑；注入文字不改变任何行为 | 🆕 |
+| session_expired | 提交前首次过期会查状态，再用新会话填表、核对、提交。再次过期则暂停。点击提交后过期先查状态。 | ✅ |
+| upload_rejected | 门户拒收附件后进入 NEEDS_USER，显示文件名、格式和大小要求，可手动重试。零提交。 | ✅ |
+| 页面藏有提示注入文字 | 注入文字不改变任何行为 | 🆕 |
 | `/calibrate` 坐标校准页 | 用真实 CU 点击已知靶点，验证坐标换算 | 🆕 |
 
 模拟门户的字段来自 boston.gov 公布的申诉所需信息（姓名、邮寄地址、争议性质、车牌与州、罚单号、证据）。字段一致，外观刻意不同，页面顶部红条标注 SIMULATED，并设置 noindex。

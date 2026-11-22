@@ -138,6 +138,11 @@ export async function buildPortal(opts: { hangMs?: number } = {}) {
     const s = session(req);
     if (!s) return expired(reply);
     const b = canon(req.body);
+    if (db.scenario === 'session_expired' && !db.expiredTickets.has(s.data.ticketNumber)) {
+      db.expiredTickets.add(s.data.ticketNumber);
+      db.sessions.delete(s.sid);
+      return expired(reply);
+    }
     const required = ['fullName', 'mailingAddress', 'email', 'disputeReason', 'statement', ...(db.scenario === 'missing_field' ? ['vehicleMake'] : [])];
     const missing = required.filter((k) => !b[k]);
     if (missing.length) return html(reply, detailsPage(db.scenario, s, `Missing: ${missing.join(', ')}`), 422);
@@ -164,6 +169,8 @@ export async function buildPortal(opts: { hangMs?: number } = {}) {
     }
     const s = db.sessions.get(sid);
     if (!s) return expired(reply);
+    if (db.scenario === 'upload_rejected' && files.length)
+      return html(reply, evidencePage(db.scenario, s, 'The portal could not accept the evidence upload. Check your files and try again.'), 422);
     s.evidence = files;
     return reply.redirect(`/appeal/review?sid=${s.sid}`, 303);
   });
@@ -250,6 +257,7 @@ export async function buildPortal(opts: { hangMs?: number } = {}) {
   app.post('/admin/scenario', async (req, reply) => {
     const scenario = (req.body as { scenario?: string } | undefined)?.scenario as Scenario;
     if (!SCENARIOS.includes(scenario)) return reply.code(400).send({ error: `scenario must be one of ${SCENARIOS.join(', ')}` });
+    db.expiredTickets.clear();
     db.scenario = scenario;
     db.timeoutArmed = true;
     return { scenario: db.scenario };

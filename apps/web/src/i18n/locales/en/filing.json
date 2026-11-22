@@ -55,5 +55,7 @@
   "step.fail": "Failed",
   "step.blocked": "Blocked",
   "step.info": "Information",
-  "backToApp": "Back to the app"
+  "backToApp": "Back to the app",
+  "uploadRejected": "The portal rejected the evidence upload. Nothing was filed. Check that each file is a JPG, PNG or PDF up to {maxMB} MB. You can retry or use the manual filing details below.",
+  "sessionExpired": "The portal session expired again before filing. Nothing was submitted. Select Retry to start a new session."
 }

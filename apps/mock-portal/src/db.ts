@@ -35,6 +35,7 @@ export const db = {
   scenario: 'normal' as Scenario,
   /** timeout scenarios fire once, then behave normally (so a reconciled retry can succeed) */
   timeoutArmed: true,
+  expiredTickets: new Set<string>(),
   sessions: new Map<string, Session>(),
   appeals: new Map<string, Appeal>(), // keyed by ticket number
   inbox: [] as { to: string; subject: string; confirmationNumber: string; at: string }[],
@@ -43,6 +44,7 @@ export const db = {
 export function resetDb() {
   db.scenario = 'normal';
   db.timeoutArmed = true;
+  db.expiredTickets.clear();
   db.sessions.clear();
   db.appeals.clear();
   db.inbox.length = 0;

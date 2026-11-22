@@ -10,17 +10,28 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { demoPng, pixel as PNG_1PX } from './fixtures/demoPng';
 import { ProofResponseSchema, DEMO_TICKETS, type CaseView, type Scenario } from '@appealhero/shared';
 import { config } from '../src/core/config';
+import { db } from '../../mock-portal/src/db';
 
 const TICKET = '900000001';
 const DONE = ['SUBMITTED', 'NEEDS_USER', 'BLOCKED', 'FAILED', 'STATEMENT_REVIEW', 'CLOSED_NO_APPEAL'];
 
 let api = '';
 let portal = '';
+const traffic: { method: string; path: string; status: number }[] = [];
+let expireOnPost: '/appeal/details' | '/appeal/submit' | undefined;
+const posts = (path: string) => traffic.filter((r) => r.method === 'POST' && r.path === path).map((r) => r.status);
 let close: () => Promise<void> = async () => {};
 
 beforeAll(async () => {
   const { buildPortal } = await import('../../mock-portal/src/index');
   const p = await buildPortal({ hangMs: 5000 });
+  p.addHook('onRequest', async (req) => {
+    if (expireOnPost && req.method === 'POST' && req.url.split('?')[0] === expireOnPost) db.sessions.clear();
+  });
+  p.addHook('onResponse', async (req, reply) => {
+    const path = req.url.split('?')[0];
+    if (path.startsWith('/appeal/') || path === '/status') traffic.push({ method: req.method, path, status: reply.statusCode });
+  });
   await p.listen({ port: 0, host: '127.0.0.1' });
   portal = `http://127.0.0.1:${(p.server.address() as { port: number }).port}`;
   Object.assign(config, {
@@ -60,6 +71,7 @@ async function waitFor(id: string, pred: (c: CaseView) => boolean, ms = 60_000):
 }
 
 async function scenario(s: Scenario) {
+  traffic.length = 0;
   await fetch(`${portal}/admin/reset`, { method: 'POST' });
   await fetch(`${portal}/admin/scenario`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ scenario: s }) });
 }
@@ -245,6 +257,63 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
     expect(c.triage).toMatchObject({ strength: 'WEAK', disputeReason: 'SIGNAGE', considerations: [] });
     expect((await confirmFacts(id)).draft?.statementEn).toContain('clear when I parked');
   });
+  it('wp6: session_expired re-runs safely and still files exactly one appeal', async () => {
+    await scenario('session_expired');
+    const id = await createCase();
+    const preview = await reviewAndApprove(id);
+    const c = await waitFor(id, (x) => DONE.includes(x.state));
+    expect(c.state).toBe('SUBMITTED');
+    expect(posts('/appeal/details')).toEqual([440, 303]);
+    expect(traffic.filter((r) => r.path === '/status')).toHaveLength(2);
+    expect(posts('/appeal/submit')).toEqual([303]);
+    expect(c.stateHistory.filter((h) => h.to === 'SUBMITTING')).toHaveLength(1);
+    const proof = ProofResponseSchema.parse(await (await fetch(api + '/api/cases/' + id + '/proof')).json());
+    expect(proof).toMatchObject({ readbackHash: preview.payloadHash, readbackMatches: true });
+    const filed = await appeals();
+    expect(filed).toHaveLength(1);
+    expect(filed[0].statement.replace(/\r\n/g, '\n')).toBe(preview.payload.fields.statement);
+    expect(filed[0].evidence).toMatchObject(preview.payload.evidence);
+  });
+
+  it('stops after a second pre-submit expiry and only reconciles an expiry after the submit click', async () => {
+    for (const phase of ['/appeal/details', '/appeal/submit'] as const) {
+      await scenario('normal');
+      expireOnPost = phase;
+      try {
+        const id = await createCase();
+        await reviewAndApprove(id);
+        const c = await waitFor(id, (x) => DONE.includes(x.state));
+        expect(c.state).toBe('NEEDS_USER');
+        if (phase === '/appeal/details') {
+          expect(posts('/appeal/details')).toEqual([440, 440]);
+          expect(posts('/appeal/submit')).toEqual([]);
+          expect(c.needsUser?.code).toBe('SESSION_EXPIRED');
+        } else {
+          expect(posts('/appeal/start')).toHaveLength(1);
+          expect(posts('/appeal/submit')).toEqual([440]);
+          expect(c.stateHistory.map((h) => h.to)).toContain('UNKNOWN_RESULT');
+          expect(c.needsUser?.code).toBe('NOT_FOUND_AFTER_UNKNOWN');
+        }
+        expect(await appeals()).toHaveLength(0);
+      } finally {
+        expireOnPost = undefined;
+      }
+    }
+  });
+
+  it('wp6: upload_rejected ends in NEEDS_USER with a clear reason', async () => {
+    await scenario('upload_rejected');
+    const id = await createCase();
+    await reviewAndApprove(id);
+    const c = await waitFor(id, (x) => DONE.includes(x.state));
+    expect(c.state).toBe('NEEDS_USER');
+    expect(c.needsUser).toMatchObject({ code: 'UPLOAD_REJECTED', reason: expect.stringMatching(/evidence.*nothing was submitted/i) });
+    expect(c.manualPack?.length).toBeGreaterThan(0);
+    expect(posts('/appeal/evidence')).toEqual([422]);
+    expect(posts('/appeal/submit')).toEqual([]);
+    expect(await appeals()).toHaveLength(0);
+  });
+
   it('normal: approve → fill → read-back → submit once → receipt', async () => {
     await scenario('normal');
     const id = await createCase();
