@@ -51,9 +51,9 @@ Codex 的沙箱如果跑不了浏览器测试，就在自己电脑上跑。CI �
 | 20:00–21:00 | 拿 API key → 交给 C | 开工前准备 → B1 | 开工前准备 → C2（不需要 key，先做） |
 | 21:00–23:30 | 开始写 Devpost 草稿 | B1 三语界面 + 演示身份选择 | C1 接入真实 Gemini 并修复 |
 | **22:00 检查点** | 根据 C 的结论决定演示模式 | — | C 报告 Gemini 能不能用、用哪个模型、Computer Use 行不行 |
-| 23:30–03:00 | 继续写 Devpost | B2 演示图片 → B3 编辑界面 → B4 凭证页 | C3 三份手册 + 提示词 → C4 凭证接口 + trace |
+| 23:30–03:00 | 继续写 Devpost | B2 演示图片 → B3 编辑界面 → B4 凭证页 → **B6 强度卡** | ~~C3、C4~~（已合并）→ **C6 辩护式分析 + 个人情况 + 强度评级** |
 | **00:00 检查点** | 三人对一下进度 | main 全绿；林同学主线在 fake 模式下中文、西语都能走通 | 同左 |
-| 03:00–05:00 | Devpost 定稿（先用占位截图） | B5 视觉打磨 + iPhone 真机测试 | C5“帮我查”（可选，前面全绿才做） |
+| 03:00–05:00 | Devpost 定稿（先用占位截图） | B5 视觉打磨 + iPhone 真机测试 | C5“帮我查”（可选，C6 合并且全绿才做） |
 | **05:00 代码冻结** | — | 之后只修 bug | 之后只修 bug |
 | 05:00–07:00 | 换上真实截图和视频 | 录 1 分钟视频、做封面图和截图 | 最后跑全部测试，更新 README 的“已验证” |
 | 05:30 和 06:30 | 讲解 | 操作手机 | 盯控制台和后台 |
@@ -164,6 +164,22 @@ the audit chain head (explain in one line: "if this record changes later, the ha
 Verify as usual; add the proof screen to the smoke test (open it after SUBMITTED). PR with screenshots.
 ```
 
+### B6 案件强度卡 + 个人情况快捷选项（约 1 小时；C6 合并后做，排在 B5 之前）
+
+```text
+Task B6 for AppealHero (read AGENTS.md and docs/PRODUCT_SPEC.md F14 first).
+Owned paths: apps/web/src/**, apps/web/test/**, scripts/ui-smoke.mjs. Do not edit apps/server or packages/shared.
+1. Opening question: a multi-select chip row for personal circumstances (student / financial hardship; out-of-state or
+   first time parking in Boston; emergency / breakdown / loading / stolen or sold) plus "None / skip". Send the choices as
+   a normal chat message so the agent records them (they then appear in the fact review like any user statement).
+2. Strength card on the triage/fact-review screen: a badge Strong / Moderate / Weak / No ground found (zh/es/en, colour +
+   text, never colour alone), strengthWhy, "what the city may say" (rebuttals) and "evidence that would make this stronger"
+   (evidenceToAdd) with an upload button per item. No percentages anywhere.
+3. For WEAK cases show the honesty note: this is a request for discretion; the city decides. Keep fine, late fee and deadline
+   visible. Keep the "appeal anyway" button for NONE.
+4. All strings via i18n (zh, es, en). Update the smoke test if a selector changes. npm run format && typecheck && test && smoke.
+```
+
 ### B5 视觉打磨 + iPhone 真机测试（约 2 小时）
 
 ```text
@@ -248,7 +264,39 @@ Task C4 for AppealHero (read AGENTS.md, docs/ARCHITECTURE.md §6). Owned paths: 
 Verify as usual. PR. Tell B when it is merged (B4 depends on it).
 ```
 
-### C5“帮我查”（可选，约 1.5 小时，只在 03:00 前一切全绿时做）
+### C6 辩护式分析 + 个人情况 + 案件强度（约 2 小时；**C1 之后最优先**，取代 C5）
+
+产品要求见 `docs/PRODUCT_SPEC.md` F14 和 `docs/PLAYBOOKS.md` §3.1。做完马上把新字段告诉 B（B6 依赖它）。
+
+```text
+Task C6 for AppealHero (read AGENTS.md, docs/PRODUCT_SPEC.md F14, docs/PLAYBOOKS.md §3 and §3.1 first).
+Owned paths: packages/shared/** (additive only), apps/server/**, docs/PLAYBOOKS.md.
+Goal: the agent argues for the user as hard as the facts allow, always takes the user's personal circumstances into account,
+and rates case strength instead of giving a probability. Never invent facts; never call the product a lawyer.
+1. Shared (additive): TriageSchema gets strength: 'STRONG'|'MODERATE'|'WEAK'|'NONE', strengthWhy: string,
+   rebuttals?: string[], evidenceToAdd?: {what: string, why: string}[], considerations?: string[] (fact ids).
+   New user-statement fact keys: hardship, firstVisit, outOfState, circumstance.
+2. Interview: every playbook gets "what happened that day" questions (arrival/leave time, exact spot, signs seen,
+   payment/permit, anything unusual) and an evidence checklist with why each item helps. Add one opening multi-select
+   question for personal circumstances (student/financial hardship; out-of-state or first time parking in Boston;
+   emergency/breakdown/loading/stolen-or-sold). Skippable. Anything the user says later in chat counts too (record_fact).
+3. Analysis: check four categories in order — ticket facts wrong; violation did not happen (existing defenses);
+   procedural problems; personal circumstances. If none of the first three holds but any circumstance fact exists:
+   recommendation=APPEAL, disputeReason=OTHER, strength=WEAK, grounds cite the user's own circumstance facts
+   (existing OTHER rule), and still return fineAmount, latePenalty and deadline. If nothing at all: strength=NONE
+   (keep the existing hydrant→PAY e2e test unchanged). Strength rubric: STRONG = verified rule or clear photo/receipt
+   proves no violation; MODERATE = ground holds but evidence incomplete or judgement needed; WEAK = only circumstances.
+   For outOfState/firstVisit, first probe for real grounds (unclear sign, unmarked resident-only street, app payment failure).
+4. Writer: add one respectful mitigation paragraph citing the circumstance facts ("I respectfully ask the hearing officer
+   to consider…"); never present it as a legal defense. Honesty note in the user's language: it is a request for discretion;
+   we found no official Boston hardship-reduction policy; the Parking Clerk is 617-635-4410 (PLAYBOOKS §3.1).
+5. Fake driver + golden tests: (a) student says they cannot pay, weekday meter, no receipt → APPEAL / WEAK / OTHER with a
+   mitigation paragraph; (b) out-of-state first visit + obscured-sign photo → SIGNAGE with strength >= MODERATE;
+   (c) hydrant, matching vehicle, no circumstances → NONE / PAY (unchanged). Gate 1 still confirms every new fact.
+Run npm run format && npm run typecheck && npm test && npm run docs:fsm -- --check. Open a PR; tell B the new Triage fields.
+```
+
+### C5“帮我查”（可选，约 1.5 小时，只在 03:00 前一切全绿时做；**C6 优先**）
 
 门户这一侧已经做好（`/lookup` 结果页、详情页、预置历史罚单、`wp7` 前三条测试），C 只需要做 Agent 和 API 这一侧（下面第 2–4 步）。
 
