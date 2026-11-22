@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineTool, type ToolResult } from '@appealhero/shared';
 import type { ToolCtx } from './types';
+import { readDemoTruth } from '../perception/demoTruth';
 import { config } from '../../core/config';
 import { publishFacts, type Ctx } from '../../core/ctx';
 import type { CaseRecord, EvidenceRecord } from '../../core/types';
@@ -78,9 +79,19 @@ async function analyzeWithGemini(ctx: Ctx, caseId: string, ev: EvidenceRecord, e
 }
 
 /** Fake mode: deterministic findings so the flows can be demoed without a key. */
-function fakeFinding(c: CaseRecord, _ev: EvidenceRecord, extract: string): Finding {
+function fakeFinding(c: CaseRecord, ev: EvidenceRecord, extract: string): Finding {
   const issued = latestFact(c, 'issuedAt')?.value ?? new Date().toISOString();
   if (extract === 'paid_until') {
+    const truth = readDemoTruth(ev.path);
+    if (truth?.kind === 'receipt')
+      return {
+        summary: '[fake] payment period read from synthetic receipt',
+        facts: [
+          { key: 'paidFrom', label: 'Paid from (receipt)', value: truth.paidFrom },
+          { key: 'paidUntil', label: 'Paid until (receipt)', value: truth.paidUntil },
+          { key: 'receiptPlate', label: 'Plate on receipt', value: truth.plate },
+        ],
+      };
     const until = new Date(new Date(issued).getTime() + 13 * 60_000).toISOString();
     return {
       summary: '[fake] receipt shows paid until 13 minutes after the ticket time',

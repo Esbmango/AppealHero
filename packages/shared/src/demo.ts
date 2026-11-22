@@ -40,7 +40,7 @@ export const DEMO_TICKETS = {
     plateState: 'NY',
     violationDescription: 'METER FEE UNPAID',
     issuedAt: '2026-11-17T10:05:00-05:00', // Tuesday, meters in effect
-    location: 'Massachusetts Ave, Boston',
+    location: '890 Commonwealth Ave, Boston',
     fineAmount: 40,
   },
   // v2 additions (playbooks boston.street_cleaning / boston.no_stopping — golden tests, not the main demo)

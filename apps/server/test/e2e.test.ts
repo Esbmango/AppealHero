@@ -7,7 +7,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CaseView, Scenario } from '@appealhero/shared';
+import { demoPng } from './fixtures/demoPng';
+import { DEMO_TICKETS, type CaseView, type Scenario } from '@appealhero/shared';
 import { config } from '../src/core/config';
 
 const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
@@ -71,9 +72,9 @@ async function appeals(ticket = TICKET) {
   return st.appeals.filter((a) => a.ticketNumber === ticket);
 }
 
-async function createCase(text = '周日下午在 Comm Ave 停车，被开了计时器罚单') {
+async function createCase(text = '周日下午在 Comm Ave 停车，被开了计时器罚单', image = PNG_1PX) {
   const fd = new FormData();
-  fd.append('ticket', new Blob([PNG_1PX], { type: 'image/png' }), 'ticket.png');
+  fd.append('ticket', new Blob([image], { type: 'image/png' }), 'ticket.png');
   fd.append('text', text);
   fd.append('lang', 'zh');
   fd.append('profileName', 'Alex Demo');
@@ -291,6 +292,30 @@ describe('AppealHero e2e (fake AI, simulated portal)', () => {
     expect((await post(`/api/cases/${id}/approve`, { payloadHash: c.preview!.payloadHash })).status).toBe(202);
     expect((await waitFor(id, (x) => DONE.includes(x.state) && x.state !== 'STATEMENT_REVIEW')).state).toBe('SUBMITTED');
     expect((await appeals())[0].statement).toContain('710 Commonwealth Ave');
+  });
+
+  it.each([true, false])('weekday receipt covers issue time: %s', async (covered) => {
+    await scenario('normal');
+    const ticket = DEMO_TICKETS.meterWeekday;
+    const id = await createCase('permit', demoPng({ kind: 'ticket', ...ticket }));
+    const intake = await waitFor(id, (c) => Boolean(c.pendingQuestion));
+    expect(intake.ticket?.ticketNumber).toBe(ticket.ticketNumber);
+    const paidUntil = covered ? '2026-11-17T10:30:00-05:00' : '2026-11-17T10:00:00-05:00';
+    const receipt = demoPng({ kind: 'receipt', plate: ticket.plateNumber, paidFrom: '2026-11-17T09:30:00-05:00', paidUntil });
+    const fd = new FormData();
+    fd.append('images', new Blob([receipt], { type: 'image/png' }), 'receipt.png');
+    expect((await fetch(`${api}/api/cases/${id}/messages`, { method: 'POST', body: fd })).status).toBe(202);
+    const c = await waitFor(id, (c) => Boolean(c.triage));
+    expect(c.facts.find((f) => f.key === 'paidUntil')).toMatchObject({ value: paidUntil, status: 'NEEDS_CONFIRMATION', provenance: 'PHOTO_EVIDENCE' });
+    if (covered) {
+      expect(c.triage?.disputeReason).toBe('PAID');
+      await reviewAndApprove(id);
+      expect((await waitFor(id, (x) => x.state === 'SUBMITTED')).receipt?.confirmationNumber).toBeTruthy();
+      expect(await appeals(ticket.ticketNumber)).toHaveLength(1);
+    } else {
+      expect(c.triage?.recommendation).toBe('PAY');
+      expect(await appeals(ticket.ticketNumber)).toHaveLength(0);
+    }
   });
 
   it('negative triage: hydrant with matching vehicle → PAY recommendation, user can close without appealing', async () => {
