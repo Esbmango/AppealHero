@@ -41,7 +41,7 @@ describe('WP9 phone web app v2', () => {
   it.todo('wp9: statement edits invalidate the approval and require re-approval');
   it('wp9: no hardcoded UI strings outside locale files', () => {
     const violations = filesIn(sourceRoot)
-      .filter((file) => file.endsWith('.tsx') && !file.includes('/i18n/') && !file.endsWith('/Console.tsx'))
+      .filter((file) => file.endsWith('.tsx') && !file.includes('/i18n/'))
       .flatMap((file) => hardcodedCopy(fs.readFileSync(file, 'utf8')).map((text) => `${path.relative(sourceRoot, file)}: ${text}`));
     expect(violations).toEqual([]);
     expect(hardcodedCopy('<button>Send</button><input placeholder="Your name" /><p>{ready ? "已确认" : "Pending"}</p>')).toContain('Send');

@@ -36,7 +36,7 @@ export function PhoneFlow({
   }, [c?.messages.length, c?.state]);
   return (
     <div className="phone-flow flex h-full min-w-0 flex-col" lang={lang === 'zh' ? 'zh-CN' : lang}>
-      <header className="shrink-0 border-b bg-white px-3 py-2">
+      <header className="flow-header shrink-0 border-b bg-white">
         <div className="flex items-center justify-between gap-2">
           <div className="font-bold">{t('common.brand')}</div>
           <select
@@ -56,7 +56,7 @@ export function PhoneFlow({
           </select>
         </div>
         {c && (
-          <div className="mt-1 flex items-center justify-between gap-2">
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
             <StateChip state={c.state} />
             <button className="min-h-11 min-w-11 text-sm text-slate-500 underline" onClick={onNew}>
               {t('common.newCase')}
@@ -72,7 +72,7 @@ export function PhoneFlow({
         )
       ) : (
         <>
-          <div className="flex-1 space-y-3 overflow-y-auto p-3">
+          <div className="flow-scroll space-y-3">
             <Chat messages={c.messages} />
             <StatePanel c={c} events={events} refresh={refresh} />
             <div ref={bottom} />
@@ -129,7 +129,7 @@ function Intake({ profile, onCreated, onChangeProfile }: { profile: Profile; onC
   }
 
   return (
-    <div className="flex-1 space-y-3 overflow-y-auto p-3">
+    <div className="flow-scroll space-y-3">
       <Card>
         <p className="text-sm leading-relaxed">{t('intake.intro')}</p>
         <p className="mt-2 text-xs text-slate-500">{t('intake.simulated')}</p>
@@ -237,7 +237,7 @@ function Composer({ c }: { c: CaseView }) {
   }
 
   return (
-    <div className="space-y-2 border-t bg-white p-2">
+    <div className="flow-composer space-y-2 border-t bg-white">
       {q?.options && (
         <div className="flex flex-wrap gap-2">
           {q.options.map((o) => (
@@ -316,7 +316,7 @@ function StatePanel({ c, events, refresh }: { c: CaseView; events: AgentEvent[];
             deadline: triage.deadline ? formatDate(triage.deadline, true) : t('filing.seeTicket'),
           })}
         </p>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           <Button onClick={() => act(() => api.decide(c.id, 'accept_pay'))}>{t('filing.acceptPay')}</Button>
           <Button variant="ghost" onClick={() => act(() => api.decide(c.id, 'appeal_anyway'))}>
             {t('filing.appealAnyway')}

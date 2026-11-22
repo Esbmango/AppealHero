@@ -28,7 +28,7 @@ export function Onboarding({ profile, onChange }: { profile: Profile; onChange: 
   useLang();
   return (
     <form
-      className="flex-1 space-y-4 overflow-y-auto p-4"
+      className="flow-scroll space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
         onChange({ ...profile, name: profile.name.trim(), address: profile.address.trim(), email: profile.email.trim(), ready: true });
@@ -39,7 +39,7 @@ export function Onboarding({ profile, onChange }: { profile: Profile; onChange: 
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">{t('onboarding.title')}</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">{t('onboarding.intro')}</p>
       </div>
-      <div className="space-y-2" role="group" aria-label={t('onboarding.title')}>
+      <div className="persona-options" role="group" aria-label={t('onboarding.title')}>
         {(Object.keys(DEMO_PERSONAS) as PersonaId[]).map((id) => (
           <button
             key={id}
@@ -51,15 +51,15 @@ export function Onboarding({ profile, onChange }: { profile: Profile; onChange: 
               setLang(DEMO_PERSONAS[id].lang);
             }}
             className={cx(
-              'flex min-h-16 w-full items-center justify-between rounded-2xl border px-4 py-3 text-left',
+              'flex min-h-16 min-w-0 w-full items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-left',
               profile.persona === id ? 'border-sky-700 bg-sky-50 ring-1 ring-sky-700' : 'border-slate-200 bg-white',
             )}
           >
-            <span>
+            <span className="min-w-0">
               <span className="block font-semibold">{t(`onboarding.${id}`)}</span>
               <span className="mt-1 block text-sm text-slate-600">{t(`onboarding.${id}Detail`)}</span>
             </span>
-            <span aria-hidden="true" className="text-sky-700">
+            <span aria-hidden="true" className="shrink-0 text-sky-700">
               {profile.persona === id ? '✓' : ''}
             </span>
           </button>

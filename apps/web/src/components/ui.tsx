@@ -13,7 +13,7 @@ export function Card({ title, children, tone = 'default' }: { title?: ReactNode;
     info: 'bg-sky-50 border-sky-200',
   }[tone];
   return (
-    <section className={cx('rounded-2xl border p-3 shadow-sm', toneCls)}>
+    <section className={cx('min-w-0 rounded-2xl border p-3 shadow-sm sm:p-4', toneCls)}>
       {title && <h3 className="mb-2 text-sm font-semibold">{title}</h3>}
       {children}
     </section>

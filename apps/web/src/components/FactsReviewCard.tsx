@@ -41,11 +41,14 @@ export function FactsReviewCard({ c, onChanged }: { c: CaseView; onChanged: () =
       <p className="mb-2 text-xs text-slate-600">{t('review.factsHelp')}</p>
       <ul className="space-y-1 text-xs">
         {c.facts.map((f) => (
-          <li key={f.id} className={cx('flex items-start justify-between gap-2 rounded-lg p-1', PENDING.includes(f.status) && 'bg-amber-50')}>
-            <span>
+          <li
+            key={f.id}
+            className={cx('flex flex-col items-start justify-between gap-1 rounded-lg p-2 sm:flex-row sm:gap-3', PENDING.includes(f.status) && 'bg-amber-50')}
+          >
+            <span className="min-w-0">
               {fieldLabel(f.key, f.label)}: <b className="break-all">{factText(f)}</b>
             </span>
-            <span className="whitespace-nowrap">
+            <span className="flex shrink-0 flex-wrap items-center gap-1">
               <ProvBadge p={f.provenance} /> <StatusMark s={f.status} />
             </span>
           </li>

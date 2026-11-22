@@ -27,6 +27,16 @@ const PORTAL = process.env.SMOKE_PORTAL || 'http://localhost:4100';
 const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || undefined, headless: true });
 const log = (...values) => console.log('[smoke]', ...values);
 const errors = [];
+const viewports = [
+  { width: 320, height: 568 },
+  { width: 375, height: 667 },
+  { width: 390, height: 844 },
+  { width: 430, height: 932 },
+  { width: 844, height: 390 },
+  { width: 768, height: 1024 },
+  { width: 1024, height: 768 },
+  { width: 1440, height: 900 },
+];
 async function post(url, body = {}) {
   const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   assert.ok(response.ok, `${url}: ${response.status}`);
@@ -57,8 +67,40 @@ async function checkPhone(page) {
       }));
   });
   assert.deepEqual(smallTargets, [], 'Every phone control must have a 44px hit area');
-  const overflow = await page.locator('.phone-flow').evaluate((root) => root.scrollWidth > root.clientWidth + 1);
-  assert.equal(overflow, false, 'Phone layout must not overflow horizontally');
+  const layout = await page.locator('.phone-flow').evaluate((root) => {
+    const header = root.querySelector('header').getBoundingClientRect();
+    const scroll = root.querySelector('.flow-scroll');
+    const composer = root.querySelector('.flow-composer')?.getBoundingClientRect();
+    const shell = root.closest('main').getBoundingClientRect();
+    return {
+      overflow: [document.documentElement, root, scroll].some((node) => node.scrollWidth > node.clientWidth + 1),
+      headerVisible: header.top >= 0 && header.bottom <= innerHeight,
+      composerVisible: !composer || (composer.top >= header.bottom && composer.bottom <= innerHeight + 1),
+      contentVisible: scroll.clientHeight > 0,
+      centered: Math.abs(shell.left - (innerWidth - shell.right)) < 2,
+      width: shell.width,
+      inputsAvoidZoom: [...root.querySelectorAll('input, textarea, select')].every((node) => parseFloat(getComputedStyle(node).fontSize) >= 16),
+    };
+  });
+  assert.equal(layout.overflow, false, 'Page and content must not overflow horizontally');
+  assert.ok(layout.headerVisible && layout.composerVisible && layout.contentVisible, 'Header, content and composer must fit the viewport');
+  assert.ok(layout.centered && layout.width <= 832, 'Single-column page must stay centered at a readable width');
+  assert.ok(layout.inputsAvoidZoom, 'Inputs need 16px text to prevent iOS focus zoom');
+  assert.equal(await page.getByText('AppealHero · Agent console', { exact: true }).count(), 0);
+}
+async function checkResponsive(page, stage) {
+  const original = page.viewportSize();
+  const caseId = await page.evaluate(() => localStorage.getItem('cp.caseId'));
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await checkPhone(page);
+    assert.equal(await page.evaluate(() => localStorage.getItem('cp.caseId')), caseId, 'Resizing must preserve the current case');
+    if (stage === 'normal-onboarding' && [320, 768, 1440].includes(viewport.width)) {
+      await page.screenshot({ path: `${out}/responsive-${viewport.width}.png`, scale: 'css' });
+    }
+  }
+  await page.setViewportSize(original);
 }
 async function phoneFlow(label) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
@@ -80,7 +122,7 @@ async function phoneFlow(label) {
     const name = persona === 'maria' ? 'María González' : 'Lin Xiaoyu';
     await page.getByTestId(`persona-${persona}`).click();
     await page.getByTestId('language-switch').selectOption(lang);
-    await checkPhone(page);
+    await checkResponsive(page, `${label}-onboarding`);
     await page.screenshot({ path: `${out}/${label}-0-onboarding.png` });
     await page.getByRole('button', { name: T('onboarding.continue'), exact: true }).click();
     await page.reload();
@@ -95,7 +137,7 @@ async function phoneFlow(label) {
             ? 'Recibí una multa de parquímetro el domingo por la tarde en Comm Ave.'
             : 'I got a meter ticket on Sunday afternoon on Comm Ave.',
       );
-    await checkPhone(page);
+    await checkResponsive(page, `${label}-intake`);
     await page.screenshot({ path: `${out}/${label}-1-intake.png` });
     const created = page.waitForResponse((response) => response.url() === BASE + '/api/cases' && response.request().method() === 'POST');
     await page.getByRole('button', { name: T('intake.start'), exact: true }).click();
@@ -117,18 +159,18 @@ async function phoneFlow(label) {
         `Profile fact ${key} must reach the server confirmed`,
       );
     }
-    await checkPhone(page);
+    await checkResponsive(page, `${label}-facts`);
     await page.screenshot({ path: `${out}/${label}-2-facts.png`, fullPage: true });
     await page.getByRole('button', { name: T('review.confirmAll'), exact: true }).click();
     await page.getByRole('heading', { name: T('review.statementTitle'), exact: true }).waitFor({ timeout: 20000 });
-    await checkPhone(page);
+    await checkResponsive(page, `${label}-statement`);
     await page.screenshot({ path: `${out}/${label}-3-statement.png`, fullPage: true });
     await page.getByRole('checkbox').check();
     await page.getByRole('button', { name: T('review.approve'), exact: true }).click();
     await page.getByRole('heading', { name: T('filing.submitted'), exact: true }).waitFor({ timeout: 40000 });
-    await checkPhone(page);
+    await checkResponsive(page, `${label}-receipt`);
     await page.screenshot({ path: `${out}/${label}-4-receipt.png`, fullPage: true });
-    log(lang, label, 'phone flow, profile facts and 44px targets OK');
+    log(lang, label, 'complete flow, profile facts, 44px targets and 8 viewport sizes OK');
   } finally {
     await context.close();
   }
@@ -170,14 +212,23 @@ try {
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await desktop.newPage();
   page.on('pageerror', (error) => errors.push(error.message));
+  const listRequests = [];
+  page.on('request', (request) => {
+    if (request.method() === 'GET' && request.url() === BASE + '/api/cases') listRequests.push(request.url());
+  });
   await page.goto(BASE + '/');
-  await page.getByText('AppealHero · Agent console', { exact: true }).waitFor();
   await page.getByTestId('language-switch').selectOption(lang);
-  await page.getByRole('heading', { name: T('filing.submitted'), exact: true }).waitFor();
-  await page.screenshot({ path: `${out}/desktop-console.png` });
+  await page.getByRole('heading', { name: T('onboarding.title'), exact: true }).waitFor();
+  await page.getByTestId('persona-custom').click();
+  await page.locator('input[name="name"]').fill('Desktop Draft');
+  await checkResponsive(page, 'desktop-draft');
+  assert.equal(await page.locator('input[name="name"]').inputValue(), 'Desktop Draft');
+  assert.equal(await page.evaluate(() => localStorage.getItem('cp.caseId')), null, 'Fresh desktop must not take over another browser’s latest case');
+  assert.deepEqual(listRequests, [], 'Website must not poll the presenter console case list');
+  await page.screenshot({ path: `${out}/desktop-website.png` });
   await desktop.close();
   assert.deepEqual(errors, [], 'Browser must not report unhandled errors');
-  log('desktop console stays English; all checks passed');
+  log('desktop website preserves its own draft and does not follow other cases; all checks passed');
 } finally {
   await browser.close();
 }

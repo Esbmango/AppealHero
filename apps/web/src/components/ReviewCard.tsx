@@ -37,41 +37,41 @@ export function ReviewCard({ c, onChanged }: { c: CaseView; onChanged: () => voi
 
   return (
     <Card title={t('review.statementTitle')}>
-      <table className="w-full text-xs">
-        <tbody>
-          {PORTAL_FIELDS.filter((f) => f.id !== 'statement').map((f) => {
-            const src = p.fieldSources[f.id];
-            return (
-              <tr key={f.id} className="border-b border-slate-100 align-top">
-                <td className="py-1 pr-2 text-slate-500">{fieldLabel(f.id, f.label)}</td>
-                <td className="py-1 pr-2 font-medium break-all">
-                  {pretty(f.id, p.payload.fields[f.id]) || <span className="text-rose-600">{t('common.missing')}</span>}
-                </td>
-                <td className="py-1 text-right whitespace-nowrap">
+      <dl className="divide-y divide-slate-100 text-sm">
+        {PORTAL_FIELDS.filter((f) => f.id !== 'statement').map((f) => {
+          const src = p.fieldSources[f.id];
+          return (
+            <div key={f.id} className="grid gap-1 py-2 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-3">
+              <dt className="text-slate-500">{fieldLabel(f.id, f.label)}</dt>
+              <dd className="min-w-0 font-medium">
+                {pretty(f.id, p.payload.fields[f.id]) || <span className="text-rose-600">{t('common.missing')}</span>}
+                <div className="mt-1 flex flex-wrap items-center gap-1">
                   <ProvBadge p={src?.provenance} /> <StatusMark s={src?.status} />
-                </td>
-              </tr>
-            );
-          })}
-          {Object.entries(p.payload.extra).map(([label, value]) => (
-            <tr key={label} className="border-b border-slate-100">
-              <td className="py-1 pr-2 text-slate-500">{label}</td>
-              <td className="py-1 font-medium">{value}</td>
-              <td className="py-1 text-right">
+                </div>
+              </dd>
+            </div>
+          );
+        })}
+        {Object.entries(p.payload.extra).map(([label, value]) => (
+          <div key={label} className="grid gap-1 py-2 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-3">
+            <dt className="text-slate-500">{label}</dt>
+            <dd className="min-w-0 font-medium">
+              {value}
+              <div className="mt-1 flex flex-wrap items-center gap-1">
                 <ProvBadge p="USER_TEXT" /> <StatusMark s="CONFIRMED" />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              </div>
+            </dd>
+          </div>
+        ))}
+      </dl>
 
       {unconfirmed.length > 0 && (
         <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-2 text-xs">
           <p className="mb-1 font-semibold">{t('review.pendingCount', { count: unconfirmed.length })}</p>
           <ul className="mb-2 space-y-1">
             {unconfirmed.map((f) => (
-              <li key={f.id} className="flex items-start justify-between gap-2">
-                <span>
+              <li key={f.id} className="flex flex-wrap items-start justify-between gap-2">
+                <span className="min-w-0">
                   {fieldLabel(f.key, f.label)}: <b>{factText(f)}</b>
                 </span>
                 <ProvBadge p={f.provenance} />
@@ -95,7 +95,7 @@ export function ReviewCard({ c, onChanged }: { c: CaseView; onChanged: () => voi
       )}
 
       <div className="mt-3">
-        <div className="mb-1 flex items-center justify-between">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs font-semibold">{t('review.statementEnglish')}</span>
           {p.statementUserLang && (
             <button className="min-h-11 min-w-11 text-xs text-sky-700 underline" onClick={() => setShowTranslation((s) => !s)}>
