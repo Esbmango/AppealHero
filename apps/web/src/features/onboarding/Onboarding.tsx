@@ -11,7 +11,7 @@ export function ProfileFields({ profile, onChange }: { profile: Profile; onChang
         <label key={key} className="block text-sm">
           <span className="mb-1 block text-slate-600">{t(`onboarding.${key}`)}</span>
           <input
-            className="min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-base"
+            className="min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2 text-base"
             name={key}
             autoComplete={key === 'address' ? 'street-address' : key}
             type={key === 'email' ? 'email' : 'text'}
@@ -35,8 +35,8 @@ export function Onboarding({ profile, onChange }: { profile: Profile; onChange: 
       }}
     >
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-sky-700">{t('onboarding.eyebrow')}</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">{t('onboarding.title')}</h1>
+        <p className="eyebrow">{t('onboarding.eyebrow')}</p>
+        <h1 className="serif-title mt-2 text-2xl font-bold tracking-tight text-navy">{t('onboarding.title')}</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-600">{t('onboarding.intro')}</p>
       </div>
       <div className="persona-options" role="group" aria-label={t('onboarding.title')}>
@@ -48,7 +48,7 @@ export function Onboarding({ profile, onChange }: { profile: Profile; onChange: 
             aria-pressed={profile.persona === id}
             onClick={() => onChange(personaProfile(id))}
             className={cx(
-              'flex min-h-16 min-w-0 w-full items-center justify-between gap-2 rounded-2xl border px-4 py-3 text-left',
+              'flex min-h-16 min-w-0 w-full items-center justify-between gap-2 rounded-[10px] border px-4 py-3 text-left',
               profile.persona === id ? 'border-sky-700 bg-sky-50 ring-1 ring-sky-700' : 'border-slate-200 bg-white',
             )}
           >
@@ -67,7 +67,7 @@ export function Onboarding({ profile, onChange }: { profile: Profile; onChange: 
           aria-pressed={profile.persona === 'custom'}
           onClick={() => onChange({ ...EMPTY_PROFILE })}
           className={cx(
-            'min-h-11 w-full rounded-xl border px-4 py-3 text-left text-sm font-medium',
+            'min-h-11 w-full rounded-lg border px-4 py-3 text-left text-sm font-medium',
             profile.persona === 'custom' ? 'border-sky-700 bg-sky-50' : 'border-slate-200 bg-white',
           )}
         >

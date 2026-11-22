@@ -33,12 +33,17 @@ export const dictionaries: Record<Lang, Record<string, string>> = {
   en: flatten({ common: enCommon, onboarding: enOnboarding, intake: enIntake, chat: enChat, review: enReview, filing: enFiling, assistant: enAssistant }),
 };
 const STORAGE_KEY = 'cp.lang';
+/** First visit: follow the browser language (zh / es), otherwise English. */
+const browserLang = (): Lang => {
+  const tag = (typeof navigator !== 'undefined' && navigator.language) || 'en';
+  return tag.startsWith('zh') ? 'zh' : tag.startsWith('es') ? 'es' : 'en';
+};
 const readLang = (): Lang => {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    return isLang(value) ? value : 'zh';
+    return isLang(value) ? value : browserLang();
   } catch {
-    return 'zh';
+    return browserLang();
   }
 };
 let lang = readLang();

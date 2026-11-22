@@ -150,7 +150,7 @@ function Intake({ profile, onCreated, onChangeProfile }: { profile: Profile; onC
         <p className="text-sm leading-relaxed">{t('intake.intro')}</p>
         <p className="mt-2 text-xs text-slate-500">{t('intake.simulated')}</p>
       </Card>
-      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+      <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
         <p className="text-sm font-semibold">{t('onboarding.using', { name: profile.name })}</p>
         <button className="min-h-11 text-sm text-sky-700 underline" onClick={onChangeProfile}>
           {t('onboarding.change')}
@@ -288,7 +288,7 @@ function AgentActivity({ c, events }: { c: CaseView; events: AgentEvent[] }) {
   if (!activity) return null;
   return (
     <div role="status" aria-live="polite" data-testid="agent-activity" data-activity={activity} className="flex items-start gap-2 px-1 text-sm text-slate-600">
-      <span className="typing-dots mt-1.5 text-emerald-700" aria-hidden="true">
+      <span className="typing-dots mt-1.5 text-brick" aria-hidden="true">
         <i />
         <i />
         <i />
@@ -309,11 +309,11 @@ function Chat({ messages }: { messages: ChatMessage[] }) {
         <div key={m.id} className={cx('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
           <div
             className={cx(
-              'max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap',
+              'max-w-[85%] rounded-[10px] px-3 py-2 text-sm whitespace-pre-wrap',
               m.role === 'user' ? 'bg-slate-900 text-white' : m.role === 'system' ? 'bg-rose-50 text-rose-800' : 'border bg-white',
             )}
           >
-            {m.text}
+            {/^📷 \d+ photo\(s\)$/.test(m.text) ? t('chat.photosSent', { count: m.evidenceIds?.length ?? 0 }) : m.text}
             {m.textEn && m.textEn !== m.text && <div className="mt-1 text-[10px] opacity-60">{t('common.english', { text: m.textEn })}</div>}
           </div>
         </div>
@@ -375,7 +375,7 @@ function Composer({ c }: { c: CaseView }) {
       <PhotoPicker files={photos} onChange={setPhotos} max={EVIDENCE_LIMITS.maxFiles} disabled={busy} highlight={q?.expects === 'photo'} />
       <div className="flex items-center gap-2">
         <input
-          className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm"
+          className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm"
           aria-label={t('chat.answerPlaceholder')}
           placeholder={t(q?.expects === 'photo' ? 'chat.photoPlaceholder' : 'chat.answerPlaceholder')}
           value={text}
@@ -578,7 +578,7 @@ function Progress({ events }: { events: AgentEvent[] }) {
 function ManualPack({ rows }: { rows: { label: string; value: string }[] }) {
   useLang();
   return (
-    <details className="mt-3 rounded-xl border bg-white p-2 text-xs">
+    <details className="mt-3 rounded-lg border bg-white p-2 text-xs">
       <summary className="font-semibold">{t('filing.manualPack')}</summary>
       <ul className="mt-2 space-y-1">
         {rows.map((r) => (

@@ -4,7 +4,7 @@ import { Button } from '../../components/ui';
 export function Circumstances({ value, onChange }: { value: CircumstanceChoice[]; onChange: (choices: CircumstanceChoice[]) => void }) {
   const lang = useLang();
   return (
-    <details className="rounded-xl border bg-white p-3">
+    <details className="rounded-lg border bg-white p-3">
       <summary>
         {t('intake.circumstances')}
         {value.length > 0 && ` (${value.length})`}

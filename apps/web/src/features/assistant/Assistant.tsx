@@ -35,7 +35,7 @@ const day = (iso: string) => formatDate(`${iso}T12:00:00-05:00`, true);
 function TicketList({ analysis, onAppeal }: { analysis: TicketListAnalysis; onAppeal: (ticket: AnalyzedTicket) => void }) {
   useLang();
   return (
-    <ul className="mt-2 divide-y rounded-xl border border-slate-200 bg-white" data-testid="assistant-tickets">
+    <ul className="mt-2 divide-y rounded-lg border border-slate-200 bg-white" data-testid="assistant-tickets">
       {analysis.tickets.map((ticket) => (
         <li key={ticket.ticketNumber} className="space-y-1 px-3 py-2 text-sm" data-ticket={ticket.ticketNumber} data-category={ticket.category}>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -138,7 +138,7 @@ export function Assistant({ onAppeal }: { onAppeal: (ticketNumber: string) => vo
           <div key={i} className={cx('flex', turn.role === 'user' ? 'justify-end' : 'justify-start')}>
             <div
               className={cx(
-                'max-w-[92%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-relaxed',
+                'max-w-[92%] whitespace-pre-wrap rounded-[10px] px-3 py-2 text-sm leading-relaxed',
                 turn.role === 'user' ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white',
               )}
             >
@@ -171,7 +171,7 @@ export function Assistant({ onAppeal }: { onAppeal: (ticketNumber: string) => vo
         </div>
         <div className="flex items-end gap-2">
           <textarea
-            className="min-h-11 min-w-0 flex-1 rounded-xl border px-3 py-2 text-base"
+            className="min-h-11 min-w-0 flex-1 rounded-lg border px-3 py-2 text-base"
             rows={2}
             aria-label={t('assistant.placeholder')}
             placeholder={t('assistant.placeholder')}

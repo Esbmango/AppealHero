@@ -15,7 +15,7 @@
   "appealPhoto": "This ticket isn't in the demo system. Tap “Ticket photo” and photograph it to start an appeal.",
   "dueBy": "Due {date} ({days} days left)",
   "overdue": "{days} days overdue (due {date}): a late fee is added, but you can still appeal",
-  "shotAttached": "📷 Screenshot sent",
+  "shotAttached": "Screenshot sent",
   "shotsSelected": "{count} screenshot(s) selected",
   "printed": "Site shows: {status}",
   "error": "The assistant didn't respond. Please try again.",

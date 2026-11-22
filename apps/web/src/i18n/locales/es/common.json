@@ -39,5 +39,6 @@
   "photo.gallery": "Elegir de la galería",
   "photo.thumb": "Foto {n}",
   "photo.remove": "Quitar la foto {n}",
-  "photo.count": "{count} de {max} fotos"
+  "photo.count": "{count} de {max} fotos",
+  "logoAlt": "AppealHero"
 }

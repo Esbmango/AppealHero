@@ -39,5 +39,6 @@
   "photo.gallery": "Choose from library",
   "photo.thumb": "Photo {n}",
   "photo.remove": "Remove photo {n}",
-  "photo.count": "{count} of {max} photos"
+  "photo.count": "{count} of {max} photos",
+  "logoAlt": "AppealHero"
 }

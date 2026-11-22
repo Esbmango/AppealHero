@@ -19,5 +19,12 @@
   "using": "当前身份：{name}",
   "vehicle": "车辆：{plate} · {state}",
   "chooseLanguage": "选择你的语言",
-  "chooseLanguageHint": "之后可以在右上角随时切换。"
+  "chooseLanguageHint": "之后可以在右上角随时切换。",
+  "heroEyebrow": "AppealHero · 波士顿",
+  "heroTitle": "更公平地处理停车罚单。",
+  "heroBody": "看懂罚单、整理证据，用你习惯的语言准备申诉。每一步都由你确认。",
+  "heroStart": "开始申诉",
+  "heroOr": "选择语言",
+  "heroFoot": "为波士顿设计，为每个人而建。",
+  "heroIndependent": "独立服务，与波士顿市政府无关。演示使用模拟门户和合成数据。"
 }

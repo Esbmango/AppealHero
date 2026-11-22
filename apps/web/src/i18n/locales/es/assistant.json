@@ -15,7 +15,7 @@
   "appealPhoto": "Esta multa no está en el sistema de demostración. Toca «Foto de la multa» y fotografíala para empezar la apelación.",
   "dueBy": "Plazo: {date} (quedan {days} días)",
   "overdue": "Vencida hace {days} días (plazo {date}): se suma un recargo, pero aún puedes apelar",
-  "shotAttached": "📷 Captura enviada",
+  "shotAttached": "Captura enviada",
   "shotsSelected": "{count} captura(s) seleccionada(s)",
   "printed": "El sitio muestra: {status}",
   "error": "El asistente no respondió. Inténtalo de nuevo.",

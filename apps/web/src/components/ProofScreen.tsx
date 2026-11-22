@@ -53,7 +53,7 @@ export function ProofScreen({ caseId }: { caseId: string }) {
         </a>
       </header>
       <div className="flow-scroll">
-        <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 text-sm shadow-sm" aria-label={t('filing.proof')}>
+        <section className="space-y-4 rounded-[10px] border border-slate-200 bg-white p-5 text-sm shadow-sm" aria-label={t('filing.proof')}>
           {error && (
             <p role="alert">
               {t('common.error')}{' '}
@@ -65,8 +65,8 @@ export function ProofScreen({ caseId }: { caseId: string }) {
           {busy && <p role="status">{t('filing.loadingProof')}</p>}
           {proof && (
             <>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">{t('filing.proofTitle')}</h1>
-              <div className="rounded-xl bg-teal-50 px-4 py-3 text-teal-950">
+              <h1 className="serif-title text-2xl font-bold tracking-tight text-navy">{t('filing.proofTitle')}</h1>
+              <div className="rounded-lg bg-teal-50 px-4 py-3 text-teal-950">
                 <p className="text-xs">{t('filing.confirmation')}</p>
                 <p className="my-1 font-mono text-xl font-bold">{proof.receipt?.confirmationNumber ?? '—'}</p>
                 <p className="text-xs">{t(proof.receipt?.emailVerified ? 'filing.emailConfirmed' : 'filing.emailPending')}</p>
@@ -74,7 +74,7 @@ export function ProofScreen({ caseId }: { caseId: string }) {
               <p className="font-semibold" data-testid="proof-match">
                 {t(proof.readbackMatches === undefined ? 'filing.noComparison' : proof.readbackMatches ? 'filing.hashMatch' : 'filing.hashMismatch')}
               </p>
-              <dl className="divide-y divide-slate-200 rounded-xl bg-slate-50 px-3 text-xs">
+              <dl className="divide-y divide-slate-200 rounded-lg bg-slate-50 px-3 text-xs">
                 {[
                   [t('filing.approvedHash'), proof.approvedPayloadHash],
                   [t('filing.readHash'), proof.readbackHash],
