@@ -19,6 +19,7 @@ const Env = z.object({
   MOCK_PORTAL_URL: z.string().default('http://localhost:4100'),
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().default('gemini-3.8-flash'),
+  GEMINI_FALLBACK_MODEL: z.string().optional(),
   GEMINI_CU_MODEL: z.string().default('gemini-3.8-flash'),
   AI_MODE: z.enum(['auto', 'gemini', 'fake']).default('auto'),
   APPROVAL_SECRET: z.string().optional(),
@@ -49,6 +50,9 @@ export const config = {
   mockPortalUrl: env.MOCK_PORTAL_URL.replace(/\/$/, ''),
   geminiApiKey: env.GEMINI_API_KEY || undefined,
   geminiModel: env.GEMINI_MODEL,
+  /** used for the last retry when GEMINI_MODEL keeps failing with transient errors */
+  geminiFallbackModel: env.GEMINI_FALLBACK_MODEL || undefined,
+  geminiRetryDelaysMs: [1500, 4000, 9000] as number[],
   cuModel: env.GEMINI_CU_MODEL,
   aiMode: resolveAiMode(env.AI_MODE, env.GEMINI_API_KEY),
   approvalSecret: env.APPROVAL_SECRET || randomBytes(32).toString('hex'),

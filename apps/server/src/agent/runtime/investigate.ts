@@ -1,7 +1,7 @@
 import type { Content, Part } from '@google/genai';
 import { config } from '../../core/config';
 import { publishMetrics, say, type Ctx } from '../../core/ctx';
-import { gemini, recordUsage } from '../llm';
+import { generate, recordUsage } from '../llm';
 import { declarationsFor, runTool, type ToolOutcome } from '../tools';
 import { buildSystemPrompt } from '../context';
 import { fakeTurn } from '../fake';
@@ -51,7 +51,7 @@ async function geminiTurn(ctx: Ctx, caseId: string, input: TurnInput) {
   });
   for (let step = 0; step < MAX_STEPS; step++) {
     const c = ctx.store.must(caseId);
-    const res = await gemini().models.generateContent({
+    const res = await generate({
       model: config.geminiModel,
       contents: c.llm.contents,
       config: { systemInstruction: buildSystemPrompt(c), tools: [{ functionDeclarations: declarationsFor(c.state) }] },

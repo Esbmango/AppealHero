@@ -1,3 +1,4 @@
+import { isTransientGeminiError } from '../agent/llm';
 import { DISPUTE_REASONS, PORTAL_FIELDS, US_STATES, type CaseView, type ChatMessage, type DisputeReason } from '@appealhero/shared';
 import type { CaseStore } from './store/cases';
 import type { UserRepo } from './store/users';
@@ -59,9 +60,18 @@ export function say(ctx: Ctx, caseId: string, text: string, extra: Partial<ChatM
   return message;
 }
 
+const BUSY: Record<string, string> = {
+  zh: 'Gemini 现在太忙（服务暂时不可用），自动重试了几次仍没有成功。请过一两分钟点“新案件”再试一次。',
+  es: 'Gemini está saturado en este momento (servicio no disponible). Lo reintentamos varias veces sin éxito. Espera uno o dos minutos y toca «Nuevo caso».',
+  en: 'Gemini is overloaded right now (service unavailable). We retried a few times without success. Wait a minute or two, then tap “New case”.',
+};
+
 export function reportError(ctx: Ctx, caseId: string, err: unknown) {
-  const message = err instanceof Error ? err.message : String(err);
-  ctx.hub.emit({ type: 'error', caseId, message });
+  const raw = err instanceof Error ? err.message : String(err);
+  ctx.hub.emit({ type: 'error', caseId, message: raw });
+  // The raw error stays in the event stream and the audit (transition reason); the user gets a plain sentence.
+  const lang = ctx.store.get(caseId)?.lang ?? 'en';
+  const message = isTransientGeminiError(err) ? (BUSY[lang] ?? BUSY.en) : raw;
   try {
     say(ctx, caseId, `⚠️ ${message}`, { role: 'system' });
   } catch {
